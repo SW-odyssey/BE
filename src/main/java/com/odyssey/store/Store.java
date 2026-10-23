@@ -1,5 +1,6 @@
 package com.odyssey.store;
 
+import com.odyssey.cell.entity.Cell;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -14,7 +15,7 @@ import static jakarta.persistence.FetchType.*;
  * 영업 중인 음식점 · 카페 (약 2,200곳).
  *
  * <p>원본은 행정안전부 지방행정 인허가 데이터(공공데이터)이고,
- * analysis 가 카카오 로컬 API 로 실제 영업 중인지 확인한 곳만 들어온다.
+ * 분류(category · foodType)는 analysis 가 상가정보 업종으로 정한다.
  * analysis 가 mgmtNo 로 upsert 하고 행은 지우지 않는다.
  */
 @Entity
@@ -46,11 +47,15 @@ public class Store {
 	@Column(length = 200)
 	private String nameRomanized;
 
-	// FOOD(한식 / 양식 / 일식 / 중식 / 아시아 / 분식 / 주점)
-	// CAFE(커피 / 디저트 / 베이커리 / 찻집)
+	// FOOD(음식점) / CAFE(카페)
 	@Enumerated(EnumType.STRING)
 	@Column(nullable = false, length = 10)
 	private Category category;
+
+	// 음식점 하위 종류 KOREAN / BAR / OTHER. 카페면 비어있음
+	@Enumerated(EnumType.STRING)
+	@Column(length = 10)
+	private FoodType foodType;
 
 	// 인허가 업태 (한식 / 중국식 / 커피숍 / 호프/통닭), 기타도 존재
 	// category 보다 세부 분류이고 필터나 태그에 사용 가능
@@ -80,10 +85,6 @@ public class Store {
 	// 구글 장소 ID, 영업시간, 평점 같은 상세를 실시간 조회시 키로 사용
 	@Column(length = 100)
 	private String googlePlaceId;
-
-	// 카카오 로컬 API 로 영업 중인 것을 확인한 날 (analysis 파이프라인 실행일)
-	@Column(nullable = false)
-	private LocalDate verifiedAt;
 
 	// 최근 적재 목록에 있으면 true, 목록에서 빠질 경우 폐업으로 보고 false 로 바꿈
 	// API 는 active 인 매장만 보여준다

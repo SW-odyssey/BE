@@ -5,6 +5,7 @@ create table store (
     name            varchar(100)        not null,
     name_romanized  varchar(200),
     category        varchar(10)         not null,
+    food_type       varchar(10),
     sub_type        varchar(50),
     franchise       boolean             not null,
     road_addr       varchar(200)        not null,
@@ -13,7 +14,6 @@ create table store (
     lng             double precision    not null,
     license_date    date                not null,
     google_place_id varchar(100),
-    verified_at     date                not null,
     active          boolean             not null
 );
 
