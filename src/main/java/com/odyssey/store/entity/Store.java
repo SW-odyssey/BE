@@ -1,4 +1,4 @@
-package com.odyssey.store;
+package com.odyssey.store.entity;
 
 import com.odyssey.cell.entity.Cell;
 import jakarta.persistence.*;

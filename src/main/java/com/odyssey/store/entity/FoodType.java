@@ -1,4 +1,4 @@
-package com.odyssey.store;
+package com.odyssey.store.entity;
 
 /**
  * 음식점 하위 종류. 화면에서 고를 수 있는 건 KOREAN · BAR 뿐이고 나머지는 OTHER

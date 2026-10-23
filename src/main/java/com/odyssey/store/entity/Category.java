@@ -1,4 +1,4 @@
-package com.odyssey.store;
+package com.odyssey.store.entity;
 
 /**
  * 매장 대분류. analysis 가 상가정보 업종으로 정하고, 상가정보에 짝이 없으면 인허가 업태로 정한다
