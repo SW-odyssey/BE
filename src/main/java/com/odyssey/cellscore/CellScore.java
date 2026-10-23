@@ -1,5 +1,6 @@
 package com.odyssey.cellscore;
 
+import com.odyssey.cell.entity.Cell;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
