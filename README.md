@@ -38,13 +38,12 @@ src/main/java/com/odyssey/
     config/               # CORS, Swagger, JPA 설정
     exception/            # 전역 예외 핸들러
     response/             # 공통 응답 래퍼
-  domain/
-    population/           # 도메인 단위로 분리
-      controller/         # REST 엔드포인트
-      service/            # 비즈니스 로직
-      repository/         # 조회 (JPA / JdbcClient)
-      entity/             # JPA 엔티티
-      dto/                # 요청·응답 DTO (record)
+  domain/                 # 도메인 단위로 분리
+    controller/         # REST 엔드포인트
+    service/            # 비즈니스 로직
+    repository/         # 조회 (JPA / JdbcClient)
+    entity/             # JPA 엔티티
+    dto/                # 요청·응답 DTO (record)
 
 src/main/resources/
   application.yaml        # 공통 설정 (프로파일 미지정 시 local)
