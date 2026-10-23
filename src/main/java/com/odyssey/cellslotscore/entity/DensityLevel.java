@@ -1,4 +1,4 @@
-package com.odyssey.cell.entity;
+package com.odyssey.cellslotscore.entity;
 
 /**
  * 같은 요일 묶음, 시간대 안에서의 상대적인 붐비는 정도

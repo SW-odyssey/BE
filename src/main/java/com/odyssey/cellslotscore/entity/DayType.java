@@ -1,4 +1,4 @@
-package com.odyssey.cell.entity;
+package com.odyssey.cellslotscore.entity;
 
 /**
  * 요일 묶음

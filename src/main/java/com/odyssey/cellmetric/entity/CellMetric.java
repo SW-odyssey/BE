@@ -1,5 +1,6 @@
-package com.odyssey.cell.entity;
+package com.odyssey.cellmetric.entity;
 
+import com.odyssey.cell.entity.Cell;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
