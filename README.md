@@ -56,7 +56,7 @@ src/main/resources/
 
 | 프로파일 | DB | `ddl-auto` | Actuator |
 | --- | --- | --- | --- |
-| `local` (기본) | compose.yaml의 postgres 자동 기동 | `create` | 전체 노출 |
+| `local` (기본) | compose.yaml의 postgres 자동 기동 | `validate` | 전체 노출 |
 | `test` | Testcontainers 가 띄우는 postgres | `validate` | - |
 
 배포는 아직 하지 않습니다. 필요해지면 `application-prod.yaml` 을 추가해
@@ -67,7 +67,7 @@ DB 접속 정보와 허용할 프론트엔드 주소를 환경변수로 받게 �
 스키마 변경은 **Flyway 마이그레이션 파일로만** 합니다.
 `src/main/resources/db/migration/` 에 `V{번호}__{설명}.sql` 형식으로 추가하세요.
 
-테스트는 `ddl-auto: validate` 라서 엔티티와 실제 테이블이 다르면 실패합니다.
+모든 프로파일이 `ddl-auto: validate` 라서 엔티티와 실제 테이블이 다르면 실패합니다.
 엔티티를 고쳤다면 마이그레이션 SQL도 같이 커밋해야 합니다.
 
 ## API 규약
