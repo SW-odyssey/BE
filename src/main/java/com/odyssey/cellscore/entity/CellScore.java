@@ -1,4 +1,4 @@
-package com.odyssey.cellscore;
+package com.odyssey.cellscore.entity;
 
 import com.odyssey.cell.entity.Cell;
 import jakarta.persistence.*;
