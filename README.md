@@ -38,17 +38,17 @@ src/main/java/com/odyssey/
     config/               # CORS, Swagger, JPA 설정
     exception/            # 전역 예외 핸들러
     response/             # 공통 응답 래퍼
-  domain/
-    population/           # 도메인 단위로 분리
-      controller/         # REST 엔드포인트
-      service/            # 비즈니스 로직
-      repository/         # 조회 (JPA / JdbcClient)
-      entity/             # JPA 엔티티
-      dto/                # 요청·응답 DTO (record)
+  domain/                 # 도메인 단위로 분리
+    controller/         # REST 엔드포인트
+    service/            # 비즈니스 로직
+    repository/         # 조회 (JPA / JdbcClient)
+    entity/             # JPA 엔티티
+    dto/                # 요청·응답 DTO (record)
 
 src/main/resources/
   application.yaml        # 공통 설정 (프로파일 미지정 시 local)
   application-local.yaml  # 로컬 - docker compose 기반, SQL 로그 on
+  application-supabase.yaml # Supabase 연결 - 접속 정보는 환경변수
   db/migration/           # Flyway 마이그레이션 SQL (V1__init.sql ...)
 ```
 
@@ -56,18 +56,27 @@ src/main/resources/
 
 | 프로파일 | DB | `ddl-auto` | Actuator |
 | --- | --- | --- | --- |
-| `local` (기본) | compose.yaml의 postgres 자동 기동 | `create` | 전체 노출 |
+| `local` (기본) | compose.yaml의 postgres 자동 기동 | `validate` | 전체 노출 |
 | `test` | Testcontainers 가 띄우는 postgres | `validate` | - |
+| `supabase` | Supabase Postgres (Session pooler) | `validate` | health, info |
 
-배포는 아직 하지 않습니다. 필요해지면 `application-prod.yaml` 을 추가해
-DB 접속 정보와 허용할 프론트엔드 주소를 환경변수로 받게 만들면 됩니다.
+### Supabase 로 실행
+
+`.env.example` 을 `.env` 로 복사해 값을 채웁니다. DB 비밀번호는 저장소에 없으니 팀원에게 따로 받습니다.
+
+```bash
+./gradlew bootRun --args='--spring.profiles.active=supabase'
+```
+
+기동하면 Flyway 가 아직 적용되지 않은 마이그레이션을 Supabase 에 적용합니다.
+`/actuator/health` 의 `db` 가 `UP` 이면 연결된 것입니다.
 
 ## DB 스키마
 
 스키마 변경은 **Flyway 마이그레이션 파일로만** 합니다.
 `src/main/resources/db/migration/` 에 `V{번호}__{설명}.sql` 형식으로 추가하세요.
 
-테스트는 `ddl-auto: validate` 라서 엔티티와 실제 테이블이 다르면 실패합니다.
+모든 프로파일이 `ddl-auto: validate` 라서 엔티티와 실제 테이블이 다르면 실패합니다.
 엔티티를 고쳤다면 마이그레이션 SQL도 같이 커밋해야 합니다.
 
 ## API 규약
