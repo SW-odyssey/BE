@@ -49,6 +49,7 @@ src/main/java/com/odyssey/
 src/main/resources/
   application.yaml        # 공통 설정 (프로파일 미지정 시 local)
   application-local.yaml  # 로컬 - docker compose 기반, SQL 로그 on
+  application-supabase.yaml # Supabase 연결 - 접속 정보는 환경변수
   db/migration/           # Flyway 마이그레이션 SQL (V1__init.sql ...)
 ```
 
@@ -58,9 +59,18 @@ src/main/resources/
 | --- | --- | --- | --- |
 | `local` (기본) | compose.yaml의 postgres 자동 기동 | `validate` | 전체 노출 |
 | `test` | Testcontainers 가 띄우는 postgres | `validate` | - |
+| `supabase` | Supabase Postgres (Session pooler) | `validate` | health, info |
 
-배포는 아직 하지 않습니다. 필요해지면 `application-prod.yaml` 을 추가해
-DB 접속 정보와 허용할 프론트엔드 주소를 환경변수로 받게 만들면 됩니다.
+### Supabase 로 실행
+
+`.env.example` 을 `.env` 로 복사해 값을 채웁니다. DB 비밀번호는 저장소에 없으니 팀원에게 따로 받습니다.
+
+```bash
+./gradlew bootRun --args='--spring.profiles.active=supabase'
+```
+
+기동하면 Flyway 가 아직 적용되지 않은 마이그레이션을 Supabase 에 적용합니다.
+`/actuator/health` 의 `db` 가 `UP` 이면 연결된 것입니다.
 
 ## DB 스키마
 
