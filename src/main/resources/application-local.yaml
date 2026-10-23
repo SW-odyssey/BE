@@ -1,11 +1,8 @@
 # 로컬 개발용. compose.yaml 의 postgres 를 spring-boot-docker-compose 가
 # 자동 기동하고 datasource 까지 주입하므로 DB 설정을 따로 두지 않는다.
+# ddl-auto 는 application.yaml 의 validate 를 그대로 쓴다. Flyway 가 만든 테이블을 Hibernate 가 건드리지 않는다.
 spring:
   jpa:
-    hibernate:
-      # create drop-create update validate none
-      ddl-auto: create # drop-create 멱등
-
     show-sql: true # sql을 console에 출력
 
     # 출력되는 SQL 보기 좋게 줄바꿈
