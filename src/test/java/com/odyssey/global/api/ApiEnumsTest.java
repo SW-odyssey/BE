@@ -57,12 +57,16 @@ class ApiEnumsTest {
 		assertThat(area).contains(Area.INSADONG);
 	}
 
+	// 같은 테스트를 areaId 값만 바꿔 4번 실행한다. 값은 JUnit 이 메서드 매개변수로 넣어 준다
+	// 결과에는 실행마다 "areaId = [null]" 처럼 name 의 {0} 자리에 값이 찍힌다
 	@ParameterizedTest(name = "areaId = [{0}]")
+	// null (?areaId 를 안 보냄), "" (?areaId=)
 	@NullAndEmptySource
+	// " " (공백만 보냄), "all" (전체 선택)
 	@ValueSource(strings = {" ", "all"})
 	@DisplayName("지역을 생략하거나 all 이면 비어 있어서 지역으로 거르지 않는다")
 	void parseWildcard(String areaId) {
-		// given: 파라미터로 받은 areaId
+		// given: 위 4개 값이 하나씩 areaId 로 들어온다
 
 		// when
 		Optional<Area> area = ApiEnums.parse(Area.class, "areaId", areaId, "all");
