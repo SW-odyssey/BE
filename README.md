@@ -52,25 +52,6 @@ src/main/resources/
   db/migration/           # Flyway 마이그레이션 SQL (V1__init.sql ...)
 ```
 
-## 프로파일
-
-| 프로파일 | DB | `ddl-auto` | Actuator |
-| --- | --- | --- | --- |
-| `local` (기본) | compose.yaml의 postgres 자동 기동 | `validate` | 전체 노출 |
-| `test` | Testcontainers 가 띄우는 postgres | `validate` | - |
-| `supabase` | Supabase Postgres (Session pooler) | `validate` | health, info |
-
-### Supabase 로 실행
-
-`.env.example` 을 `.env` 로 복사해 값을 채웁니다. DB 비밀번호는 저장소에 없으니 팀원에게 따로 받습니다.
-
-```bash
-./gradlew bootRun --args='--spring.profiles.active=supabase'
-```
-
-기동하면 Flyway 가 아직 적용되지 않은 마이그레이션을 Supabase 에 적용합니다.
-`/actuator/health` 의 `db` 가 `UP` 이면 연결된 것입니다.
-
 ## DB 스키마
 
 스키마 변경은 **Flyway 마이그레이션 파일로만** 합니다.
@@ -84,6 +65,31 @@ src/main/resources/
 - 응답: `{ "success": true, "data": ..., "error": null }` 형태의 공통 래퍼
 - 에러: HTTP 상태 코드 + `code` / `message`
 - 조회 API는 모두 `GET`, 목록은 `page` / `size` 페이징
+
+## 테스트
+
+테스트는 **given / when / then** 으로 작성합니다.
+
+- 주석 `// given`, `// when`, `// then` 으로 준비 · 실행 · 검증을 나눕니다.
+- 테스트 하나에는 동작 하나만 둡니다. 여러 경우는 테스트를 나누거나 `@ParameterizedTest` 로 씁니다.
+- 예외를 직접 검증하는 단위 테스트는 when 에서 `catchThrowableOfType` 으로 받고 then 에서 검증합니다.
+- API 예외 응답 테스트는 `mockMvc.perform(...)` 후 HTTP 상태와 JSON 오류 필드(`error.code`, `error.message`)를 검증합니다.
+- `@DisplayName` 은 구현 용어 대신 "어떤 상황이면 → 어떤 결과" 로 씁니다.
+
+```java
+@Test
+@DisplayName("DB 조회가 실패하면 503 DATA_UNAVAILABLE 로 응답한다")
+void dataAccess() throws Exception {
+	// given
+	MockHttpServletRequestBuilder request = get("/test/db");
+
+	// when
+	ResultActions result = mockMvc.perform(request);
+
+	// then
+	expectError(result, 503, "DATA_UNAVAILABLE", "데이터를 일시적으로 불러올 수 없습니다.");
+}
+```
 
 ## 커밋 컨벤션
 

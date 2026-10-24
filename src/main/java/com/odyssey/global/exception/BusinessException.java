@@ -1,27 +1,16 @@
 package com.odyssey.global.exception;
 
-import org.springframework.http.HttpStatus;
-
 /**
  * 비즈니스 규칙 위반을 나타내는 예외.
  *
- * <p>던질 때 HTTP 상태 코드와 에러 코드를 함께 지정한다.
+ * <p>던질 때 오류 코드({@link ErrorType})와 사용자에게 보여줄 문구를 함께 지정한다.
+ * HTTP 상태 코드는 오류 코드가 정한다. 오류 코드 목록은 {@link CommonErrorCode}.
  * {@link GlobalExceptionHandler} 가 이 예외를 받아
  * {@link com.odyssey.global.response.ApiResult} 형식으로 변환한다.
  *
- * <p>담는 값
- * <ul>
- *   <li>status - 응답에 쓸 HTTP 상태 코드</li>
- *   <li>code - 프론트가 분기에 쓰는 문자열 코드</li>
- *   <li>message - 사용자에게 보여줄 문구 ({@link RuntimeException} 으로 전달)</li>
- * </ul>
- *
  * <p>사용 예
  * <pre>{@code
- * throw new BusinessException(
- *         HttpStatus.NOT_FOUND,
- *         "POPULATION_NOT_FOUND",
- *         "해당 지역 데이터가 없습니다.");
+ * throw new BusinessException(CommonErrorCode.PLACE_NOT_FOUND, "장소를 찾을 수 없습니다: 99999");
  * }</pre>
  *
  * <p>위 예외가 만들어 내는 응답 (HTTP 404)
@@ -30,35 +19,29 @@ import org.springframework.http.HttpStatus;
  *     "success": false,
  *     "data": null,
  *     "error": {
- *         "code": "POPULATION_NOT_FOUND",
- *         "message": "해당 지역 데이터가 없습니다."
+ *         "code": "PLACE_NOT_FOUND",
+ *         "message": "장소를 찾을 수 없습니다: 99999"
  *     }
  * }
  * }</pre>
  */
 public class BusinessException extends RuntimeException {
 
-	private final HttpStatus status;
-	private final String code;
+	private final ErrorType errorType;
 
 	/**
-	 * @param status  응답으로 내보낼 HTTP 상태 코드
-	 * @param code    에러를 구분하는 문자열 코드 (예: POPULATION_NOT_FOUND)
-	 * @param message 사용자에게 보여줄 메시지
+	 * @param errorType 오류 코드 (HTTP 상태 코드도 여기서 정해진다)
+	 * @param message   사용자에게 보여줄 메시지
 	 */
-	public BusinessException(HttpStatus status, String code, String message) {
+	public BusinessException(ErrorType errorType, String message) {
 		super(message);
-		this.status = status;
-		this.code = code;
+		this.errorType = errorType;
 	}
 
-	/** @return 응답에 사용할 HTTP 상태 코드 */
-	public HttpStatus getStatus() {
-		return status;
-	}
-
-	/** @return 에러를 구분하는 문자열 코드 */
-	public String getCode() {
-		return code;
+	/**
+	 * @return 오류 코드
+	 */
+	public ErrorType getErrorType() {
+		return errorType;
 	}
 }
