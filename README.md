@@ -72,7 +72,8 @@ src/main/resources/
 
 - 주석 `// given`, `// when`, `// then` 으로 준비 · 실행 · 검증을 나눕니다.
 - 테스트 하나에는 동작 하나만 둡니다. 여러 경우는 테스트를 나누거나 `@ParameterizedTest` 로 씁니다.
-- 예외는 when 에서 `catchThrowableOfType` 으로 받고 then 에서 검증합니다.
+- 예외를 직접 검증하는 단위 테스트는 when 에서 `catchThrowableOfType` 으로 받고 then 에서 검증합니다.
+- API 예외 응답 테스트는 `mockMvc.perform(...)` 후 HTTP 상태와 JSON 오류 필드(`error.code`, `error.message`)를 검증합니다.
 - `@DisplayName` 은 구현 용어 대신 "어떤 상황이면 → 어떤 결과" 로 씁니다.
 
 ```java
