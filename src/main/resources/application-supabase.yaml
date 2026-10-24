@@ -16,3 +16,9 @@ spring:
     compose:
       # 로컬 compose 의 postgres 를 띄우지 않는다
       enabled: false
+
+  flyway:
+    # Supabase 가 public 스키마에 rls_auto_enable 함수를 미리 만들어 둬서 Flyway 가 비어 있지 않은 스키마로 본다.
+    # baseline 을 0 으로 잡아 V1 부터 전부 실행되게 한다. 이력 테이블이 생긴 뒤에는 이 설정이 동작하지 않는다
+    baseline-on-migrate: true
+    baseline-version: 0
