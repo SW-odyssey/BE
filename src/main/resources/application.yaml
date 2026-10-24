@@ -19,6 +19,12 @@ spring:
     # 마이그레이션 SQL 위치 (V1__init.sql ...)
     locations: classpath:db/migration
 
+  jackson:
+    datatype:
+      enum:
+        # 응답의 enum 을 소문자로 (LATE_NIGHT → "late_night"). API 값 규칙은 GitHub 이슈 #28
+        write-enums-to-lowercase: true
+
 management:
   # 외부로 노출할 actuator 엔드포인트
   endpoints:

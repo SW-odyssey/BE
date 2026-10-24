@@ -5,6 +5,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.time.LocalDate;
+import java.util.Map;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,10 +22,12 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.odyssey.cellslotscore.entity.TimeSlot;
 import com.odyssey.global.response.ApiResult;
 
 /**
- * {@link GlobalExceptionHandler} 가 오류를 GitHub 이슈 #28 의 코드로 바꾸는지 확인한다.
+ * {@link GlobalExceptionHandler} 가 오류를 GitHub 이슈 #28 의 코드로 바꾸는지,
+ * 응답의 enum 이 소문자로 나가는지 확인한다.
  *
  * <p>실제 API 에서는 이런 오류를 일부러 낼 수 없어서, 오류마다 그 예외를 던지는
  * 테스트 전용 컨트롤러({@link TestController}, /test/**)를 둔다. 이 컨트롤러는 이 테스트에서만
@@ -116,6 +119,20 @@ class GlobalExceptionHandlerTest {
 		expectError(result, 500, "INTERNAL_ERROR", "서버 오류가 발생했습니다.");
 	}
 
+	@Test
+	@DisplayName("응답 JSON 의 enum 은 소문자로 나간다 (LATE_NIGHT → late_night)")
+	void enumLowercase() throws Exception {
+		// given: TimeSlot.LATE_NIGHT 를 담아 응답하는 요청
+		MockHttpServletRequestBuilder request = get("/test/enum");
+
+		// when
+		ResultActions result = mockMvc.perform(request);
+
+		// then
+		result.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.slot").value("late_night"));
+	}
+
 	private static void expectError(
 		ResultActions result,
 		int status,
@@ -165,6 +182,11 @@ class GlobalExceptionHandlerTest {
 		@GetMapping("/test/boom")
 		ApiResult<Void> boom() {
 			throw new IllegalStateException("내부 정보");
+		}
+
+		@GetMapping("/test/enum")
+		ApiResult<Map<String, TimeSlot>> slot() {
+			return ApiResult.ok(Map.of("slot", TimeSlot.LATE_NIGHT));
 		}
 	}
 }
