@@ -108,7 +108,7 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 			exception.getParameterName() + " 값이 필요합니다.");
 	}
 
-	// 404, 405 처럼 Spring 이 자체 처리하는 예외를 ApiResult 형식으로
+	// 404, 405, 5xx 처럼 Spring 이 자체 처리하는 예외를 ApiResult 형식으로
 	@Override
 	protected ResponseEntity<Object> handleExceptionInternal(
 		Exception exception,
@@ -122,7 +122,18 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 			return failAsObject(CommonErrorCode.INVALID_INPUT, "잘못된 요청입니다.");
 		}
 
-		// 나머지는 NOT_FOUND 같은 상태 이름을 code 로 쓴다
+		// 5xx (예: JSON 변환 실패) 는 handleUnexpected 와 같이 내부 메시지를 숨기고
+		// INTERNAL_ERROR 로 묶는다. 상태 코드는 Spring 이 정한 값을 유지한다
+		// (failAsObject 를 쓰면 500 으로 덮인다)
+		if (statusCode.is5xxServerError()) {
+			log.error("Spring 내부 처리 예외", exception);
+			ApiResult<Void> result = ApiResult.fail(
+				CommonErrorCode.INTERNAL_ERROR.name(),
+				"서버 오류가 발생했습니다.");
+			return new ResponseEntity<>(result, headers, statusCode);
+		}
+
+		// 나머지(404, 405)는 NOT_FOUND 같은 상태 이름을 code 로 쓴다
 		ApiResult<Void> result = ApiResult.fail(
 			HttpStatus.valueOf(statusCode.value()).name(),
 			exception.getMessage());

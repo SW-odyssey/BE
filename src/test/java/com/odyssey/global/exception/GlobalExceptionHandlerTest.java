@@ -13,6 +13,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.http.converter.HttpMessageNotWritableException;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -120,6 +121,19 @@ class GlobalExceptionHandlerTest {
 	}
 
 	@Test
+	@DisplayName("Spring 이 5xx 로 처리하는 예외도 INTERNAL_ERROR 로 응답하고 내부 메시지는 숨긴다")
+	void springServerError() throws Exception {
+		// given: Spring 이 500 으로 처리하는 예외(JSON 변환 실패)를 던지는 요청
+		MockHttpServletRequestBuilder request = get("/test/not-writable");
+
+		// when
+		ResultActions result = mockMvc.perform(request);
+
+		// then
+		expectError(result, 500, "INTERNAL_ERROR", "서버 오류가 발생했습니다.");
+	}
+
+	@Test
 	@DisplayName("응답 JSON 의 enum 은 소문자로 나간다 (LATE_NIGHT → late_night)")
 	void enumLowercase() throws Exception {
 		// given: TimeSlot.LATE_NIGHT 를 담아 응답하는 요청
@@ -182,6 +196,11 @@ class GlobalExceptionHandlerTest {
 		@GetMapping("/test/boom")
 		ApiResult<Void> boom() {
 			throw new IllegalStateException("내부 정보");
+		}
+
+		@GetMapping("/test/not-writable")
+		ApiResult<Void> notWritable() {
+			throw new HttpMessageNotWritableException("내부 정보");
 		}
 
 		@GetMapping("/test/enum")
