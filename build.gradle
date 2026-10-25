@@ -17,6 +17,10 @@ repositories {
 	mavenCentral()
 }
 
+configurations {
+	mockitoAgent
+}
+
 dependencies {
 	// 웹 계층 - REST 컨트롤러, 내장 Tomcat
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
@@ -29,6 +33,12 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-data-jpa'
 	// PostgreSQL JDBC 드라이버 - 실행 시점에만 필요
 	runtimeOnly 'org.postgresql:postgresql'
+
+	// QueryDSL - 조건이 바뀌는 조회를 타입 안전하게 조립 (원본 com.querydsl 은 관리가 멈춰 OpenFeign 포크를 쓴다)
+	// 빌드할 때 엔티티마다 Q 클래스(QStore 등)를 build/generated 에 만든다
+	implementation 'io.github.openfeign.querydsl:querydsl-jpa:7.7'
+	annotationProcessor 'io.github.openfeign.querydsl:querydsl-apt:7.7:jpa'
+	annotationProcessor 'jakarta.persistence:jakarta.persistence-api'
 
 	// DB 스키마 버전 관리 - 기동 시 migration SQL 자동 실행
 	implementation 'org.springframework.boot:spring-boot-starter-flyway'
@@ -66,8 +76,17 @@ dependencies {
 	// 테스트 코드에서도 Lombok 사용
 	testCompileOnly 'org.projectlombok:lombok'
 	testAnnotationProcessor 'org.projectlombok:lombok'
+
+	// 버전은 Spring Boot가 관리합니다. agent로 쓸 jar 하나만 필요해서 하위 의존성은 받지 않습니다.
+	mockitoAgent('org.mockito:mockito-core') {
+		transitive = false
+	}
 }
 
 tasks.named('test') {
 	useJUnitPlatform()
+	// asPath 는 의존성을 내려받으므로, 설정 단계가 아니라 test 를 실제로 실행할 때 붙인다
+	doFirst {
+		jvmArgs += "-javaagent:${configurations.mockitoAgent.asPath}"
+	}
 }
