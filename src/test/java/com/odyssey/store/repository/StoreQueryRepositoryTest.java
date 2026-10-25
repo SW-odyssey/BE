@@ -21,7 +21,7 @@ import com.odyssey.store.entity.Category;
 import com.odyssey.store.entity.FoodType;
 
 /**
- * {@link StoreQueryRepository} 를 실제 Postgres(Testcontainers)에서 확인한다.
+ * {@link StoreRepository} 를 실제 Postgres(Testcontainers)에서 확인한다.
  *
  * <p>엔티티가 읽기 전용이라 시드는 SQL 로 넣는다. 테스트마다 트랜잭션을 되돌려 서로 영향을 주지 않는다.
  *
@@ -37,7 +37,7 @@ class StoreQueryRepositoryTest {
 	private static final long CELL_B = 81399965L;
 
 	@Autowired
-	private StoreQueryRepository storeQueryRepository;
+	private StoreRepository storeQueryRepository;
 
 	@Autowired
 	private JdbcClient jdbc;

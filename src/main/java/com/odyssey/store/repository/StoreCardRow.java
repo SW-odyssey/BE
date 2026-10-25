@@ -18,5 +18,6 @@ public record StoreCardRow(
 	Area area,
 	double lat,
 	double lng,
-	LocalDate licenseDate) {
+	LocalDate licenseDate,
+	String googlePlaceId) {
 }

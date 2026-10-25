@@ -25,7 +25,7 @@ import lombok.RequiredArgsConstructor;
  */
 @Repository
 @RequiredArgsConstructor
-public class StoreQueryRepository {
+public class StoreRepository {
 
 	private final JPAQueryFactory query;
 
@@ -48,8 +48,17 @@ public class StoreQueryRepository {
 
 		return query
 			.select(Projections.constructor(StoreCardRow.class,
-				store.id, store.name, store.category, store.foodType,
-				cell.cellId, cell.area, store.lat, store.lng, store.licenseDate))
+				store.id,
+				store.name,
+				store.category,
+				store.foodType,
+				cell.cellId,
+				cell.area,
+				store.lat,
+				store.lng,
+				store.licenseDate,
+				store.googlePlaceId
+			))
 			.from(store)
 			.join(store.cell, cell)
 			.where(
