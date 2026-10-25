@@ -46,11 +46,13 @@ class StoreQueryRepositoryTest {
 	void seed() {
 		cell(CELL_A, "INSADONG", "공평동");
 		cell(CELL_B, "JONGNO", "관철동");
-		store(1, CELL_A, "공평식당", "FOOD", "KOREAN", "1995-05-20", false, true);
-		store(2, CELL_A, "백부장집", "FOOD", "KOREAN", "1968-03-11", false, true);
-		store(3, CELL_A, "스타벅스 공평점", "CAFE", null, "2015-01-01", true, true);
-		store(4, CELL_A, "닫은 술집", "FOOD", "BAR", "2000-01-01", false, false);
+		// id 역순으로 넣는다. Postgres 는 ORDER BY 가 없으면 보통 넣은 순서로 돌려줘서,
+		// id 순으로 넣으면 리포지토리의 orderBy(id) 를 지워도 순서 검증이 통과해 버린다
 		store(5, CELL_B, "Cafe Onion", "CAFE", null, "2018-01-01", false, true);
+		store(4, CELL_A, "닫은 술집", "FOOD", "BAR", "2000-01-01", false, false);
+		store(3, CELL_A, "스타벅스 공평점", "CAFE", null, "2015-01-01", true, true);
+		store(2, CELL_A, "백부장집", "FOOD", "KOREAN", "1968-03-11", false, true);
+		store(1, CELL_A, "공평식당", "FOOD", "KOREAN", "1995-05-20", false, true);
 	}
 
 	@Test
@@ -137,6 +139,47 @@ class StoreQueryRepositoryTest {
 
 		// then
 		assertThat(rows).extracting(StoreCardRow::name).containsExactly("Cafe Onion");
+	}
+
+	@Test
+	@DisplayName("검색어가 공백뿐이면 이름 조건을 걸지 않는다")
+	void blankQuery() {
+		// given
+		String q = "   ";
+
+		// when
+		List<StoreCardRow> rows = storeQueryRepository.findCards(List.of(CELL_A), null, null, null, q);
+
+		// then: 조건이 없을 때와 같다
+		assertThat(rows).extracting(StoreCardRow::name).containsExactly("공평식당", "백부장집");
+	}
+
+	@Test
+	@DisplayName("여러 칸의 매장은 칸과 상관없이 id 순으로 섞여 나온다")
+	void multipleCellsById() {
+		// given: 칸 B 를 먼저 넘긴다
+		List<Long> cellIds = List.of(CELL_B, CELL_A);
+
+		// when
+		List<StoreCardRow> rows = storeQueryRepository.findCards(cellIds, null, null, null, null);
+
+		// then: 칸 순서가 아니라 id 순. 칸 순위 정렬은 서비스가 따로 한다
+		assertThat(rows).extracting(StoreCardRow::id).containsExactly(1L, 2L, 5L);
+	}
+
+	@Test
+	@DisplayName("googlePlaceId 는 있으면 그 값을, 없으면 null 을 준다")
+	void googlePlaceId() {
+		// given: 공평식당만 구글 장소와 맞춰져 있다
+		jdbc.sql("update store set google_place_id = ? where id = ?")
+			.params("ChIJ-test-place", 1L)
+			.update();
+
+		// when
+		List<StoreCardRow> rows = storeQueryRepository.findCards(List.of(CELL_A), null, null, null, null);
+
+		// then: 공평식당(1) → 값, 백부장집(2) → null
+		assertThat(rows).extracting(StoreCardRow::googlePlaceId).containsExactly("ChIJ-test-place", null);
 	}
 
 	private void cell(long cellId, String area, String legalDong) {
