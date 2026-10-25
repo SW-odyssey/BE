@@ -17,6 +17,10 @@ repositories {
 	mavenCentral()
 }
 
+configurations {
+	mockitoAgent
+}
+
 dependencies {
 	// 웹 계층 - REST 컨트롤러, 내장 Tomcat
 	implementation 'org.springframework.boot:spring-boot-starter-webmvc'
@@ -72,8 +76,14 @@ dependencies {
 	// 테스트 코드에서도 Lombok 사용
 	testCompileOnly 'org.projectlombok:lombok'
 	testAnnotationProcessor 'org.projectlombok:lombok'
+
+	// 버전은 Spring Boot가 관리합니다. agent로 쓸 jar 하나만 필요해서 하위 의존성은 받지 않습니다.
+	mockitoAgent('org.mockito:mockito-core') {
+		transitive = false
+	}
 }
 
 tasks.named('test') {
 	useJUnitPlatform()
+	jvmArgs += "-javaagent:${configurations.mockitoAgent.asPath}"
 }
