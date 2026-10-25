@@ -30,6 +30,14 @@ Docker가 실행 중이어야 합니다. `bootRun` 이 `compose.yaml` 의 postgr
 ./gradlew build         # 빌드 (build/libs/*.jar)
 ```
 
+## 배포
+
+`main` 에 merge 되면 Cloud Build 가 Cloud Run(`odyssey-be`, 서울 리전)에 자동으로 배포합니다.
+
+- API 서버: https://odyssey-be-346395334988.asia-northeast3.run.app
+- API 문서: https://odyssey-be-346395334988.asia-northeast3.run.app/swagger-ui.html
+- 헬스체크: https://odyssey-be-346395334988.asia-northeast3.run.app/actuator/health
+
 ## 설정 프로파일
 
 - 프로파일을 정하지 않으면 `local` 로 동작합니다. docker compose 의 postgres 를 쓰고 SQL 로그를 켭니다.
