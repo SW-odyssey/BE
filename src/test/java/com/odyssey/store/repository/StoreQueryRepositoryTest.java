@@ -111,6 +111,21 @@ class StoreQueryRepositoryTest {
 	}
 
 	@Test
+	@DisplayName("노포 기준일 당일에 개업한 곳도 남긴다")
+	void openedBeforeInclusive() {
+		// given: 기준일 1990-01-01 에 개업한 매장을 추가
+		LocalDate openedBefore = LocalDate.of(1990, 1, 1);
+		store(6, CELL_A, "기준일식당", "FOOD", "KOREAN", "1990-01-01", false, true);
+
+		// when
+		List<StoreCardRow> rows = storeQueryRepository.findCards(
+			List.of(CELL_A), null, null, openedBefore, null);
+
+		// then
+		assertThat(rows).extracting(StoreCardRow::name).containsExactly("백부장집", "기준일식당");
+	}
+
+	@Test
 	@DisplayName("검색어는 대소문자를 무시하고 이름에 포함된 곳을 찾는다")
 	void nameContains() {
 		// given
