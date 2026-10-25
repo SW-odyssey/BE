@@ -85,5 +85,8 @@ dependencies {
 
 tasks.named('test') {
 	useJUnitPlatform()
-	jvmArgs += "-javaagent:${configurations.mockitoAgent.asPath}"
+	// asPath 는 의존성을 내려받으므로, 설정 단계가 아니라 test 를 실제로 실행할 때 붙인다
+	doFirst {
+		jvmArgs += "-javaagent:${configurations.mockitoAgent.asPath}"
+	}
 }
