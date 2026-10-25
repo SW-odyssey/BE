@@ -30,66 +30,23 @@ Docker가 실행 중이어야 합니다. `bootRun` 이 `compose.yaml` 의 postgr
 ./gradlew build         # 빌드 (build/libs/*.jar)
 ```
 
-## 폴더 구조
+## 배포
 
-```
-src/main/java/com/odyssey/
-  global/                 # 공통 설정, 예외 처리, 응답 포맷
-    config/               # CORS, Swagger, JPA 설정
-    exception/            # 전역 예외 핸들러
-    response/             # 공통 응답 래퍼
-  domain/                 # 도메인 단위로 분리
-    controller/         # REST 엔드포인트
-    service/            # 비즈니스 로직
-    repository/         # 조회 (JPA / JdbcClient)
-    entity/             # JPA 엔티티
-    dto/                # 요청·응답 DTO (record)
+`main` 에 merge 되면 Cloud Build 가 Cloud Run(`odyssey-be`, 서울 리전)에 자동으로 배포합니다.
 
-src/main/resources/
-  application.yaml        # 공통 설정 (프로파일 미지정 시 local)
-  application-local.yaml  # 로컬 - docker compose 기반, SQL 로그 on
-  application-supabase.yaml # Supabase 연결 - 접속 정보는 환경변수
-  db/migration/           # Flyway 마이그레이션 SQL (V1__init.sql ...)
-```
+- API 서버: https://odyssey-be-346395334988.asia-northeast3.run.app
+- API 문서: https://odyssey-be-346395334988.asia-northeast3.run.app/swagger-ui.html
+- 헬스체크: https://odyssey-be-346395334988.asia-northeast3.run.app/actuator/health
 
-## DB 스키마
+## 설정 프로파일
 
-스키마 변경은 **Flyway 마이그레이션 파일로만** 합니다.
-`src/main/resources/db/migration/` 에 `V{번호}__{설명}.sql` 형식으로 추가하세요.
+- 프로파일을 정하지 않으면 `local` 로 동작합니다. docker compose 의 postgres 를 쓰고 SQL 로그를 켭니다.
+- `supabase` 는 Supabase DB 에 연결합니다. 접속 정보는 환경변수로 넣습니다 (`.env.example` 참고).
 
-모든 프로파일이 `ddl-auto: validate` 라서 엔티티와 실제 테이블이 다르면 실패합니다.
-엔티티를 고쳤다면 마이그레이션 SQL도 같이 커밋해야 합니다.
+## 개발 규칙
 
-## API 규약
-
-- 응답: `{ "success": true, "data": ..., "error": null }` 형태의 공통 래퍼
-- 에러: HTTP 상태 코드 + `code` / `message`
-- 조회 API는 모두 `GET`, 목록은 `page` / `size` 페이징
-
-## 테스트
-
-테스트는 **given / when / then** 으로 작성합니다.
-
-- 주석 `// given`, `// when`, `// then` 으로 준비 · 실행 · 검증을 나눕니다.
-- 테스트 하나에는 동작 하나만 둡니다. 여러 경우는 테스트를 나누거나 `@ParameterizedTest` 로 씁니다.
-- 예외를 직접 검증하는 단위 테스트는 when 에서 `catchThrowableOfType` 으로 받고 then 에서 검증합니다.
-- API 예외 응답 테스트는 `mockMvc.perform(...)` 후 HTTP 상태와 JSON 오류 필드(`error.code`, `error.message`)를 검증합니다.
-- `@DisplayName` 은 구현 용어 대신 "어떤 상황이면 → 어떤 결과" 로 씁니다.
-
-```java
-@Test
-@DisplayName("DB 조회가 실패하면 503 DATA_UNAVAILABLE 로 응답한다")
-void dataAccess() throws Exception {
-	// given
-	MockHttpServletRequestBuilder request = get("/test/db");
-
-	// when
-	ResultActions result = mockMvc.perform(request);
-
-	// then
-	expectError(result, 503, "DATA_UNAVAILABLE", "데이터를 일시적으로 불러올 수 없습니다.");
-}
-```
+API · 패키지 · JPA · DB 스키마 · 테스트 · PR 규칙은
+[docs/be-code-convention.md](docs/be-code-convention.md) 에 있습니다.
 
 ## 커밋 컨벤션
 
