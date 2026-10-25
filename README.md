@@ -37,5 +37,13 @@ Docker가 실행 중이어야 합니다. `bootRun` 이 `compose.yaml` 의 postgr
 
 ## 개발 규칙
 
-API · 패키지 · JPA · DB 스키마 · 테스트 · 커밋 · PR 규칙은
+API · 패키지 · JPA · DB 스키마 · 테스트 · PR 규칙은
 [docs/be-code-convention.md](docs/be-code-convention.md) 에 있습니다.
+
+## 커밋 컨벤션
+
+- `feat:` 기능 추가
+- `fix:` 버그 수정
+- `refactor:` 기능 변경 없는 코드 구조 개선
+- `chore:` 설정/빌드 관련
+- `test:` 테스트 작성, 수정
