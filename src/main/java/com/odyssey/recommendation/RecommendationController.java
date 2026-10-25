@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.util.List;
 
 /**
  * 추천 API (GitHub 이슈 #30). GET /api/v1/recommendations
@@ -34,6 +35,8 @@ public class RecommendationController {
 	private static final int VISIT_DAYS_AHEAD = 6;
 	/** 검색어 최대 길이 (#30) */
 	private static final int MAX_QUERY_LENGTH = 80;
+	/** 노포 기준으로 고를 수 있는 "N년 이상" (meta API 의 since 선택지와 같은 값) */
+	private static final List<String> SINCE_YEARS = List.of("20", "30", "40");
 
 	private final RecommendationService recommendationService;
 	// 서버가 UTC 로 돌아도 서울 기준 "오늘"이 나오도록 주입받은 시계를 쓴다 (ClockConfig)
@@ -114,18 +117,20 @@ public class RecommendationController {
 	 *
 	 * <p>기준을 오늘로 할지 방문일로 할지는 아직 정하지 않았다 (최대 6일 차이)
 	 *
+	 * <p>숫자이기만 하면 받지 않고 선택지 값만 받는다. 큰 수는 날짜 계산이나 DB 에서 500 이 나고,
+	 * 음수는 미래 날짜가 되어 조건이 의미를 잃는다.
+	 *
 	 * @return 생략했거나 "any" 면 null (상관없음)
-	 * @throws BusinessException 숫자가 아니면 INVALID_INPUT
+	 * @throws BusinessException 20 · 30 · 40 이 아니면 INVALID_INPUT
 	 */
 	private static LocalDate toOpenedBefore(String since, LocalDate today) {
 		if (since == null || since.isBlank() || since.equals("any")) {
 			return null;
 		}
-		try {
-			return today.minusYears(Integer.parseInt(since));
-		} catch (NumberFormatException e) {
+		if (!SINCE_YEARS.contains(since)) {
 			throw new BusinessException(CommonErrorCode.INVALID_INPUT,
-				"since 값이 올바르지 않습니다: " + since + " (가능한 값: any, 20, 30, 40)");
+				"since 값이 올바르지 않습니다: " + since + " (가능한 값: any, " + String.join(", ", SINCE_YEARS) + ")");
 		}
+		return today.minusYears(Integer.parseInt(since));
 	}
 }

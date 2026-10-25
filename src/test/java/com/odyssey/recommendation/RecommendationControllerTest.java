@@ -11,6 +11,8 @@ import com.odyssey.store.entity.FoodType;
 import com.odyssey.store.repository.StoreCardRow;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -241,15 +243,17 @@ class RecommendationControllerTest {
 		expectInvalidInput(result);
 	}
 
-	@Test
-	@DisplayName("since 가 숫자가 아니면 400 INVALID_INPUT")
-	void invalidSince() throws Exception {
-		// given: since 는 음식점일 때만 읽으므로 음식점을 같이 보낸다
+	@ParameterizedTest
+	@ValueSource(strings = {"abc", "25", "201", "-1", "2000000000"})
+	@DisplayName("since 가 선택지(20 · 30 · 40)가 아니면 400 INVALID_INPUT")
+	void invalidSince(String since) throws Exception {
+		// given: since 는 음식점일 때만 읽으므로 음식점을 같이 보낸다.
+		// 2000000000 은 날짜 계산에서, -1 은 미래 날짜가 되어 걸러지지 않으면 500 이나 엉뚱한 조건이 된다
 
 		// when
 		ResultActions result = mockMvc.perform(get(URL)
 			.param("category", "food")
-			.param("since", "abc"));
+			.param("since", since));
 
 		// then
 		expectInvalidInput(result);
