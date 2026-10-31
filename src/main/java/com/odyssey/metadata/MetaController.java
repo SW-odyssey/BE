@@ -45,7 +45,7 @@ public class MetaController {
 		MetaResponse response = new MetaResponse(
 			ClockConfig.SEOUL.getId(),
 			List.of("ko", "ja", "zh", "en"),
-			new MetaResponse.VisitDate(VisitDateRange.min(today), VisitDateRange.max(today)),
+			VisitDateRange.min(today),
 			areas(),
 			categories(),
 			foodTypes(),

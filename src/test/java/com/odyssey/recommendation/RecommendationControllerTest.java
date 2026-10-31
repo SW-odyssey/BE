@@ -143,9 +143,9 @@ class RecommendationControllerTest {
 	}
 
 	@Test
-	@DisplayName("음식점이면 음식점 종류와 노포(since=true)의 20년 전 날짜가 조건이 된다")
+	@DisplayName("음식점이면 음식점 종류와 노포(since=true)의 30년 전 날짜가 조건이 된다")
 	void foodFilters() throws Exception {
-		// given: 20년 이상 된 한식
+		// given: 30년 이상 된 한식
 
 		// when
 		mockMvc.perform(get(URL)
@@ -154,11 +154,11 @@ class RecommendationControllerTest {
 				.param("since", "true"))
 			.andExpect(status().isOk());
 
-		// then: 오늘 2026-10-26 기준 20년 전
+		// then: 오늘 2026-10-26 기준 30년 전
 		RecommendationQuery query = capturedQuery();
 		assertThat(query.category()).isEqualTo(Category.FOOD);
 		assertThat(query.foodType()).isEqualTo(FoodType.KOREAN);
-		assertThat(query.openedBefore()).isEqualTo(LocalDate.of(2006, 10, 26));
+		assertThat(query.openedBefore()).isEqualTo(LocalDate.of(1996, 10, 26));
 	}
 
 	@Test

@@ -8,7 +8,7 @@ import java.util.List;
  *
  * @param timeZone           API 의 기준 시간대
  * @param supportedLanguages 지원하는 언어 (ko, ja, zh, en). 화면 표시명(label)은 아직 ko 만
- * @param visitDate          방문 날짜로 고를 수 있는 범위
+ * @param visitDate          방문 날짜의 기본값(서울 기준 오늘). 고를 수 있는 범위는 오늘부터 1년 뒤까지이고, 벗어나면 추천 API 가 400 을 낸다
  * @param areas              지역
  * @param categories         카테고리
  * @param foodTypes          음식점 종류. category=food 일 때만 화면에 보인다
@@ -20,7 +20,7 @@ import java.util.List;
 public record MetaResponse(
 	String timeZone,
 	List<String> supportedLanguages,
-	VisitDate visitDate,
+	LocalDate visitDate,
 	List<Option> areas,
 	List<Option> categories,
 	List<Option> foodTypes,
@@ -28,13 +28,4 @@ public record MetaResponse(
 	List<Option> slotsTime,
 	List<Option> densities,
 	int maxResults) {
-
-	/**
-	 * 방문 날짜 범위. 둘 다 포함한다.
-	 *
-	 * @param min 서울 기준 오늘
-	 * @param max 오늘부터 1년 뒤
-	 */
-	public record VisitDate(LocalDate min, LocalDate max) {
-	}
 }

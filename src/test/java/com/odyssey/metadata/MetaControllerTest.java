@@ -74,7 +74,7 @@ class MetaControllerTest {
 	}
 
 	@Test
-	@DisplayName("서버 시각이 UTC 로는 전날이어도 방문 날짜는 서울 기준 오늘부터 1년 뒤까지다")
+	@DisplayName("서버 시각이 UTC 로는 전날이어도 방문 날짜 기본값은 서울 기준 오늘이다")
 	void visitDate() throws Exception {
 		// given: 고정 시계가 서울 기준 2026-10-24 를 가리킨다
 
@@ -82,8 +82,7 @@ class MetaControllerTest {
 		ResultActions result = mockMvc.perform(get("/api/v1/meta"));
 
 		// then
-		result.andExpect(jsonPath("$.data.visitDate.min").value("2026-10-24"))
-			.andExpect(jsonPath("$.data.visitDate.max").value("2027-10-24"));
+		result.andExpect(jsonPath("$.data.visitDate").value("2026-10-24"));
 	}
 
 	@Test

@@ -23,7 +23,7 @@ import java.time.LocalDate;
  * 추천 API (GitHub 이슈 #30). GET /api/v1/recommendations
  *
  * <p>여기서는 요청 문자열을 검증하고 enum · 날짜로 바꾸는 일만 한다.
- * "insadong" → Area.INSADONG, "all" · "any" → null(조건 없음), since=true → 20년 전 날짜.
+ * "insadong" → Area.INSADONG, "all" · "any" → null(조건 없음), since=true → 30년 전 날짜.
  * 추천 로직은 {@link RecommendationService} 가 맡는다.
  */
 @RestController
@@ -33,8 +33,8 @@ public class RecommendationController {
 
 	/** 검색어 최대 길이 (#30) */
 	private static final int MAX_QUERY_LENGTH = 80;
-	/** since=true 일 때 노포로 보는 개업 후 연수 ("20년 이상") */
-	private static final int OLD_STORE_YEARS = 20;
+	/** since=true 일 때 노포로 보는 개업 후 연수 ("30년 이상") */
+	private static final int OLD_STORE_YEARS = 30;
 
 	private final RecommendationService recommendationService;
 	// 서버가 UTC 로 돌아도 서울 기준 "오늘"이 나오도록 주입받은 시계를 쓴다 (ClockConfig)
@@ -111,11 +111,11 @@ public class RecommendationController {
 	}
 
 	/**
-	 * 노포만 보기(since=true)를 개업일 기준 날짜로 바꾼다. 예) 오늘 2026-10-31 → 2006-10-31 까지 개업한 곳
+	 * 노포만 보기(since=true)를 개업일 기준 날짜로 바꾼다. 예) 오늘 2026-10-31 → 1996-10-31 까지 개업한 곳
 	 *
 	 * <p>기준을 오늘로 할지 방문일로 할지는 아직 정하지 않았다
 	 *
-	 * @return since 가 true 면 20년 전 날짜, false 이거나 생략하면 null (상관없음)
+	 * @return since 가 true 면 30년 전 날짜, false 이거나 생략하면 null (상관없음)
 	 */
 	private static LocalDate toOpenedBefore(Boolean since, LocalDate today) {
 		if (since == null || !since) {
