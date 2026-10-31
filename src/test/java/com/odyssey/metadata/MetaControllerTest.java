@@ -74,7 +74,7 @@ class MetaControllerTest {
 	}
 
 	@Test
-	@DisplayName("서버 시각이 UTC 로는 전날이어도 방문 날짜는 서울 기준 오늘부터 6일 뒤까지다")
+	@DisplayName("서버 시각이 UTC 로는 전날이어도 방문 날짜는 서울 기준 오늘부터 1년 뒤까지다")
 	void visitDate() throws Exception {
 		// given: 고정 시계가 서울 기준 2026-10-24 를 가리킨다
 
@@ -83,7 +83,7 @@ class MetaControllerTest {
 
 		// then
 		result.andExpect(jsonPath("$.data.visitDate.min").value("2026-10-24"))
-			.andExpect(jsonPath("$.data.visitDate.max").value("2026-10-30"));
+			.andExpect(jsonPath("$.data.visitDate.max").value("2027-10-24"));
 	}
 
 	@Test
@@ -124,7 +124,7 @@ class MetaControllerTest {
 	}
 
 	@Test
-	@DisplayName("노포 기준은 상관없음이 기본이고 20 · 30 · 40년 이상이 이어진다")
+	@DisplayName("노포만 보기(since)의 기본값은 false 다")
 	void since() throws Exception {
 		// given
 
@@ -132,7 +132,7 @@ class MetaControllerTest {
 		ResultActions result = mockMvc.perform(get("/api/v1/meta"));
 
 		// then
-		expectOptions(result, "since", "any", "any", "20", "30", "40");
+		result.andExpect(jsonPath("$.data.since").value(false));
 	}
 
 	@Test

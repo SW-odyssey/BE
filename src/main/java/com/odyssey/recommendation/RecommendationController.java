@@ -4,6 +4,7 @@ import com.odyssey.cell.entity.Area;
 import com.odyssey.cellslotscore.entity.DensityLevel;
 import com.odyssey.cellslotscore.entity.TimeSlot;
 import com.odyssey.global.api.ApiEnums;
+import com.odyssey.global.api.VisitDateRange;
 import com.odyssey.global.exception.BusinessException;
 import com.odyssey.global.exception.CommonErrorCode;
 import com.odyssey.global.response.ApiResult;
@@ -17,13 +18,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Clock;
 import java.time.LocalDate;
-import java.util.List;
 
 /**
  * 추천 API (GitHub 이슈 #30). GET /api/v1/recommendations
  *
  * <p>여기서는 요청 문자열을 검증하고 enum · 날짜로 바꾸는 일만 한다.
- * "insadong" → Area.INSADONG, "all" · "any" → null(조건 없음), "20" → 20년 전 날짜.
+ * "insadong" → Area.INSADONG, "all" · "any" → null(조건 없음), since=true → 20년 전 날짜.
  * 추천 로직은 {@link RecommendationService} 가 맡는다.
  */
 @RestController
@@ -31,12 +31,10 @@ import java.util.List;
 @RequiredArgsConstructor
 public class RecommendationController {
 
-	/** 방문일은 오늘부터 6일 뒤까지 고를 수 있다 (meta API 와 같은 값) */
-	private static final int VISIT_DAYS_AHEAD = 6;
 	/** 검색어 최대 길이 (#30) */
 	private static final int MAX_QUERY_LENGTH = 80;
-	/** 노포 기준으로 고를 수 있는 "N년 이상" (meta API 의 since 선택지와 같은 값) */
-	private static final List<String> SINCE_YEARS = List.of("20", "30", "40");
+	/** since=true 일 때 노포로 보는 개업 후 연수 ("20년 이상") */
+	private static final int OLD_STORE_YEARS = 20;
 
 	private final RecommendationService recommendationService;
 	// 서버가 UTC 로 돌아도 서울 기준 "오늘"이 나오도록 주입받은 시계를 쓴다 (ClockConfig)
@@ -47,7 +45,7 @@ public class RecommendationController {
 	 *
 	 * <pre>
 	 * GET /api/v1/recommendations?areaId=insadong&category=food&foodType=korean
-	 *     &since=20&visitDate=2026-10-25&slot=dinner&density=less_busy
+	 *     &since=true&visitDate=2026-10-25&slot=dinner&density=less_busy
 	 * </pre>
 	 */
 	@GetMapping
@@ -55,7 +53,7 @@ public class RecommendationController {
 		@RequestParam(required = false) String areaId,
 		@RequestParam(required = false) String category,
 		@RequestParam(required = false) String foodType,
-		@RequestParam(required = false) String since,
+		@RequestParam(required = false) Boolean since,
 		@RequestParam(required = false) LocalDate visitDate,
 		@RequestParam(required = false) String slot,
 		@RequestParam(required = false) String density,
@@ -93,13 +91,13 @@ public class RecommendationController {
 	/**
 	 * 방문일을 정한다. 생략하면 오늘이다.
 	 *
-	 * @throws BusinessException 오늘 ~ 6일 뒤 범위 밖이면 INVALID_INPUT
+	 * @throws BusinessException 오늘 ~ 1년 뒤 범위 밖이면 INVALID_INPUT
 	 */
 	private static LocalDate toVisitDate(LocalDate visitDate, LocalDate today) {
 		LocalDate date = visitDate == null ? today : visitDate;
-		if (date.isBefore(today) || date.isAfter(today.plusDays(VISIT_DAYS_AHEAD))) {
+		if (!VisitDateRange.contains(today, date)) {
 			throw new BusinessException(CommonErrorCode.INVALID_INPUT,
-				"visitDate 는 오늘부터 " + VISIT_DAYS_AHEAD + "일 뒤까지입니다: " + date);
+				"visitDate 는 " + VisitDateRange.min(today) + " ~ " + VisitDateRange.max(today) + " 사이입니다: " + date);
 		}
 		return date;
 	}
@@ -113,24 +111,16 @@ public class RecommendationController {
 	}
 
 	/**
-	 * 노포 기준 "N년 이상" 을 날짜로 바꾼다. 예) since=20, 오늘 2026-10-25 → 2006-10-25 까지 개업한 곳
+	 * 노포만 보기(since=true)를 개업일 기준 날짜로 바꾼다. 예) 오늘 2026-10-31 → 2006-10-31 까지 개업한 곳
 	 *
-	 * <p>기준을 오늘로 할지 방문일로 할지는 아직 정하지 않았다 (최대 6일 차이)
+	 * <p>기준을 오늘로 할지 방문일로 할지는 아직 정하지 않았다
 	 *
-	 * <p>숫자이기만 하면 받지 않고 선택지 값만 받는다. 큰 수는 날짜 계산이나 DB 에서 500 이 나고,
-	 * 음수는 미래 날짜가 되어 조건이 의미를 잃는다.
-	 *
-	 * @return 생략했거나 "any" 면 null (상관없음)
-	 * @throws BusinessException 20 · 30 · 40 이 아니면 INVALID_INPUT
+	 * @return since 가 true 면 20년 전 날짜, false 이거나 생략하면 null (상관없음)
 	 */
-	private static LocalDate toOpenedBefore(String since, LocalDate today) {
-		if (since == null || since.isBlank() || since.equals("any")) {
+	private static LocalDate toOpenedBefore(Boolean since, LocalDate today) {
+		if (since == null || !since) {
 			return null;
 		}
-		if (!SINCE_YEARS.contains(since)) {
-			throw new BusinessException(CommonErrorCode.INVALID_INPUT,
-				"since 값이 올바르지 않습니다: " + since + " (가능한 값: any, " + String.join(", ", SINCE_YEARS) + ")");
-		}
-		return today.minusYears(Integer.parseInt(since));
+		return today.minusYears(OLD_STORE_YEARS);
 	}
 }

@@ -12,7 +12,7 @@ import java.util.List;
  * @param areas              지역
  * @param categories         카테고리
  * @param foodTypes          음식점 종류. category=food 일 때만 화면에 보인다
- * @param since              노포 기준(개업 N년 이상). category=food 일 때만 화면에 보인다
+ * @param since              노포만 볼지의 기본값(false). 켜면 추천 API 에 since=true 를 보낸다. category=food 일 때만 화면에 보인다
  * @param slotsTime          시간대
  * @param densities          붐빔 정도
  * @param maxResults         추천 한 번에 내려 주는 최대 장소 수
@@ -24,7 +24,7 @@ public record MetaResponse(
 	List<Option> areas,
 	List<Option> categories,
 	List<Option> foodTypes,
-	List<Option> since,
+	boolean since,
 	List<Option> slotsTime,
 	List<Option> densities,
 	int maxResults) {
@@ -33,7 +33,7 @@ public record MetaResponse(
 	 * 방문 날짜 범위. 둘 다 포함한다.
 	 *
 	 * @param min 서울 기준 오늘
-	 * @param max 오늘부터 6일 뒤
+	 * @param max 오늘부터 1년 뒤
 	 */
 	public record VisitDate(LocalDate min, LocalDate max) {
 	}
