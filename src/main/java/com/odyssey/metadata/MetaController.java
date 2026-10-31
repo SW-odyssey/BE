@@ -46,13 +46,13 @@ public class MetaController {
 
 		MetaResponse response = new MetaResponse(
 			ClockConfig.SEOUL.getId(),
-			List.of("ko"),
+			List.of("ko", "ja", "zh", "en"),
 			new MetaResponse.VisitDate(today, today.plusDays(VISIT_DAYS_AHEAD)),
 			areas(),
 			categories(),
 			foodTypes(),
 			since(),
-			slots(),
+			slotsTime(),
 			densities(),
 			MAX_RESULTS);
 
@@ -76,12 +76,11 @@ public class MetaController {
 			option(Category.CAFE, "카페", false));
 	}
 
-	// FoodType.OTHER 는 화면에서 고를 수 없어서 내려 주지 않는다
+	// FoodType.OTHER · BAR 는 화면에서 고를 수 없어서 내려 주지 않는다
 	private static List<Option> foodTypes() {
 		return List.of(
 			new Option("any", "상관없음", true),
-			option(FoodType.KOREAN, "한식", false),
-			option(FoodType.BAR, "술집", false));
+			option(FoodType.KOREAN, "한식", false));
 	}
 
 	// 개업 N년 이상. enum 이 아니라 숫자 값이다
@@ -93,7 +92,7 @@ public class MetaController {
 			new Option("40", "40년 이상", false));
 	}
 
-	private static List<Option> slots() {
+	private static List<Option> slotsTime() {
 		return List.of(
 			option(TimeSlot.LUNCH, "점심 11~13시", false),
 			option(TimeSlot.AFTERNOON, "오후 14~17시", true),

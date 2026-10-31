@@ -60,7 +60,7 @@ class MetaControllerTest {
 	}
 
 	@Test
-	@DisplayName("메타를 조회하면 서울 시간대와 한국어, 최대 결과 수를 알려 준다")
+	@DisplayName("메타를 조회하면 서울 시간대와 지원 언어, 최대 결과 수를 알려 준다")
 	void basics() throws Exception {
 		// given
 
@@ -69,7 +69,7 @@ class MetaControllerTest {
 
 		// then
 		result.andExpect(jsonPath("$.data.timeZone").value("Asia/Seoul"))
-			.andExpect(jsonPath("$.data.supportedLanguages", contains("ko")))
+			.andExpect(jsonPath("$.data.supportedLanguages", contains("ko", "ja", "zh", "en")))
 			.andExpect(jsonPath("$.data.maxResults").value(200));
 	}
 
@@ -112,7 +112,7 @@ class MetaControllerTest {
 	}
 
 	@Test
-	@DisplayName("음식점 종류는 상관없음이 기본이고 한식 · 술집만 고를 수 있다")
+	@DisplayName("음식점 종류는 상관없음이 기본이고 한식만 고를 수 있다")
 	void foodTypes() throws Exception {
 		// given
 
@@ -120,7 +120,7 @@ class MetaControllerTest {
 		ResultActions result = mockMvc.perform(get("/api/v1/meta"));
 
 		// then
-		expectOptions(result, "foodTypes", "any", "any", "korean", "bar");
+		expectOptions(result, "foodTypes", "any", "any", "korean");
 	}
 
 	@Test
@@ -137,16 +137,16 @@ class MetaControllerTest {
 
 	@Test
 	@DisplayName("시간대는 오후가 기본이고 점심 · 저녁 · 심야와 화면 표시명을 함께 준다")
-	void slots() throws Exception {
+	void slotsTime() throws Exception {
 		// given
 
 		// when
 		ResultActions result = mockMvc.perform(get("/api/v1/meta"));
 
 		// then
-		expectOptions(result, "slots", "afternoon", "lunch", "afternoon", "dinner", "late_night");
-		result.andExpect(jsonPath("$.data.slots[0].label").value("점심 11~13시"))
-			.andExpect(jsonPath("$.data.slots[3].label").value("심야 22~01시"));
+		expectOptions(result, "slotsTime", "afternoon", "lunch", "afternoon", "dinner", "late_night");
+		result.andExpect(jsonPath("$.data.slotsTime[0].label").value("점심 11~13시"))
+			.andExpect(jsonPath("$.data.slotsTime[3].label").value("심야 22~01시"));
 	}
 
 	@Test
