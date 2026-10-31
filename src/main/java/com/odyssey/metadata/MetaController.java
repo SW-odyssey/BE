@@ -12,6 +12,7 @@ import com.odyssey.cell.entity.Area;
 import com.odyssey.cellslotscore.entity.DensityLevel;
 import com.odyssey.cellslotscore.entity.TimeSlot;
 import com.odyssey.global.api.ApiEnums;
+import com.odyssey.global.api.VisitDateRange;
 import com.odyssey.global.config.ClockConfig;
 import com.odyssey.global.response.ApiResult;
 import com.odyssey.store.entity.Category;
@@ -26,9 +27,6 @@ import com.odyssey.store.entity.FoodType;
 @RestController
 @RequestMapping("/api/v1/meta")
 public class MetaController {
-
-	/** 방문 날짜는 오늘부터 6일 뒤까지 고를 수 있다 */
-	private static final int VISIT_DAYS_AHEAD = 6;
 
 	/** 추천 한 번에 내려 주는 최대 장소 수 */
 	private static final int MAX_RESULTS = 200;
@@ -46,13 +44,13 @@ public class MetaController {
 
 		MetaResponse response = new MetaResponse(
 			ClockConfig.SEOUL.getId(),
-			List.of("ko"),
-			new MetaResponse.VisitDate(today, today.plusDays(VISIT_DAYS_AHEAD)),
+			List.of("ko", "ja", "zh", "en"),
+			VisitDateRange.min(today),
 			areas(),
 			categories(),
 			foodTypes(),
-			since(),
-			slots(),
+			false,
+			slotsTime(),
 			densities(),
 			MAX_RESULTS);
 
@@ -76,24 +74,14 @@ public class MetaController {
 			option(Category.CAFE, "카페", false));
 	}
 
-	// FoodType.OTHER 는 화면에서 고를 수 없어서 내려 주지 않는다
+	// FoodType.OTHER · BAR 는 화면에서 고를 수 없어서 내려 주지 않는다
 	private static List<Option> foodTypes() {
 		return List.of(
 			new Option("any", "상관없음", true),
-			option(FoodType.KOREAN, "한식", false),
-			option(FoodType.BAR, "술집", false));
+			option(FoodType.KOREAN, "한식", false));
 	}
 
-	// 개업 N년 이상. enum 이 아니라 숫자 값이다
-	private static List<Option> since() {
-		return List.of(
-			new Option("any", "상관없음", true),
-			new Option("20", "20년 이상", false),
-			new Option("30", "30년 이상", false),
-			new Option("40", "40년 이상", false));
-	}
-
-	private static List<Option> slots() {
+	private static List<Option> slotsTime() {
 		return List.of(
 			option(TimeSlot.LUNCH, "점심 11~13시", false),
 			option(TimeSlot.AFTERNOON, "오후 14~17시", true),

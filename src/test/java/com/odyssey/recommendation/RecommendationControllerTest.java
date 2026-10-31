@@ -143,22 +143,22 @@ class RecommendationControllerTest {
 	}
 
 	@Test
-	@DisplayName("음식점이면 음식점 종류와 since 년 전 날짜가 조건이 된다")
+	@DisplayName("음식점이면 음식점 종류와 노포(since=true)의 30년 전 날짜가 조건이 된다")
 	void foodFilters() throws Exception {
-		// given: 20년 이상 된 한식
+		// given: 30년 이상 된 한식
 
 		// when
 		mockMvc.perform(get(URL)
 				.param("category", "food")
 				.param("foodType", "korean")
-				.param("since", "20"))
+				.param("since", "true"))
 			.andExpect(status().isOk());
 
-		// then: 오늘 2026-10-26 기준 20년 전
+		// then: 오늘 2026-10-26 기준 30년 전
 		RecommendationQuery query = capturedQuery();
 		assertThat(query.category()).isEqualTo(Category.FOOD);
 		assertThat(query.foodType()).isEqualTo(FoodType.KOREAN);
-		assertThat(query.openedBefore()).isEqualTo(LocalDate.of(2006, 10, 26));
+		assertThat(query.openedBefore()).isEqualTo(LocalDate.of(1996, 10, 26));
 	}
 
 	@Test
@@ -170,7 +170,7 @@ class RecommendationControllerTest {
 		mockMvc.perform(get(URL)
 				.param("category", "cafe")
 				.param("foodType", "korean")
-				.param("since", "20"))
+				.param("since", "true"))
 			.andExpect(status().isOk());
 
 		// then
@@ -181,16 +181,31 @@ class RecommendationControllerTest {
 	}
 
 	@Test
-	@DisplayName("방문일은 오늘부터 6일 뒤까지 고를 수 있다")
-	void visitDateLastDay() throws Exception {
-		// given: 2026-10-26 + 6일
+	@DisplayName("since=false 면 노포 조건 없이(null) 음식점 전체를 찾는다")
+	void sinceFalse() throws Exception {
+		// given: 노포만 보기를 끈 음식점 검색
 
 		// when
-		mockMvc.perform(get(URL).param("visitDate", "2026-11-01"))
+		mockMvc.perform(get(URL)
+				.param("category", "food")
+				.param("since", "false"))
 			.andExpect(status().isOk());
 
 		// then
-		assertThat(capturedQuery().visitDate()).isEqualTo(LocalDate.of(2026, 11, 1));
+		assertThat(capturedQuery().openedBefore()).isNull();
+	}
+
+	@Test
+	@DisplayName("방문일은 오늘부터 1년 뒤까지 고를 수 있다")
+	void visitDateLastDay() throws Exception {
+		// given: 2026-10-26 + 1년
+
+		// when
+		mockMvc.perform(get(URL).param("visitDate", "2027-10-26"))
+			.andExpect(status().isOk());
+
+		// then
+		assertThat(capturedQuery().visitDate()).isEqualTo(LocalDate.of(2027, 10, 26));
 	}
 
 	@Test
@@ -206,12 +221,12 @@ class RecommendationControllerTest {
 	}
 
 	@Test
-	@DisplayName("방문일이 7일 뒤면 400 INVALID_INPUT")
+	@DisplayName("방문일이 1년하고 하루 뒤면 400 INVALID_INPUT")
 	void visitDateTooFar() throws Exception {
-		// given: 2026-10-26 + 7일
+		// given: 2026-10-26 + 1년 + 1일
 
 		// when
-		ResultActions result = mockMvc.perform(get(URL).param("visitDate", "2026-11-02"));
+		ResultActions result = mockMvc.perform(get(URL).param("visitDate", "2027-10-27"));
 
 		// then
 		expectInvalidInput(result);
@@ -244,11 +259,10 @@ class RecommendationControllerTest {
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {"abc", "25", "201", "-1", "2000000000"})
-	@DisplayName("since 가 선택지(20 · 30 · 40)가 아니면 400 INVALID_INPUT")
+	@ValueSource(strings = {"abc", "20", "-1"})
+	@DisplayName("since 가 true · false 가 아니면 400 INVALID_INPUT")
 	void invalidSince(String since) throws Exception {
-		// given: since 는 음식점일 때만 읽으므로 음식점을 같이 보낸다.
-		// 2000000000 은 날짜 계산에서, -1 은 미래 날짜가 되어 걸러지지 않으면 500 이나 엉뚱한 조건이 된다
+		// given: 예전 값(20 · 30 · 40)을 보내는 FE 가 있어도 조용히 무시하지 않고 알려 준다
 
 		// when
 		ResultActions result = mockMvc.perform(get(URL)
