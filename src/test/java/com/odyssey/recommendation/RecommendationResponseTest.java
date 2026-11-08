@@ -28,7 +28,7 @@ class RecommendationResponseTest {
 	@Test
 	@DisplayName("카드의 since 는 이력 기준 개업일의 연도다")
 	void sinceIsYear() {
-		// given: 1968-03-11 인허가
+		// given: 인허가 이력을 연결해 계산한 개업일 1968-03-11
 		StoreCardRow row = store(1L, LocalDate.of(1968, 3, 11));
 
 		// when
@@ -67,7 +67,7 @@ class RecommendationResponseTest {
 		RecommendationResponse response = RecommendationResponse.empty(
 			visitDate, DayType.MON_THU, TimeSlot.AFTERNOON);
 
-		// then: 결과가 없어도 FE 는 "평일 오후 기준" 같은 문구를 띄운다
+		// then: 결과가 없어도 FE 는 "월~목 오후 기준" 같은 문구를 띄운다
 		assertThat(response.applied())
 			.isEqualTo(new RecommendationResponse.Applied(MONDAY, DayType.MON_THU, TimeSlot.AFTERNOON));
 		assertThat(response.total()).isZero();

@@ -157,7 +157,7 @@ class RecommendationControllerTest {
 				.param("since", "true"))
 			.andExpect(status().isOk());
 
-		// then: 오늘 2026-10-26 기준 30년 전
+		// then: 방문일 2026-10-28 기준 30년 전
 		RecommendationQuery query = capturedQuery();
 		assertThat(query.category()).isEqualTo(Category.FOOD);
 		assertThat(query.foodType()).isEqualTo(FoodType.KOREAN);
@@ -277,7 +277,7 @@ class RecommendationControllerTest {
 	@Test
 	@DisplayName("응답은 #30 의 필드 이름을 쓰고 enum 은 소문자로 나간다")
 	void responseShape() throws Exception {
-		// given: 서비스가 가게 한 곳과 칸 한 개를 준다
+		// given: 서비스가 공식 배지를 가진 가게 한 곳을 준다
 		StoreCardRow store = new StoreCardRow(1L, "백부장집", StoreKind.KOREAN, 81_383_966L,
 			Area.INSADONG, 37.57, 126.98, LocalDate.of(1968, 3, 11), null);
 		given(recommendationService.recommend(any())).willReturn(RecommendationResponse.of(
