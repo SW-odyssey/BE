@@ -112,6 +112,13 @@ public class RecommendationController {
 		}
 	}
 
+	/**
+	 * 노포 켜기/끄기 선택을 방문일 기준 30년 전 날짜로 바꾼다.
+	 * 공식 배지로도 노포를 판정하는 OR 조건은 매장 리포지토리가 적용한다.
+	 *
+	 * @return 생략했거나 false면 null (노포 조건 해제)
+	 * @throws BusinessException true · false가 아니면 INVALID_INPUT
+	 */
 	private static LocalDate toOpenedBefore(String since, LocalDate visitDate) {
 		if (since == null || since.equals("false")) {
 			return null;
@@ -123,6 +130,12 @@ public class RecommendationController {
 			"since 는 true 또는 false 입니다");
 	}
 
+	/**
+	 * 화면의 붐빔 선택을 파싱한다. 지도 색칠용 MODERATE는 필터 선택지에 없다.
+	 *
+	 * @return 생략하거나 any면 null (상관없음)
+	 * @throws BusinessException 화면에 없는 값이면 INVALID_INPUT
+	 */
 	private static DensityLevel toDensity(String density) {
 		DensityLevel result = ApiEnums.parse(
 			DensityLevel.class, "density", density, "any").orElse(null);
@@ -133,6 +146,11 @@ public class RecommendationController {
 		return result;
 	}
 
+	/**
+	 * 위치는 위도·경도를 함께 보냈을 때만 사용한다. 둘 다 생략하면 위치 없이 추천한다.
+	 *
+	 * @throws BusinessException 한쪽이 없거나 유한한 WGS84 좌표 범위를 벗어나면 INVALID_INPUT
+	 */
 	private static void validateLocation(Double lat, Double lng) {
 		if (lat == null && lng == null) {
 			return;

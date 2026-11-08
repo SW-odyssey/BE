@@ -12,6 +12,13 @@ import com.odyssey.TestcontainersConfiguration;
 import com.odyssey.cell.entity.Area;
 import com.odyssey.cellslotscore.entity.*;
 
+/**
+ * 시간대 점수 조회를 실제 Postgres(Testcontainers)에서 확인한다.
+ *
+ * <p>엔티티가 읽기 전용이라 시드는 SQL 로 넣는다.
+ * 테스트마다 트랜잭션을 되돌려 서로 영향을 주지 않는다.
+ * 다른 달 · 요일 · 시간대와 서로 다른 peakHour/붐빔 등급을 함께 넣어 조건 누락을 검출한다.
+ */
 @SpringBootTest
 @ActiveProfiles("test")
 @Import(TestcontainersConfiguration.class)

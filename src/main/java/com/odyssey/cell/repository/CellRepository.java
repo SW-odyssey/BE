@@ -24,7 +24,7 @@ public interface CellRepository extends Repository<Cell, Long> {
 
 
 	/**
-	 * 칸 번호 목록에 해당하는 칸을 번호 순으로 준다. 추천 응답의 cells 에 쓴다 (#30: id 오름차순).
+	 * 칸 번호 목록에 해당하는 칸을 번호 순으로 준다. 칸 경계를 읽을 때 쓴다.
 	 *
 	 * <p>메서드 이름으로 쿼리가 만들어진다. OrderBy 뒤에 방향을 안 쓰면 오름차순이다.
 	 * <pre>

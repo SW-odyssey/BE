@@ -17,7 +17,7 @@ import com.odyssey.store.entity.StoreKind;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * {@link RecommendationResponse} 가 가게 · 칸을 #30 응답 모양으로 바꾸는지 확인한다.
+ * {@link RecommendationResponse} 가 가게를 v3 카드 응답 모양으로 바꾸는지 확인한다.
  *
  * <p>JSON 이름과 소문자 enum 은 {@link RecommendationControllerTest} 가 본다. 여기서는 값만 본다.
  */

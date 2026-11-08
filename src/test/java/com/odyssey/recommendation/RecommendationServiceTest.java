@@ -20,6 +20,12 @@ import com.odyssey.cellslotscore.repository.*;
 import com.odyssey.store.entity.*;
 import com.odyssey.store.repository.*;
 
+/**
+ * 추천 서비스의 순서 · 분기를 리포지토리 없이 확인한다.
+ *
+ * <p>리포지토리는 Mockito 가짜 객체다. given 으로 정한 값을 돌려주고,
+ * 정하지 않은 메서드는 빈 리스트를 준다. 실제 쿼리는 각 리포지토리 테스트가 맡는다.
+ */
 @ExtendWith(MockitoExtension.class)
 class RecommendationServiceTest {
 	@Mock CellSlotScoreRepository scores;
