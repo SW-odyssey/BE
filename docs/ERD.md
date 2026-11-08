@@ -1,4 +1,50 @@
-# ERD v1.2
+# ERD v1.2 + v3 전환 준비 (V7)
+
+V7은 기존 추천 API가 쓰는 v1.2 구조를 유지하면서 아래 구조를 추가한다.
+v3 전환 계획은 [erd-v3-transition.md](erd-v3-transition.md)에 있다.
+아래 v1.2 다이어그램과 이 추가 다이어그램을 합친 것이 현재 스키마다.
+
+```mermaid
+erDiagram
+    STORE ||--o{ STORE_BADGE : store_id
+    CELL ||--o{ CELL_MONTH_METRIC : cell_id
+    LEGAL_DONG {
+        String name PK
+        Area area
+    }
+    STORE {
+        StoreKind kind "전환 중 null 가능"
+        LocalDate sinceDate "이력 기준 개업일, 재적재 전 null"
+    }
+    STORE_BADGE {
+        Long storeId PK,FK
+        StoreBadge badge PK
+    }
+    CELL_MONTH_METRIC {
+        Long cellId PK,FK
+        int month PK
+        String metricKey PK
+        double value
+    }
+    SCORE_BATCH {
+        String name PK
+        String version
+        LocalDateTime computedAt
+    }
+```
+
+- `StoreKind`: CAFE, KOREAN, BAR, OTHER.
+- `StoreBadge`: CENTURY_STORE, ORAE_GAGE, FUTURE_HERITAGE.
+- `LEGAL_DONG`은 기존 CELL에서 한 번 채운다. 동일 이름의 지역이 충돌하면 V7은 실패한다.
+  구 적재기와 호환하기 위해 CELL의 FK 연결과 area 제거는 후속 전환 때 한다.
+- 기존 매장의 `kind`는 category/food_type으로 채운다. 구 적재기로 이후 추가·변경된
+  매장에는 새 값이 없거나 오래된 값일 수 있으므로, 조회 전환 전에 v3 원본으로 다시 채운다.
+- `since_date`는 analysis의 이력 계산 결과로 채워야 한다. 인허가일을 복사하지 않는다.
+- 월별 지표의 month는 1~12, value는 0~1이다. 세 지표의 합 1은 적재 검증 대상이다.
+- 새 테이블에는 모두 RLS를 켠다. SCORE_BATCH는 테이블별 적재 버전과 시각이다.
+- 이 단계만으로 analysis의 `load_v3.sql`을 실행할 수 없다.
+
+## 유지되는 v1.2 구조
 
 대상: 음식점 · 카페 · 로그인 없음 · 조회 전용 API (2026-10-23 기준)
 
