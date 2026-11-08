@@ -1,7 +1,6 @@
 # ERD v1.2 + v3 전환 준비 (V7)
 
 V7은 기존 추천 API가 쓰는 v1.2 구조를 유지하면서 아래 구조를 추가한다.
-v3 전환 계획은 [erd-v3-transition.md](erd-v3-transition.md)에 있다.
 아래 v1.2 다이어그램과 이 추가 다이어그램을 합친 것이 현재 스키마다.
 
 ```mermaid
