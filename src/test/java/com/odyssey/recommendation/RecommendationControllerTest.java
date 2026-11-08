@@ -1,7 +1,9 @@
 package com.odyssey.recommendation;
 
 import com.odyssey.cell.entity.Area;
-import com.odyssey.cell.entity.CellFixture;
+import com.odyssey.store.entity.StoreKind;
+import com.odyssey.store.entity.StoreBadge;
+import java.util.Map;
 import com.odyssey.cellslotscore.entity.DayType;
 import com.odyssey.cellslotscore.entity.DensityLevel;
 import com.odyssey.cellslotscore.entity.TimeSlot;
@@ -143,22 +145,23 @@ class RecommendationControllerTest {
 	}
 
 	@Test
-	@DisplayName("음식점이면 음식점 종류와 since 년 전 날짜가 조건이 된다")
+	@DisplayName("음식점이면 음식점 종류와 방문일 기준 30년 전 날짜가 조건이 된다")
 	void foodFilters() throws Exception {
-		// given: 20년 이상 된 한식
+		// given: 30년 이상 된 한식
 
 		// when
 		mockMvc.perform(get(URL)
 				.param("category", "food")
 				.param("foodType", "korean")
-				.param("since", "20"))
+				.param("visitDate", "2026-10-28")
+				.param("since", "true"))
 			.andExpect(status().isOk());
 
-		// then: 오늘 2026-10-26 기준 20년 전
+		// then: 방문일 2026-10-28 기준 30년 전
 		RecommendationQuery query = capturedQuery();
 		assertThat(query.category()).isEqualTo(Category.FOOD);
 		assertThat(query.foodType()).isEqualTo(FoodType.KOREAN);
-		assertThat(query.openedBefore()).isEqualTo(LocalDate.of(2006, 10, 26));
+		assertThat(query.openedBefore()).isEqualTo(LocalDate.of(1996, 10, 28));
 	}
 
 	@Test
@@ -170,7 +173,7 @@ class RecommendationControllerTest {
 		mockMvc.perform(get(URL)
 				.param("category", "cafe")
 				.param("foodType", "korean")
-				.param("since", "20"))
+				.param("since", "true"))
 			.andExpect(status().isOk());
 
 		// then
@@ -245,7 +248,7 @@ class RecommendationControllerTest {
 
 	@ParameterizedTest
 	@ValueSource(strings = {"abc", "25", "201", "-1", "2000000000"})
-	@DisplayName("since 가 선택지(20 · 30 · 40)가 아니면 400 INVALID_INPUT")
+	@DisplayName("since 가 true/false가 아니면 400 INVALID_INPUT")
 	void invalidSince(String since) throws Exception {
 		// given: since 는 음식점일 때만 읽으므로 음식점을 같이 보낸다.
 		// 2000000000 은 날짜 계산에서, -1 은 미래 날짜가 되어 걸러지지 않으면 500 이나 엉뚱한 조건이 된다
@@ -274,13 +277,13 @@ class RecommendationControllerTest {
 	@Test
 	@DisplayName("응답은 #30 의 필드 이름을 쓰고 enum 은 소문자로 나간다")
 	void responseShape() throws Exception {
-		// given: 서비스가 가게 한 곳과 칸 한 개를 준다
-		StoreCardRow store = new StoreCardRow(1L, "백부장집", Category.FOOD, FoodType.KOREAN, 81_383_966L,
+		// given: 서비스가 공식 배지를 가진 가게 한 곳을 준다
+		StoreCardRow store = new StoreCardRow(1L, "백부장집", StoreKind.KOREAN, 81_383_966L,
 			Area.INSADONG, 37.57, 126.98, LocalDate.of(1968, 3, 11), null);
 		given(recommendationService.recommend(any())).willReturn(RecommendationResponse.of(
-			TODAY, DayType.WEEKDAY, TimeSlot.AFTERNOON,
+			TODAY, DayType.MON_THU, TimeSlot.AFTERNOON,
 			List.of(store),
-			List.of(CellFixture.cell(81_383_966L, 37.5698, 126.9797, 37.5702, 126.9803))));
+			Map.of(1L, List.of(StoreBadge.ORAE_GAGE))));
 
 		// when
 		ResultActions result = mockMvc.perform(get(URL));
@@ -288,7 +291,7 @@ class RecommendationControllerTest {
 		// then: FE 는 이 이름으로 읽는다. 필드 이름을 바꾸면 여기서 깨진다
 		result.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.applied.visitDate").value("2026-10-26"))
-			.andExpect(jsonPath("$.data.applied.dayType").value("weekday"))
+			.andExpect(jsonPath("$.data.applied.dayType").value("mon_thu"))
 			.andExpect(jsonPath("$.data.applied.slot").value("afternoon"))
 			.andExpect(jsonPath("$.data.total").value(1))
 			.andExpect(jsonPath("$.data.items[0].areaId").value("insadong"))
@@ -296,9 +299,40 @@ class RecommendationControllerTest {
 			.andExpect(jsonPath("$.data.items[0].foodType").value("korean"))
 			.andExpect(jsonPath("$.data.items[0].since").value(1968))
 			.andExpect(jsonPath("$.data.items[0].point.lat").value(37.57))
-			.andExpect(jsonPath("$.data.cells[0].id").value(81_383_966L))
-			.andExpect(jsonPath("$.data.cells[0].geometry.type").value("Polygon"))
-			.andExpect(jsonPath("$.data.cells[0].geometry.coordinates[0][0][0]").value(126.9797));
+			.andExpect(jsonPath("$.data.cells").doesNotExist())
+			.andExpect(jsonPath("$.data.items[0].badges[0]").value("orae_gage"));
+	}
+
+
+	@ParameterizedTest
+	@ValueSource(strings = {"NaN", "Infinity", "91", "-91"})
+	@DisplayName("유효하지 않은 위도는 400이다")
+	void invalidLatitude(String lat) throws Exception {
+		// given / when
+		var result = mockMvc.perform(get(URL).param("lat", lat).param("lng", "127"));
+		// then
+		expectInvalidInput(result);
+	}
+
+	@Test
+	@DisplayName("위치 한쪽만 보내면 400이다")
+	void incompleteLocation() throws Exception {
+		// given / when
+		var result = mockMvc.perform(get(URL).param("lng", "127"));
+		// then
+		expectInvalidInput(result);
+	}
+
+	@Test
+	@DisplayName("좌표를 함께 보내면 서비스에 전달한다")
+	void location() throws Exception {
+		// given / when
+		mockMvc.perform(get(URL).param("lat", "37.57").param("lng", "126.98"))
+			.andExpect(status().isOk());
+		// then
+		var query = capturedQuery();
+		assertThat(query.lat()).isEqualTo(37.57);
+		assertThat(query.lng()).isEqualTo(126.98);
 	}
 
 	// 컨트롤러가 서비스에 넘긴 조건을 꺼낸다

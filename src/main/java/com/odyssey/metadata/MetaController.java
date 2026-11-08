@@ -31,14 +31,16 @@ public class MetaController {
 	private static final int VISIT_DAYS_AHEAD = 6;
 
 	/** 추천 한 번에 내려 주는 최대 장소 수 */
-	private static final int MAX_RESULTS = 200;
+	private static final int MAX_RESULTS = 30;
 
 	private final Clock clock;
 
+	/** 서버 시간대와 관계없이 서울 기준 날짜를 계산하도록 공통 Clock을 주입받는다. */
 	public MetaController(Clock clock) {
 		this.clock = clock;
 	}
 
+	/** 화면의 선택지·기본값·방문 날짜 범위와 추천 최대 개수를 반환한다. DB는 조회하지 않는다. */
 	@GetMapping
 	public ApiResult<MetaResponse> meta() {
 		// 서버가 UTC 로 돌아도 서울 기준 오늘이 나오도록 주입받은 시계를 쓴다
@@ -59,6 +61,7 @@ public class MetaController {
 		return ApiResult.ok(response);
 	}
 
+	/** 지역 선택지. 기본은 특정 지역으로 제한하지 않는 전체다. */
 	private static List<Option> areas() {
 		return List.of(
 			new Option("all", "전체", true),
@@ -69,6 +72,7 @@ public class MetaController {
 			option(Area.MYEONGDONG, "명동", false));
 	}
 
+	/** 매장 분류 선택지. DB의 StoreKind와 별개로 기존 화면의 음식점/카페 구분을 유지한다. */
 	private static List<Option> categories() {
 		return List.of(
 			new Option("all", "전체", true),
@@ -77,6 +81,7 @@ public class MetaController {
 	}
 
 	// FoodType.OTHER 는 화면에서 고를 수 없어서 내려 주지 않는다
+	/** 음식점을 고른 경우 사용할 종류 선택지를 반환한다. */
 	private static List<Option> foodTypes() {
 		return List.of(
 			new Option("any", "상관없음", true),
@@ -84,15 +89,15 @@ public class MetaController {
 			option(FoodType.BAR, "술집", false));
 	}
 
-	// 개업 N년 이상. enum 이 아니라 숫자 값이다
+	// 30년 이상 또는 공식 노포 배지가 있는 가게를 고른다
+	/** 노포 필터의 켜기/끄기 선택지. id는 추천 요청의 since 값과 같다. */
 	private static List<Option> since() {
 		return List.of(
-			new Option("any", "상관없음", true),
-			new Option("20", "20년 이상", false),
-			new Option("30", "30년 이상", false),
-			new Option("40", "40년 이상", false));
+			new Option("false", "상관없음", true),
+			new Option("true", "노포", false));
 	}
 
+	/** 방문 시간대 선택지. 기본은 오후이며, 화면 라벨에 각 시간 범위를 함께 제공한다. */
 	private static List<Option> slots() {
 		return List.of(
 			option(TimeSlot.LUNCH, "점심 11~13시", false),
@@ -102,6 +107,7 @@ public class MetaController {
 	}
 
 	// DensityLevel.MODERATE 는 화면에서 고를 수 없어서 내려 주지 않는다
+	/** 붐빔 필터 선택지. lively는 조회할 때 peakHour 조건으로 해석한다. */
 	private static List<Option> densities() {
 		return List.of(
 			new Option("any", "상관없음", true),
@@ -110,6 +116,7 @@ public class MetaController {
 	}
 
 	// id 를 enum 이름에서 만들어 오타를 막는다
+	/** enum 이름을 공통 API 소문자 규칙으로 바꾸고 화면 라벨과 기본 선택 여부를 붙인다. */
 	private static Option option(Enum<?> value, String label, boolean isDefault) {
 		return new Option(ApiEnums.toValue(value), label, isDefault);
 	}

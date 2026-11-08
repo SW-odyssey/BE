@@ -1,17 +1,17 @@
 package com.odyssey.cellslotscore.repository;
 
-import com.odyssey.cell.entity.Area;
-import com.odyssey.cellslotscore.entity.DayType;
-import com.odyssey.cellslotscore.entity.DensityLevel;
-import com.odyssey.cellslotscore.entity.TimeSlot;
-import com.querydsl.jpa.impl.JPAQueryFactory;
-import lombok.RequiredArgsConstructor;
-import org.springframework.stereotype.Repository;
+import static com.odyssey.cell.entity.QCell.cell;
+import static com.odyssey.legaldong.entity.QLegalDong.legalDong;
+import static com.odyssey.cellslotscore.entity.QCellSlotScore.cellSlotScore;
 
 import java.util.List;
-
-import static com.odyssey.cell.entity.QCell.cell;
-import static com.odyssey.cellslotscore.entity.QCellSlotScore.cellSlotScore;
+import org.springframework.stereotype.Repository;
+import com.odyssey.cell.entity.Area;
+import com.odyssey.cellslotscore.entity.*;
+import com.querydsl.core.types.Projections;
+import com.querydsl.core.types.dsl.BooleanExpression;
+import com.querydsl.jpa.impl.JPAQueryFactory;
+import lombok.RequiredArgsConstructor;
 
 /**
  * 시간대 점수로 칸을 고르는 조회.
@@ -22,31 +22,37 @@ import static com.odyssey.cellslotscore.entity.QCellSlotScore.cellSlotScore;
 @Repository
 @RequiredArgsConstructor
 public class CellSlotScoreRepository {
-
 	private final JPAQueryFactory queryFactory;
 
 	/**
-	 * 요일 묶음 · 시간대에서 추천 대상(eligible)인 칸을 좋은 순서대로 준다.
+	 * 달 · 요일 묶음 · 시간대에서 조건에 맞는 후보 칸을 좋은 순서대로 준다.
 	 *
-	 * @param area         지역. null 이면 전체
-	 * @param densityLevel 붐빔. null 이면 상관없음
-	 * @return 칸 번호. 순위 오름차순, 순위가 같거나 없으면 칸 번호 순
+	 * @param month   방문일의 달(1~12)
+	 * @param dayType 월~목 / 금 / 토 / 일. 공휴일도 해당 요일로 분류한다
+	 * @param slot    방문 시간대
+	 * @param area    지역. null 이면 전체
+	 * @param density 붐빔 선택. null 이면 상관없음, LIVELY는 peakHour로 거른다
+	 * @return 칸 번호와 점수. 점수 내림차순, 동점이면 칸 번호순
 	 */
-	public List<Long> findRankedCellIds(
-		DayType dayType, TimeSlot timeSlot, Area area, DensityLevel densityLevel) {
-		return queryFactory
-			.select(cellSlotScore.cell.cellId)
+	public List<RankedCell> findRankedCells(
+		int month, DayType dayType, TimeSlot slot, Area area, DensityLevel density) {
+		return queryFactory.select(Projections.constructor(RankedCell.class,
+				cell.cellId, cellSlotScore.score))
 			.from(cellSlotScore)
-			.join(cellSlotScore.cell, cell)        // 지역(area)은 cell 테이블에 있어서 조인한다
-			.where(
-				cellSlotScore.dayType.eq(dayType),
-				cellSlotScore.timeSlot.eq(timeSlot),
-				cellSlotScore.eligible.isTrue(),   // 활동량 하위 20% 칸은 추천하지 않는다 (analysis 가 정함)
-				area == null ? null : cell.area.eq(area),
-				densityLevel == null ? null : cellSlotScore.densityLevel.eq(densityLevel))
-			// rank 1 이 가장 좋은 칸이라고 보고 오름차순. analysis 의 순위 방향은 아직 확인 전이다.
-			// 같은 순위가 여러 칸이면 결과가 매번 같도록 칸 번호로 한 번 더 정렬한다
-			.orderBy(cellSlotScore.rank.asc().nullsLast(), cell.cellId.asc())
-			.fetch();
+			.join(cellSlotScore.cell, cell)
+			.join(cell.legalDong, legalDong)
+			.where(cellSlotScore.id.month.eq(month),
+				cellSlotScore.id.dayType.eq(dayType), cellSlotScore.id.timeSlot.eq(slot),
+				area == null ? null : legalDong.area.eq(area), densityCondition(density))
+			.orderBy(cellSlotScore.score.desc(), cell.cellId.asc()).fetch();
+	}
+
+	/** '활기참'은 상대 활동량이 높은 시간인지로, '덜 붐빔'은 지도 붐빔 등급으로 거른다. */
+	private BooleanExpression densityCondition(DensityLevel density) {
+		if (density == null) {
+			return null;
+		}
+		return density == DensityLevel.LIVELY
+			? cellSlotScore.peakHour.isTrue() : cellSlotScore.densityLevel.eq(density);
 	}
 }
