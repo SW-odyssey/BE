@@ -12,7 +12,7 @@ import java.util.List;
  * @param areas              지역
  * @param categories         카테고리
  * @param foodTypes          음식점 종류. category=food 일 때만 화면에 보인다
- * @param since              노포 기준(개업 N년 이상). category=food 일 때만 화면에 보인다
+ * @param since              노포 사용 여부(30년 이상 또는 공식 배지). category=food 일 때만 화면에 보인다
  * @param slots              시간대
  * @param densities          붐빔 정도
  * @param maxResults         추천 한 번에 내려 주는 최대 장소 수

@@ -70,7 +70,7 @@ class MetaControllerTest {
 		// then
 		result.andExpect(jsonPath("$.data.timeZone").value("Asia/Seoul"))
 			.andExpect(jsonPath("$.data.supportedLanguages", contains("ko")))
-			.andExpect(jsonPath("$.data.maxResults").value(200));
+			.andExpect(jsonPath("$.data.maxResults").value(30));
 	}
 
 	@Test
@@ -124,7 +124,7 @@ class MetaControllerTest {
 	}
 
 	@Test
-	@DisplayName("노포 기준은 상관없음이 기본이고 20 · 30 · 40년 이상이 이어진다")
+	@DisplayName("노포는 해제가 기본이고 켜기 선택지를 제공한다")
 	void since() throws Exception {
 		// given
 
@@ -132,7 +132,7 @@ class MetaControllerTest {
 		ResultActions result = mockMvc.perform(get("/api/v1/meta"));
 
 		// then
-		expectOptions(result, "since", "any", "any", "20", "30", "40");
+		expectOptions(result, "since", "false", "false", "true");
 	}
 
 	@Test

@@ -17,13 +17,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.Clock;
 import java.time.LocalDate;
-import java.util.List;
 
 /**
  * 추천 API (GitHub 이슈 #30). GET /api/v1/recommendations
  *
  * <p>여기서는 요청 문자열을 검증하고 enum · 날짜로 바꾸는 일만 한다.
- * "insadong" → Area.INSADONG, "all" · "any" → null(조건 없음), "20" → 20년 전 날짜.
+ * "insadong" → Area.INSADONG, "all" · "any" → null(조건 없음), "true" → 방문일 기준 30년 전 날짜.
  * 추천 로직은 {@link RecommendationService} 가 맡는다.
  */
 @RestController
@@ -35,8 +34,6 @@ public class RecommendationController {
 	private static final int VISIT_DAYS_AHEAD = 6;
 	/** 검색어 최대 길이 (#30) */
 	private static final int MAX_QUERY_LENGTH = 80;
-	/** 노포 기준으로 고를 수 있는 "N년 이상" (meta API 의 since 선택지와 같은 값) */
-	private static final List<String> SINCE_YEARS = List.of("20", "30", "40");
 
 	private final RecommendationService recommendationService;
 	// 서버가 UTC 로 돌아도 서울 기준 "오늘"이 나오도록 주입받은 시계를 쓴다 (ClockConfig)
@@ -47,7 +44,7 @@ public class RecommendationController {
 	 *
 	 * <pre>
 	 * GET /api/v1/recommendations?areaId=insadong&category=food&foodType=korean
-	 *     &since=20&visitDate=2026-10-25&slot=dinner&density=less_busy
+	 *     &since=true&visitDate=2026-10-25&slot=dinner&density=less_busy
 	 * </pre>
 	 */
 	@GetMapping
@@ -59,11 +56,14 @@ public class RecommendationController {
 		@RequestParam(required = false) LocalDate visitDate,
 		@RequestParam(required = false) String slot,
 		@RequestParam(required = false) String density,
-		@RequestParam(required = false) String q) {
+		@RequestParam(required = false) String q,
+		@RequestParam(required = false) Double lat,
+		@RequestParam(required = false) Double lng) {
 
 		LocalDate today = LocalDate.now(clock);
 		LocalDate date = toVisitDate(visitDate, today);
 		validateQuery(q);
+		validateLocation(lat, lng);
 
 		// "all" 이나 생략 → null (전체). 모르는 값이면 ApiEnums 가 INVALID_INPUT 을 던진다
 		Category findCategory = ApiEnums.parse(Category.class, "category", category, "all")
@@ -75,7 +75,7 @@ public class RecommendationController {
 		FoodType findFoodType = food
 			? ApiEnums.parse(FoodType.class, "foodType", foodType, "any").orElse(null)
 			: null;
-		LocalDate openedBefore = food ? toOpenedBefore(since, today) : null;
+		LocalDate openedBefore = food ? toOpenedBefore(since, date) : null;
 
 		RecommendationQuery query = new RecommendationQuery(
 			ApiEnums.parse(Area.class, "areaId", areaId, "all").orElse(null),
@@ -84,8 +84,8 @@ public class RecommendationController {
 			openedBefore,
 			date,
 			ApiEnums.parse(TimeSlot.class, "slot", slot, TimeSlot.AFTERNOON), // 생략하면 오후 (#30)
-			ApiEnums.parse(DensityLevel.class, "density", density, "any").orElse(null),
-			q);
+			toDensity(density),
+			q, lat, lng);
 
 		return ApiResult.ok(recommendationService.recommend(query));
 	}
@@ -112,25 +112,35 @@ public class RecommendationController {
 		}
 	}
 
-	/**
-	 * 노포 기준 "N년 이상" 을 날짜로 바꾼다. 예) since=20, 오늘 2026-10-25 → 2006-10-25 까지 개업한 곳
-	 *
-	 * <p>기준을 오늘로 할지 방문일로 할지는 아직 정하지 않았다 (최대 6일 차이)
-	 *
-	 * <p>숫자이기만 하면 받지 않고 선택지 값만 받는다. 큰 수는 날짜 계산이나 DB 에서 500 이 나고,
-	 * 음수는 미래 날짜가 되어 조건이 의미를 잃는다.
-	 *
-	 * @return 생략했거나 "any" 면 null (상관없음)
-	 * @throws BusinessException 20 · 30 · 40 이 아니면 INVALID_INPUT
-	 */
-	private static LocalDate toOpenedBefore(String since, LocalDate today) {
-		if (since == null || since.isBlank() || since.equals("any")) {
+	private static LocalDate toOpenedBefore(String since, LocalDate visitDate) {
+		if (since == null || since.equals("false")) {
 			return null;
 		}
-		if (!SINCE_YEARS.contains(since)) {
-			throw new BusinessException(CommonErrorCode.INVALID_INPUT,
-				"since 값이 올바르지 않습니다: " + since + " (가능한 값: any, " + String.join(", ", SINCE_YEARS) + ")");
+		if (since.equals("true")) {
+			return visitDate.minusYears(30);
 		}
-		return today.minusYears(Integer.parseInt(since));
+		throw new BusinessException(CommonErrorCode.INVALID_INPUT,
+			"since 는 true 또는 false 입니다");
+	}
+
+	private static DensityLevel toDensity(String density) {
+		DensityLevel result = ApiEnums.parse(
+			DensityLevel.class, "density", density, "any").orElse(null);
+		if (result == DensityLevel.MODERATE) {
+			throw new BusinessException(CommonErrorCode.INVALID_INPUT,
+				"density 는 any, less_busy, lively 중 하나입니다");
+		}
+		return result;
+	}
+
+	private static void validateLocation(Double lat, Double lng) {
+		if (lat == null && lng == null) {
+			return;
+		}
+		if (lat == null || lng == null || !Double.isFinite(lat) || !Double.isFinite(lng)
+			|| lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+			throw new BusinessException(CommonErrorCode.INVALID_INPUT,
+				"lat/lng 는 유효한 위도/경도를 함께 보내야 합니다");
+		}
 	}
 }

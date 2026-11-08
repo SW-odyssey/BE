@@ -19,13 +19,14 @@ import com.odyssey.TestcontainersConfiguration;
 import com.odyssey.cell.entity.Area;
 import com.odyssey.store.entity.Category;
 import com.odyssey.store.entity.FoodType;
+import com.odyssey.store.entity.StoreKind;
 
 /**
  * {@link StoreRepository} 를 실제 Postgres(Testcontainers)에서 확인한다.
  *
  * <p>엔티티가 읽기 전용이라 시드는 SQL 로 넣는다. 테스트마다 트랜잭션을 되돌려 서로 영향을 주지 않는다.
  *
- * <p>시드: 인사동 칸 A 에 영업 중 한식 2곳 · 프랜차이즈 카페 1곳 · 폐업 술집 1곳, 종로 칸 B 에 카페 1곳
+ * <p>시드: 인사동 칸 A 에 영업 중 한식 2곳 · place ID 없는 카페 1곳 · 폐업 술집 1곳, 종로 칸 B 에 카페 1곳
  */
 @SpringBootTest
 @ActiveProfiles("test")
@@ -56,7 +57,7 @@ class StoreQueryRepositoryTest {
 	}
 
 	@Test
-	@DisplayName("조건이 없으면 칸 안의 영업 중 · 비프랜차이즈 매장만 칸 정보와 함께 준다")
+	@DisplayName("조건이 없으면 칸 안의 영업 중 · 비place ID 없는 매장만 칸 정보와 함께 준다")
 	void noFilter() {
 		// given
 		List<Long> cellIds = List.of(CELL_A);
@@ -64,7 +65,7 @@ class StoreQueryRepositoryTest {
 		// when
 		List<StoreCardRow> rows = storeQueryRepository.findCards(cellIds, null, null, null, null);
 
-		// then: 프랜차이즈(3)와 폐업(4)은 빠진다
+		// then: place ID 없는(3)와 폐업(4)은 빠진다
 		assertThat(rows).extracting(StoreCardRow::name).containsExactly("공평식당", "백부장집");
 		assertThat(rows).extracting(StoreCardRow::area).containsOnly(Area.INSADONG);
 	}
@@ -94,7 +95,7 @@ class StoreQueryRepositoryTest {
 			cellIds, Category.FOOD, FoodType.KOREAN, null, null);
 
 		// then
-		assertThat(rows).extracting(StoreCardRow::foodType).containsOnly(FoodType.KOREAN);
+		assertThat(rows).extracting(StoreCardRow::kind).containsOnly(StoreKind.KOREAN);
 		assertThat(rows).hasSize(2);
 	}
 
@@ -168,9 +169,10 @@ class StoreQueryRepositoryTest {
 	}
 
 	@Test
-	@DisplayName("googlePlaceId 는 있으면 그 값을, 없으면 null 을 준다")
+	@DisplayName("googlePlaceId 없는 가게는 추천에서 제외한다")
 	void googlePlaceId() {
-		// given: 공평식당만 구글 장소와 맞춰져 있다
+		// given: 백부장집의 place ID를 비운다
+		jdbc.sql("update store set google_place_id = null where id = 2").update();
 		jdbc.sql("update store set google_place_id = ? where id = ?")
 			.params("ChIJ-test-place", 1L)
 			.update();
@@ -179,35 +181,37 @@ class StoreQueryRepositoryTest {
 		List<StoreCardRow> rows = storeQueryRepository.findCards(List.of(CELL_A), null, null, null, null);
 
 		// then: 공평식당(1) → 값, 백부장집(2) → null
-		assertThat(rows).extracting(StoreCardRow::googlePlaceId).containsExactly("ChIJ-test-place", null);
+		assertThat(rows).extracting(StoreCardRow::googlePlaceId).containsExactly("ChIJ-test-place");
 	}
 
-	private void cell(long cellId, String area, String legalDong) {
-		jdbc.sql("""
-				insert into cell (cell_id, area, legal_dong, legal_dong_en,
-					center_lat, center_lng, sw_lat, sw_lng, ne_lat, ne_lng)
-				values (?, ?, ?, ?, 37.57, 126.98, 37.5698, 126.9797, 37.5702, 126.9803)
-				""")
-			.params(cellId, area, legalDong, legalDong)
-			.update();
+
+	@Test
+	@DisplayName("개업 30년이 안 되어도 공식 배지가 있으면 노포로 조회한다")
+	void badgeQualifies() {
+		// given
+		jdbc.sql("insert into store_badge values (5, 'ORAE_GAGE'), (5, 'CENTURY_STORE')").update();
+		// when
+		var rows = storeQueryRepository.findCards(List.of(CELL_B), null, null,
+			LocalDate.of(1996, 1, 1), null);
+		// then: 배지 두 개가 있어도 가게는 한 번만 반환한다.
+		assertThat(rows).extracting(StoreCardRow::id).containsExactly(5L);
 	}
 
-	private void store(
-		long id,
-		long cellId,
-		String name,
-		String category,
-		String foodType,
-		String licenseDate,
-		boolean franchise,
-		boolean active) {
-
+	private void cell(long id, String area, String dong) {
+		jdbc.sql("insert into legal_dong values (?, ?)").params(dong, area).update();
 		jdbc.sql("""
-				insert into store (id, mgmt_no, cell_id, name, category, food_type, franchise,
-					road_addr, lat, lng, license_date, active)
-				values (?, ?, ?, ?, ?, ?, ?, '서울특별시 종로구', 37.57, 126.98, cast(? as date), ?)
-				""")
-			.params(id, "mgmt-" + id, cellId, name, category, foodType, franchise, licenseDate, active)
-			.update();
+			insert into cell values (?, ?, 37.5698, 126.9797, 37.5702, 126.9803)
+			""").params(id, dong).update();
+	}
+
+	private void store(long id, long cellId, String name, String category,
+		String foodType, String date, boolean missingPlace, boolean active) {
+		jdbc.sql("""
+			insert into store (id, mgmt_no, cell_id, name, kind,
+				lat, lng, since_date, google_place_id, active)
+			values (?, ?, ?, ?, ?, 37.57, 126.98, cast(? as date), ?, ?)
+			""").params(id, "mgmt-" + id, cellId, name,
+				category.equals("CAFE") ? "CAFE" : foodType,
+				date, missingPlace ? null : "place-" + id, active).update();
 	}
 }

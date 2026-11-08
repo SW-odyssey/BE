@@ -1,8 +1,6 @@
 package com.odyssey.recommendation;
 
 import com.odyssey.cell.entity.Area;
-import com.odyssey.cell.entity.Cell;
-import com.odyssey.cell.entity.CellFixture;
 import com.odyssey.cellslotscore.entity.DayType;
 import com.odyssey.cellslotscore.entity.TimeSlot;
 import com.odyssey.store.entity.Category;
@@ -13,6 +11,8 @@ import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Map;
+import com.odyssey.store.entity.StoreKind;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -26,33 +26,13 @@ class RecommendationResponseTest {
 	private static final LocalDate MONDAY = LocalDate.of(2026, 10, 26);
 
 	@Test
-	@DisplayName("칸 모양은 [경도, 위도] 점으로 남서에서 시작해 반시계로 돌고 남서에서 닫힌다")
-	void cellShapeRing() {
-		// given: 남서 (37.5698, 126.9797), 북동 (37.5702, 126.9803)
-		Cell cell = CellFixture.cell(81_383_966L, 37.5698, 126.9797, 37.5702, 126.9803);
-
-		// when
-		RecommendationResponse.CellShape shape = RecommendationResponse.CellShape.from(cell);
-
-		// then: 위도 · 경도가 뒤집히면 오류 없이 지도에 엉뚱한 곳이 칠해진다. 그래서 점 하나하나를 본다
-		assertThat(shape.id()).isEqualTo(81_383_966L);
-		assertThat(shape.geometry().type()).isEqualTo("Polygon");
-		assertThat(shape.geometry().coordinates()[0]).isDeepEqualTo(new double[][] {
-			{126.9797, 37.5698},   // 남서
-			{126.9803, 37.5698},   // 남동
-			{126.9803, 37.5702},   // 북동
-			{126.9797, 37.5702},   // 북서
-			{126.9797, 37.5698}}); // 남서 (닫기)
-	}
-
-	@Test
-	@DisplayName("카드의 since 는 인허가일의 연도다")
+	@DisplayName("카드의 since 는 이력 기준 개업일의 연도다")
 	void sinceIsYear() {
 		// given: 1968-03-11 인허가
 		StoreCardRow row = store(1L, LocalDate.of(1968, 3, 11));
 
 		// when
-		RecommendationResponse.Item item = RecommendationResponse.Item.from(row);
+		RecommendationResponse.Item item = RecommendationResponse.Item.from(row, List.of());
 
 		// then: 화면은 "1968년부터" 처럼 연도만 쓴다 (#30)
 		assertThat(item.since()).isEqualTo(1968);
@@ -68,7 +48,7 @@ class RecommendationResponseTest {
 
 		// when
 		RecommendationResponse response = RecommendationResponse.of(
-			MONDAY, DayType.WEEKDAY, TimeSlot.AFTERNOON, stores, List.of());
+			MONDAY, DayType.MON_THU, TimeSlot.AFTERNOON, stores, Map.of());
 
 		// then: 응답이 다시 정렬하면 추천 순서가 깨진다
 		assertThat(response.items())
@@ -85,22 +65,20 @@ class RecommendationResponseTest {
 
 		// when
 		RecommendationResponse response = RecommendationResponse.empty(
-			visitDate, DayType.WEEKDAY, TimeSlot.AFTERNOON);
+			visitDate, DayType.MON_THU, TimeSlot.AFTERNOON);
 
 		// then: 결과가 없어도 FE 는 "평일 오후 기준" 같은 문구를 띄운다
 		assertThat(response.applied())
-			.isEqualTo(new RecommendationResponse.Applied(MONDAY, DayType.WEEKDAY, TimeSlot.AFTERNOON));
+			.isEqualTo(new RecommendationResponse.Applied(MONDAY, DayType.MON_THU, TimeSlot.AFTERNOON));
 		assertThat(response.total()).isZero();
 		assertThat(response.items()).isEmpty();
-		assertThat(response.cells()).isEmpty();
 	}
 
 	private static StoreCardRow store(long id, LocalDate licenseDate) {
 		return new StoreCardRow(
 			id,
 			"가게" + id,
-			Category.FOOD,
-			FoodType.KOREAN,
+			StoreKind.KOREAN,
 			81_383_966L,
 			Area.INSADONG,
 			37.57,

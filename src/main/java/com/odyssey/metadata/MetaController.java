@@ -31,7 +31,7 @@ public class MetaController {
 	private static final int VISIT_DAYS_AHEAD = 6;
 
 	/** 추천 한 번에 내려 주는 최대 장소 수 */
-	private static final int MAX_RESULTS = 200;
+	private static final int MAX_RESULTS = 30;
 
 	private final Clock clock;
 
@@ -84,13 +84,11 @@ public class MetaController {
 			option(FoodType.BAR, "술집", false));
 	}
 
-	// 개업 N년 이상. enum 이 아니라 숫자 값이다
+	// 30년 이상 또는 공식 노포 배지가 있는 가게를 고른다
 	private static List<Option> since() {
 		return List.of(
-			new Option("any", "상관없음", true),
-			new Option("20", "20년 이상", false),
-			new Option("30", "30년 이상", false),
-			new Option("40", "40년 이상", false));
+			new Option("false", "상관없음", true),
+			new Option("true", "노포", false));
 	}
 
 	private static List<Option> slots() {

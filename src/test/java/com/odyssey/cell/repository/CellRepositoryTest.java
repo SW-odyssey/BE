@@ -55,11 +55,10 @@ class CellRepositoryTest {
 	}
 
 	private void cell(long cellId) {
+		jdbc.sql("insert into legal_dong values ('공평동', 'INSADONG') on conflict do nothing").update();
 		jdbc.sql("""
-				insert into cell (cell_id, area, legal_dong, legal_dong_en,
-					center_lat, center_lng, sw_lat, sw_lng, ne_lat, ne_lng)
-				values (?, 'INSADONG', '공평동', 'Gongpyeong-dong',
-					37.57, 126.98, 37.5698, 126.9797, 37.5702, 126.9803)
+				insert into cell (cell_id, legal_dong, sw_lat, sw_lng, ne_lat, ne_lng)
+				values (?, '공평동', 37.5698, 126.9797, 37.5702, 126.9803)
 				""")
 			.params(cellId)
 			.update();
