@@ -25,6 +25,14 @@ import static jakarta.persistence.FetchType.*;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Store {
 
+	// v3 전환 중에는 기존 적재기가 값을 주지 않으므로 null 이 가능하다.
+	@Enumerated(EnumType.STRING)
+	@Column(length = 10)
+	private StoreKind kind;
+
+	// analysis 가 인허가 이력을 연결해 계산한다. licenseDate 로 대체하지 않는다.
+	private LocalDate sinceDate;
+
 	@Id
 	@GeneratedValue(strategy = GenerationType.IDENTITY)
 	private Long id;
