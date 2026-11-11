@@ -1,6 +1,7 @@
 package com.odyssey.global.response;
 
 import java.util.Objects;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * 모든 API 응답의 공통 형식.
@@ -43,7 +44,10 @@ import java.util.Objects;
  * <p>{@code <T>} 는 data 에 어떤 타입이든 담기게 하는 제네릭이다.
  * 예) {@code ApiResult<Map<String, String>>}, {@code ApiResult<List<PopulationDto>>}
  */
-public record ApiResult<T>(boolean success, T data, ApiError error) {
+public record ApiResult<T>(
+	@Schema(description = "요청 성공 여부") boolean success,
+	@Schema(description = "성공 결과. 실패하면 null") T data,
+	@Schema(description = "오류 정보. 성공하면 null") ApiError error) {
 
 	public static <T> ApiResult<T> ok(T data) {
 		return new ApiResult<>(true, data, null);

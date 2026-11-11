@@ -5,6 +5,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import org.hibernate.annotations.Immutable;
+import com.odyssey.legaldong.entity.LegalDong;
 
 /**
  * 50m 격자 한 칸
@@ -26,40 +27,11 @@ public class Cell {
 	private Long cellId;
 
 	/**
-	 * U+데이터칸 번호, U+ 데이터가 들어오기 전에는 비어있음
+	 * 칸이 속한 법정동. 지역(area)은 이 법정동으로 정한다.
 	 */
-	@Column(unique = true, length = 50)
-	private String uplusCellId;
-
-	/**
-	 * 한칸이 속한 구역, 한칸은 동으로 정함
-	 * area DB에 JONGNO 같은 글자가 그대로 저장 되도록 하게 함
-	 */
-	@Enumerated(EnumType.STRING)
-	@Column(nullable = false, length = 20)
-	private Area area;
-
-	/**
-	 * 동 이름
-	 */
-	@Column(nullable = false, length = 30)
-	private String legalDong;
-
-	/**
-	 * 동 영문 표기
-	 */
-	@Column(nullable = false, length = 30)
-	private String legalDongEn;
-
-	/**
-	 * 칸 중심 위도
-	 */
-	private double centerLat;
-
-	/**
-	 * 칸 중심 경도
-	 */
-	private double centerLng;
+	@ManyToOne(fetch = FetchType.LAZY, optional = false)
+	@JoinColumn(name = "legal_dong", nullable = false)
+	private LegalDong legalDong;
 
 	/**
 	 * 칸 남서쪽(좌측 하단) 모서리의 위도
@@ -80,4 +52,5 @@ public class Cell {
 	 * 칸 북동쪽(우측 상단) 모서리의 경도
 	 */
 	private double neLng;
+
 }

@@ -4,6 +4,9 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -12,7 +15,6 @@ import com.odyssey.cell.entity.Area;
 import com.odyssey.cellslotscore.entity.DensityLevel;
 import com.odyssey.cellslotscore.entity.TimeSlot;
 import com.odyssey.global.api.ApiEnums;
-import com.odyssey.global.api.VisitDateRange;
 import com.odyssey.global.config.ClockConfig;
 import com.odyssey.global.response.ApiResult;
 import com.odyssey.store.entity.Category;
@@ -26,18 +28,28 @@ import com.odyssey.store.entity.FoodType;
  */
 @RestController
 @RequestMapping("/api/v1/meta")
+@Tag(name = "메타", description = "추천 화면의 선택지와 기본값")
 public class MetaController {
 
-	/** 추천 한 번에 내려 주는 최대 장소 수 */
-	private static final int MAX_RESULTS = 200;
+	/** 추천 한 페이지에 내려 주는 최대 장소 수 */
+	private static final int MAX_RESULTS = 30;
 
 	private final Clock clock;
 
+	/** 서버 시간대와 관계없이 서울 기준 날짜를 계산하도록 공통 Clock을 주입받는다. */
 	public MetaController(Clock clock) {
 		this.clock = clock;
 	}
 
+	/** 화면의 선택지·기본값·방문 날짜 기본값과 추천 최대 개수를 반환한다. DB는 조회하지 않는다. */
 	@GetMapping
+	@Operation(summary = "추천 필터 선택지 조회", description = """
+		지역·분류·음식점 종류·시간대·붐빔 선택지와 기본 선택 여부를 반환합니다.
+		각 선택지의 id를 추천 API 파라미터로 보냅니다. isDefault=true가 기본 선택입니다.
+		방문 날짜 visitDate는 서울 기준 오늘이 기본값이며, 날짜 범위는 제한하지 않습니다.
+		노포 since는 기본값 false 하나만 내려가며, 켜면 추천 API에 since=true로 보냅니다.
+		DB를 조회하지 않습니다.
+		""")
 	public ApiResult<MetaResponse> meta() {
 		// 서버가 UTC 로 돌아도 서울 기준 오늘이 나오도록 주입받은 시계를 쓴다
 		LocalDate today = LocalDate.now(clock);
@@ -45,18 +57,19 @@ public class MetaController {
 		MetaResponse response = new MetaResponse(
 			ClockConfig.SEOUL.getId(),
 			List.of("ko", "ja", "zh", "en"),
-			VisitDateRange.min(today),
+			today,
 			areas(),
 			categories(),
 			foodTypes(),
 			false,
-			slotsTime(),
+			timeSlots(),
 			densities(),
 			MAX_RESULTS);
 
 		return ApiResult.ok(response);
 	}
 
+	/** 지역 선택지. 기본은 특정 지역으로 제한하지 않는 전체다. */
 	private static List<Option> areas() {
 		return List.of(
 			new Option("all", "전체", true),
@@ -67,6 +80,7 @@ public class MetaController {
 			option(Area.MYEONGDONG, "명동", false));
 	}
 
+	/** 매장 분류 선택지. DB의 StoreKind와 별개로 기존 화면의 음식점/카페 구분을 유지한다. */
 	private static List<Option> categories() {
 		return List.of(
 			new Option("all", "전체", true),
@@ -74,14 +88,16 @@ public class MetaController {
 			option(Category.CAFE, "카페", false));
 	}
 
-	// FoodType.OTHER · BAR 는 화면에서 고를 수 없어서 내려 주지 않는다
+	// FoodType.OTHER · BAR 는 앱 선택지에 없어서 내려 주지 않는다 (추천 API 는 bar 도 받는다)
+	/** 음식점을 고른 경우 사용할 종류 선택지를 반환한다. */
 	private static List<Option> foodTypes() {
 		return List.of(
 			new Option("any", "상관없음", true),
 			option(FoodType.KOREAN, "한식", false));
 	}
 
-	private static List<Option> slotsTime() {
+	/** 방문 시간대 선택지. 기본은 오후이며, 화면 라벨에 각 시간 범위를 함께 제공한다. */
+	private static List<Option> timeSlots() {
 		return List.of(
 			option(TimeSlot.LUNCH, "점심 11~13시", false),
 			option(TimeSlot.AFTERNOON, "오후 14~17시", true),
@@ -90,6 +106,7 @@ public class MetaController {
 	}
 
 	// DensityLevel.MODERATE 는 화면에서 고를 수 없어서 내려 주지 않는다
+	/** 붐빔 필터 선택지. lively는 조회할 때 peakHour 조건으로 해석한다. */
 	private static List<Option> densities() {
 		return List.of(
 			new Option("any", "상관없음", true),
@@ -98,6 +115,7 @@ public class MetaController {
 	}
 
 	// id 를 enum 이름에서 만들어 오타를 막는다
+	/** enum 이름을 공통 API 소문자 규칙으로 바꾸고 화면 라벨과 기본 선택 여부를 붙인다. */
 	private static Option option(Enum<?> value, String label, boolean isDefault) {
 		return new Option(ApiEnums.toValue(value), label, isDefault);
 	}

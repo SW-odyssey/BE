@@ -4,12 +4,18 @@ import com.odyssey.cell.entity.Area;
 import com.odyssey.cellslotscore.entity.DensityLevel;
 import com.odyssey.cellslotscore.entity.TimeSlot;
 import com.odyssey.global.api.ApiEnums;
-import com.odyssey.global.api.VisitDateRange;
 import com.odyssey.global.exception.BusinessException;
 import com.odyssey.global.exception.CommonErrorCode;
 import com.odyssey.global.response.ApiResult;
 import com.odyssey.store.entity.Category;
 import com.odyssey.store.entity.FoodType;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.ExampleObject;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -23,18 +29,17 @@ import java.time.LocalDate;
  * 추천 API (GitHub 이슈 #30). GET /api/v1/recommendations
  *
  * <p>여기서는 요청 문자열을 검증하고 enum · 날짜로 바꾸는 일만 한다.
- * "insadong" → Area.INSADONG, "all" · "any" → null(조건 없음), since=true → 30년 전 날짜.
+ * "insadong" → Area.INSADONG, "all" · "any" → null(조건 없음), "true" → 방문일 기준 30년 전 날짜.
  * 추천 로직은 {@link RecommendationService} 가 맡는다.
  */
 @RestController
 @RequestMapping("/api/v1/recommendations")
 @RequiredArgsConstructor
+@Tag(name = "추천", description = "방문 조건에 맞는 음식점과 카페 추천")
 public class RecommendationController {
 
 	/** 검색어 최대 길이 (#30) */
 	private static final int MAX_QUERY_LENGTH = 80;
-	/** since=true 일 때 노포로 보는 개업 후 연수 ("30년 이상") */
-	private static final int OLD_STORE_YEARS = 30;
 
 	private final RecommendationService recommendationService;
 	// 서버가 UTC 로 돌아도 서울 기준 "오늘"이 나오도록 주입받은 시계를 쓴다 (ClockConfig)
@@ -49,19 +54,91 @@ public class RecommendationController {
 	 * </pre>
 	 */
 	@GetMapping
+	@Operation(summary = "장소 추천", description = """
+		조건에 맞는 장소를 추천 순서대로 한 페이지에 최대 30곳 반환합니다.
+		page는 0부터 시작하며 생략하면 첫 페이지입니다. hasNext=true이면 page를 1 늘려 요청합니다.
+		total은 이번 페이지의 장소 수입니다. 전체 검색 결과 수가 아닙니다.
+		다음 페이지에도 필터·위치와 applied의 visitDate·slot을 동일하게 전달하세요.
+		조건을 바꾸면 page=0부터 다시 조회합니다.
+		모든 조건은 생략할 수 있으며, 선택지와 방문 날짜 범위는 GET /api/v1/meta에서 확인합니다.
+		결과가 없거나 마지막 페이지를 넘기면 HTTP 200과 total=0, items=[], hasNext=false입니다.
+		서비스 구역 안의 위치를 보내면 500m 안 후보를 점수 구간·거리순으로 먼저 고르고,
+		부족하면 500m 밖 후보를 거리순으로 채웁니다. 위치가 없거나 구역 밖이면 점수순입니다.
+		""")
+	@ApiResponse(responseCode = "200", description = "추천 목록 조회 성공 (빈 목록 포함)",
+		useReturnTypeSchema = true)
+	@ApiResponse(responseCode = "400", description = "INVALID_INPUT: 허용하지 않는 필터·날짜·좌표·검색어·페이지",
+		content = @Content(schema = @Schema(implementation = ApiResult.class),
+			examples = @ExampleObject(value = """
+				{"success":false,"data":null,"error":{"code":"INVALID_INPUT",
+				"message":"density 는 any, less_busy, lively 중 하나입니다"}}
+				""")))
+	@ApiResponse(responseCode = "503", description = "DATA_UNAVAILABLE: DB 조회 실패",
+		content = @Content(schema = @Schema(implementation = ApiResult.class),
+			examples = @ExampleObject(value = """
+				{"success":false,"data":null,"error":{"code":"DATA_UNAVAILABLE",
+				"message":"데이터를 일시적으로 불러올 수 없습니다."}}
+				""")))
+	@ApiResponse(responseCode = "500", description = "INTERNAL_ERROR: 서버 내부 오류",
+		content = @Content(schema = @Schema(implementation = ApiResult.class),
+			examples = @ExampleObject(value = """
+				{"success":false,"data":null,"error":{"code":"INTERNAL_ERROR",
+				"message":"서버 오류가 발생했습니다."}}
+				""")))
 	public ApiResult<RecommendationResponse> recommend(
+		@Parameter(description = "지역. all은 전체 지역입니다.",
+			schema = @Schema(defaultValue = "all", allowableValues = {
+				"all", "jongno", "ikseon", "insadong", "euljiro", "myeongdong"}))
 		@RequestParam(required = false) String areaId,
+		@Parameter(description = "매장 분류. all=전체, food=음식점, cafe=카페.",
+			schema = @Schema(defaultValue = "all", allowableValues = {"all", "food", "cafe"}))
 		@RequestParam(required = false) String category,
+		@Parameter(description = "음식점 종류. category=food일 때만 적용하며 그 외에는 무시합니다. "
+			+ "any=상관없음, korean=한식, bar=술집, other=기타. "
+			+ "other는 API에서 허용하지만 앱 선택지에는 제공하지 않습니다.",
+			schema = @Schema(defaultValue = "any",
+				allowableValues = {"any", "korean", "bar", "other"}))
 		@RequestParam(required = false) String foodType,
-		@RequestParam(required = false) Boolean since,
+		@Parameter(description = "노포 필터. category=food일 때만 적용하며 그 외에는 무시합니다. "
+			+ "true이면 방문일 기준 개업 30년 이상(기준일 포함) 또는 공식 노포 배지가 있는 곳입니다.",
+			schema = @Schema(defaultValue = "false", allowableValues = {"false", "true"}))
+		@RequestParam(required = false) String since,
+		@Parameter(description = "방문일(YYYY-MM-DD). 날짜 범위 제한은 없습니다. "
+			+ "생략하면 오늘(서울 기준)입니다. /api/v1/meta의 visitDate가 기본 날짜입니다.",
+			schema = @Schema(type = "string", format = "date"))
 		@RequestParam(required = false) LocalDate visitDate,
+		@Parameter(description = "방문 시간대. lunch=11~13시, afternoon=14~17시, "
+			+ "dinner=18~21시, late_night=22~01시.",
+			schema = @Schema(defaultValue = "afternoon",
+				allowableValues = {"lunch", "afternoon", "dinner", "late_night"}))
 		@RequestParam(required = false) String slot,
+		@Parameter(description = "붐빔 조건. any=상관없음, less_busy=덜 붐빔, "
+			+ "lively=활기참(해당 시간대가 피크인 칸). moderate는 요청할 수 없습니다.",
+			schema = @Schema(defaultValue = "any",
+				allowableValues = {"any", "less_busy", "lively"}))
 		@RequestParam(required = false) String density,
-		@RequestParam(required = false) String q) {
+		@Parameter(description = "매장 이름 부분 검색. 대소문자를 구분하지 않고 앞뒤 공백을 제거합니다. "
+			+ "생략하거나 공백만 보내면 검색하지 않습니다. 입력 길이는 공백 포함 최대 80자입니다.",
+			schema = @Schema(maxLength = 80))
+		@RequestParam(required = false) String q,
+		@Parameter(description = "사용자 위도(WGS84, 도). lng와 함께 보내야 합니다. "
+			+ "둘 다 생략하면 위치 없이 추천합니다.",
+			schema = @Schema(minimum = "-90", maximum = "90"))
+		@RequestParam(required = false) Double lat,
+		@Parameter(description = "사용자 경도(WGS84, 도). lat와 함께 보내야 합니다.",
+			schema = @Schema(minimum = "-180", maximum = "180"))
+		@RequestParam(required = false) Double lng,
+		@Parameter(description = "0부터 시작하는 페이지 번호. 한 페이지는 최대 30곳입니다.",
+			schema = @Schema(type = "integer", format = "int32", defaultValue = "0", minimum = "0"))
+		@RequestParam(defaultValue = "0") int page) {
 
 		LocalDate today = LocalDate.now(clock);
 		LocalDate date = toVisitDate(visitDate, today);
 		validateQuery(q);
+		validateLocation(lat, lng);
+		if (page < 0) {
+			throw new BusinessException(CommonErrorCode.INVALID_INPUT, "page 는 0 이상이어야 합니다");
+		}
 
 		// "all" 이나 생략 → null (전체). 모르는 값이면 ApiEnums 가 INVALID_INPUT 을 던진다
 		Category findCategory = ApiEnums.parse(Category.class, "category", category, "all")
@@ -73,7 +150,7 @@ public class RecommendationController {
 		FoodType findFoodType = food
 			? ApiEnums.parse(FoodType.class, "foodType", foodType, "any").orElse(null)
 			: null;
-		LocalDate openedBefore = food ? toOpenedBefore(since, today) : null;
+		LocalDate openedBefore = food ? toOpenedBefore(since, date) : null;
 
 		RecommendationQuery query = new RecommendationQuery(
 			ApiEnums.parse(Area.class, "areaId", areaId, "all").orElse(null),
@@ -82,24 +159,18 @@ public class RecommendationController {
 			openedBefore,
 			date,
 			ApiEnums.parse(TimeSlot.class, "slot", slot, TimeSlot.AFTERNOON), // 생략하면 오후 (#30)
-			ApiEnums.parse(DensityLevel.class, "density", density, "any").orElse(null),
-			q);
+			toDensity(density),
+			q, lat, lng, page);
 
 		return ApiResult.ok(recommendationService.recommend(query));
 	}
 
 	/**
-	 * 방문일을 정한다. 생략하면 오늘이다.
-	 *
-	 * @throws BusinessException 오늘 ~ 1년 뒤 범위 밖이면 INVALID_INPUT
+	 * 방문일을 정한다. 생략하면 서울 기준 오늘이고, 지난 날짜나 먼 날짜도 그대로 받는다.
+	 * 점수는 평일 · 주말 구분으로만 계산하므로 날짜 범위를 검사하지 않는다.
 	 */
 	private static LocalDate toVisitDate(LocalDate visitDate, LocalDate today) {
-		LocalDate date = visitDate == null ? today : visitDate;
-		if (!VisitDateRange.contains(today, date)) {
-			throw new BusinessException(CommonErrorCode.INVALID_INPUT,
-				"visitDate 는 " + VisitDateRange.min(today) + " ~ " + VisitDateRange.max(today) + " 사이입니다: " + date);
-		}
-		return date;
+		return visitDate == null ? today : visitDate;
 	}
 
 	/** @throws BusinessException 검색어가 80자를 넘으면 INVALID_INPUT */
@@ -111,16 +182,52 @@ public class RecommendationController {
 	}
 
 	/**
-	 * 노포만 보기(since=true)를 개업일 기준 날짜로 바꾼다. 예) 오늘 2026-10-31 → 1996-10-31 까지 개업한 곳
+	 * 노포 켜기/끄기 선택을 방문일 기준 30년 전 날짜로 바꾼다.
+	 * 공식 배지로도 노포를 판정하는 OR 조건은 매장 리포지토리가 적용한다.
 	 *
-	 * <p>기준을 오늘로 할지 방문일로 할지는 아직 정하지 않았다
-	 *
-	 * @return since 가 true 면 30년 전 날짜, false 이거나 생략하면 null (상관없음)
+	 * @return 생략했거나 false면 null (노포 조건 해제)
+	 * @throws BusinessException true · false가 아니면 INVALID_INPUT
 	 */
-	private static LocalDate toOpenedBefore(Boolean since, LocalDate today) {
-		if (since == null || !since) {
+	private static LocalDate toOpenedBefore(String since, LocalDate visitDate) {
+		if (since == null || since.equals("false")) {
 			return null;
 		}
-		return today.minusYears(OLD_STORE_YEARS);
+		if (since.equals("true")) {
+			return visitDate.minusYears(30);
+		}
+		throw new BusinessException(CommonErrorCode.INVALID_INPUT,
+			"since 는 true 또는 false 입니다");
+	}
+
+	/**
+	 * 화면의 붐빔 선택을 파싱한다. 지도 색칠용 MODERATE는 필터 선택지에 없다.
+	 *
+	 * @return 생략하거나 any면 null (상관없음)
+	 * @throws BusinessException 화면에 없는 값이면 INVALID_INPUT
+	 */
+	private static DensityLevel toDensity(String density) {
+		DensityLevel result = ApiEnums.parse(
+			DensityLevel.class, "density", density, "any").orElse(null);
+		if (result == DensityLevel.MODERATE) {
+			throw new BusinessException(CommonErrorCode.INVALID_INPUT,
+				"density 는 any, less_busy, lively 중 하나입니다");
+		}
+		return result;
+	}
+
+	/**
+	 * 위치는 위도·경도를 함께 보냈을 때만 사용한다. 둘 다 생략하면 위치 없이 추천한다.
+	 *
+	 * @throws BusinessException 한쪽이 없거나 유한한 WGS84 좌표 범위를 벗어나면 INVALID_INPUT
+	 */
+	private static void validateLocation(Double lat, Double lng) {
+		if (lat == null && lng == null) {
+			return;
+		}
+		if (lat == null || lng == null || !Double.isFinite(lat) || !Double.isFinite(lng)
+			|| lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+			throw new BusinessException(CommonErrorCode.INVALID_INPUT,
+				"lat/lng 는 유효한 위도/경도를 함께 보내야 합니다");
+		}
 	}
 }
