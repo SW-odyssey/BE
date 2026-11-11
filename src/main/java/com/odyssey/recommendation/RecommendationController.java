@@ -57,15 +57,19 @@ public class RecommendationController {
 	 */
 	@GetMapping
 	@Operation(summary = "장소 추천", description = """
-		조건에 맞는 장소를 추천 순서대로 최대 30곳 반환합니다. 페이지 구분은 없습니다.
+		조건에 맞는 장소를 추천 순서대로 한 페이지에 최대 30곳 반환합니다.
+		page는 0부터 시작하며 생략하면 첫 페이지입니다. hasNext=true이면 page를 1 늘려 요청합니다.
+		total은 이번 페이지의 장소 수입니다. 전체 검색 결과 수가 아닙니다.
+		다음 페이지에도 필터·위치와 applied의 visitDate·slot을 동일하게 전달하세요.
+		조건을 바꾸면 page=0부터 다시 조회합니다.
 		모든 조건은 생략할 수 있으며, 선택지와 방문 날짜 범위는 GET /api/v1/meta에서 확인합니다.
-		결과가 없으면 HTTP 200과 total=0, items=[]를 반환합니다.
+		결과가 없거나 마지막 페이지를 넘기면 HTTP 200과 total=0, items=[], hasNext=false입니다.
 		서비스 구역 안의 위치를 보내면 500m 안 후보를 점수 구간·거리순으로 먼저 고르고,
 		부족하면 500m 밖 후보를 거리순으로 채웁니다. 위치가 없거나 구역 밖이면 점수순입니다.
 		""")
 	@ApiResponse(responseCode = "200", description = "추천 목록 조회 성공 (빈 목록 포함)",
 		useReturnTypeSchema = true)
-	@ApiResponse(responseCode = "400", description = "INVALID_INPUT: 허용하지 않는 값·날짜·좌표·검색어",
+	@ApiResponse(responseCode = "400", description = "INVALID_INPUT: 허용하지 않는 필터·날짜·좌표·검색어·페이지",
 		content = @Content(schema = @Schema(implementation = ApiResult.class),
 			examples = @ExampleObject(value = """
 				{"success":false,"data":null,"error":{"code":"INVALID_INPUT",
@@ -125,12 +129,18 @@ public class RecommendationController {
 		@RequestParam(required = false) Double lat,
 		@Parameter(description = "사용자 경도(WGS84, 도). lat와 함께 보내야 합니다.",
 			schema = @Schema(minimum = "-180", maximum = "180"))
-		@RequestParam(required = false) Double lng) {
+		@RequestParam(required = false) Double lng,
+		@Parameter(description = "0부터 시작하는 페이지 번호. 한 페이지는 최대 30곳입니다.",
+			schema = @Schema(type = "integer", format = "int32", defaultValue = "0", minimum = "0"))
+		@RequestParam(defaultValue = "0") int page) {
 
 		LocalDate today = LocalDate.now(clock);
 		LocalDate date = toVisitDate(visitDate, today);
 		validateQuery(q);
 		validateLocation(lat, lng);
+		if (page < 0) {
+			throw new BusinessException(CommonErrorCode.INVALID_INPUT, "page 는 0 이상이어야 합니다");
+		}
 
 		// "all" 이나 생략 → null (전체). 모르는 값이면 ApiEnums 가 INVALID_INPUT 을 던진다
 		Category findCategory = ApiEnums.parse(Category.class, "category", category, "all")
@@ -152,7 +162,7 @@ public class RecommendationController {
 			date,
 			ApiEnums.parse(TimeSlot.class, "slot", slot, TimeSlot.AFTERNOON), // 생략하면 오후 (#30)
 			toDensity(density),
-			q, lat, lng);
+			q, lat, lng, page);
 
 		return ApiResult.ok(recommendationService.recommend(query));
 	}

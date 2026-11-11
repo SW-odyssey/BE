@@ -6,7 +6,7 @@ import com.odyssey.store.repository.StoreCardRow;
 
 /** DB와 무관한 후보 선별. 백분위는 매장 수가 아닌 조건에 맞는 칸 수로 계산한다. */
 final class RecommendationSelector {
-	/** 응답 한 번에 담는 최대 매장 수. 초과 후보는 다음 페이지로 넘기지 않는다. */
+	/** 한 페이지에 담는 최대 매장 수. */
 	static final int MAX_RESULTS = 30;
 	/** 사용자 위치 주변에서 먼저 후보를 채우는 반경. 단위는 m이다. */
 	private static final double RADIUS_METERS = 500;
@@ -16,7 +16,7 @@ final class RecommendationSelector {
 	}
 
 	/**
-	 * 후보 칸 안 백분위 구간과 거리로 최대 30곳을 고른다.
+	 * 전체 후보를 백분위 구간과 거리로 정렬한 뒤 요청한 페이지를 고른다.
 	 *
 	 * <p>500m 안에서는 80+ · 60+ · 40+ · 20+ · 전체 구간 순으로, 같은 구간은 거리순으로 담는다.
 	 * 부족하면 500m 밖 후보를 거리순으로 채운다. 위치가 없으면 점수순, 동점은 매장 ID순이다.
@@ -26,9 +26,10 @@ final class RecommendationSelector {
 	 * @param stores 후보 칸 안에서 분류 · 노포 · 검색어 조건에 맞는 가게
 	 * @param lat    서비스 칸 안 사용자 위도(도). 위치 정렬을 쓰지 않으면 null
 	 * @param lng    서비스 칸 안 사용자 경도(도). 위치 정렬을 쓰지 않으면 null
+	 * @param page   검증된 페이지 번호. 0부터 시작한다
 	 */
-	static List<StoreCardRow> select(List<RankedCell> cells, List<StoreCardRow> stores,
-		Double lat, Double lng) {
+	static Page select(List<RankedCell> cells, List<StoreCardRow> stores,
+		Double lat, Double lng, int page) {
 		Map<Long, Double> scores = new HashMap<>();
 		// band 0~4는 각각 80+ · 60+ · 40+ · 20+ · 나머지 구간이다. 작을수록 우선한다.
 		Map<Long, Integer> bands = new HashMap<>();
@@ -61,8 +62,15 @@ final class RecommendationSelector {
 					distance.get(s.id()) <= RADIUS_METERS ? bands.get(s.cellId()) : 5)
 				.thenComparingDouble(s -> distance.get(s.id())).thenComparing(StoreCardRow::id);
 		}
-		return stores.stream().filter(s -> scores.containsKey(s.cellId()))
-			.sorted(order).limit(MAX_RESULTS).toList();
+		// 한 곳을 더 읽어 다음 페이지 여부를 판단한다. 큰 page도 곱셈이 넘치지 않게 long을 쓴다.
+		var selected = stores.stream().filter(s -> scores.containsKey(s.cellId()))
+			.sorted(order).skip((long) page * MAX_RESULTS).limit(MAX_RESULTS + 1L).toList();
+		return new Page(selected.subList(0, Math.min(selected.size(), MAX_RESULTS)),
+			selected.size() > MAX_RESULTS);
+	}
+
+	/** 다음 페이지 확인용 매장은 stores에 포함하지 않는다. */
+	record Page(List<StoreCardRow> stores, boolean hasNext) {
 	}
 
 	/**

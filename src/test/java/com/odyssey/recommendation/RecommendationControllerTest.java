@@ -100,6 +100,7 @@ class RecommendationControllerTest {
 		assertThat(query.openedBefore()).isNull();
 		assertThat(query.densityLevel()).isNull();
 		assertThat(query.query()).isNull();
+		assertThat(query.page()).isZero();
 	}
 
 	@Test
@@ -247,6 +248,32 @@ class RecommendationControllerTest {
 	}
 
 	@ParameterizedTest
+	@ValueSource(strings = {"-1", "abc", "1.5", "2147483648"})
+	@DisplayName("페이지가 음수이거나 정수 범위를 벗어나면 400 INVALID_INPUT")
+	void invalidPage(String page) throws Exception {
+		// given
+		// when
+		ResultActions result = mockMvc.perform(get(URL).param("page", page));
+
+		// then
+		expectInvalidInput(result);
+		result.andExpect(jsonPath("$.error.message").isNotEmpty());
+	}
+
+	@ParameterizedTest
+	@ValueSource(ints = {0, 1, Integer.MAX_VALUE})
+	@DisplayName("0 이상의 페이지 번호는 서비스에 그대로 전달된다")
+	void pageParameter(int page) throws Exception {
+		// given
+		// when
+		var result = mockMvc.perform(get(URL).param("page", Integer.toString(page)));
+
+		// then
+		result.andExpect(status().isOk());
+		assertThat(capturedQuery().page()).isEqualTo(page);
+	}
+
+	@ParameterizedTest
 	@ValueSource(strings = {"abc", "25", "201", "-1", "2000000000"})
 	@DisplayName("since 가 true/false가 아니면 400 INVALID_INPUT")
 	void invalidSince(String since) throws Exception {
@@ -283,7 +310,7 @@ class RecommendationControllerTest {
 		given(recommendationService.recommend(any())).willReturn(RecommendationResponse.of(
 			TODAY, DayType.MON_THU, TimeSlot.AFTERNOON,
 			List.of(store),
-			Map.of(1L, List.of(StoreBadge.ORAE_GAGE))));
+			Map.of(1L, List.of(StoreBadge.ORAE_GAGE)), 0, false));
 
 		// when
 		ResultActions result = mockMvc.perform(get(URL));
@@ -294,6 +321,8 @@ class RecommendationControllerTest {
 			.andExpect(jsonPath("$.data.applied.dayType").value("mon_thu"))
 			.andExpect(jsonPath("$.data.applied.slot").value("afternoon"))
 			.andExpect(jsonPath("$.data.total").value(1))
+			.andExpect(jsonPath("$.data.page").value(0))
+			.andExpect(jsonPath("$.data.hasNext").value(false))
 			.andExpect(jsonPath("$.data.items[0].areaId").value("insadong"))
 			.andExpect(jsonPath("$.data.items[0].category").value("food"))
 			.andExpect(jsonPath("$.data.items[0].foodType").value("korean"))

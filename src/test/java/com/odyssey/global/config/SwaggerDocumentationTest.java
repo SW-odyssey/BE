@@ -115,6 +115,9 @@ class SwaggerDocumentationTest {
 		assertThat(data.at("/properties/total/maximum").asInt()).isEqualTo(30);
 		assertThat(data.at("/properties/items/maxItems").asInt()).isEqualTo(30);
 		assertThat(data.at("/properties/items/items/$ref").asText()).isNotBlank();
+		assertThat(data.at("/properties/page/type").asText()).isEqualTo("integer");
+		assertThat(data.at("/properties/page/minimum").asInt()).isZero();
+		assertThat(data.at("/properties/hasNext/type").asText()).isEqualTo("boolean");
 		assertThat(responses.at("/400/description").asText()).contains("INVALID_INPUT");
 		assertThat(responses.at("/503/description").asText()).contains("DATA_UNAVAILABLE");
 		assertThat(responses.at("/500/description").asText()).contains("INTERNAL_ERROR");
@@ -163,6 +166,24 @@ class SwaggerDocumentationTest {
 		assertThat(parameter.at("/schema/minItems").asInt()).isEqualTo(1);
 		assertThat(parameter.at("/schema/maxItems").asInt()).isEqualTo(30);
 		assertThat(data.at("/properties/cells/items/$ref").asText()).isNotBlank();
+	}
+
+	@Test
+	@DisplayName("추천 페이지는 0부터 시작하며 기본값과 30개 단위 조회를 안내한다")
+	void recommendationPage() throws Exception {
+		// given
+		JsonNode document = document();
+
+		// when
+		JsonNode page = parameter(document, "page");
+
+		// then
+		assertThat(page.path("required").asBoolean()).isFalse();
+		assertThat(page.at("/schema/type").asText()).isEqualTo("integer");
+		assertThat(page.at("/schema/default").isNumber()).isTrue();
+		assertThat(page.at("/schema/minimum").asInt()).isZero();
+		assertThat(page.at("/schema/default").asInt()).isZero();
+		assertThat(page.path("description").asText()).contains("30곳");
 	}
 
 	private JsonNode document() throws Exception {

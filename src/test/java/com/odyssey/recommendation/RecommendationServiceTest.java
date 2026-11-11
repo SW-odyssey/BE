@@ -7,6 +7,7 @@ import static org.mockito.Mockito.never;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.stream.LongStream;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -74,9 +75,78 @@ class RecommendationServiceTest {
 		then(stores).should().findCards(List.of(10L, 20L), null, null, null, null);
 	}
 
+	@ParameterizedTest
+	@CsvSource({"0,30,true", "1,30,true", "2,1,false", "3,0,false", "2147483647,0,false"})
+	@DisplayName("현재 페이지의 장소와 배지만 반환하고 마지막 이후에는 빈 응답이다")
+	void pageStoresAndBadges(int page, int count, boolean hasNext) {
+		// given
+		given(scores.findRankedCells(anyInt(), any(), any(), any(), any()))
+			.willReturn(List.of(new RankedCell(10L, 100)));
+		given(stores.findCards(any(), any(), any(), any(), any()))
+			.willReturn(LongStream.rangeClosed(1, 61)
+				.mapToObj(i -> store(62 - i, 10L, 37)).toList());
+		long firstId = (long) page * 30 + 1;
+		var expectedIds = LongStream.range(firstId, firstId + count).boxed().toList();
+
+		// when
+		var result = service.recommend(query(LocalDate.of(2026, 11, 1), null, null, page));
+
+		// then
+		assertThat(result.page()).isEqualTo(page);
+		assertThat(result.total()).isEqualTo(count);
+		assertThat(result.hasNext()).isEqualTo(hasNext);
+		assertThat(result.items()).extracting(RecommendationResponse.Item::id)
+			.containsExactlyElementsOf(expectedIds);
+		if (count == 0) {
+			then(badges).shouldHaveNoInteractions();
+		} else {
+			then(badges).should().findByStoreIds(expectedIds);
+		}
+	}
+
+	@Test
+	@DisplayName("후보 칸이 없는 다음 페이지도 요청한 페이지 번호를 유지한다")
+	void emptyLaterPage() {
+		// given
+		var request = query(LocalDate.of(2026, 11, 1), null, null, 4);
+
+		// when
+		var result = service.recommend(request);
+
+		// then
+		assertThat(result.page()).isEqualTo(4);
+		assertThat(result.total()).isZero();
+		assertThat(result.items()).isEmpty();
+		assertThat(result.hasNext()).isFalse();
+		then(stores).shouldHaveNoInteractions();
+		then(badges).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("후보 칸에 매장이 없으면 위치와 배지를 조회하지 않는다")
+	void emptyStoresOnLaterPage() {
+		// given
+		given(scores.findRankedCells(anyInt(), any(), any(), any(), any()))
+			.willReturn(List.of(new RankedCell(10L, 100)));
+
+		// when
+		var result = service.recommend(query(LocalDate.of(2026, 11, 1), 37.0, 127.0, 2));
+
+		// then
+		assertThat(result.page()).isEqualTo(2);
+		assertThat(result.items()).isEmpty();
+		assertThat(result.hasNext()).isFalse();
+		then(cells).shouldHaveNoInteractions();
+		then(badges).shouldHaveNoInteractions();
+	}
+
 	private RecommendationQuery query(LocalDate date, Double lat, Double lng) {
+		return query(date, lat, lng, 0);
+	}
+
+	private RecommendationQuery query(LocalDate date, Double lat, Double lng, int page) {
 		return new RecommendationQuery(null, null, null, null, date,
-			TimeSlot.AFTERNOON, null, null, lat, lng);
+			TimeSlot.AFTERNOON, null, null, lat, lng, page);
 	}
 
 	private StoreCardRow store(Long id, Long cell, double lat) {
