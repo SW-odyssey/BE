@@ -9,7 +9,6 @@ import java.util.stream.Stream;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
-import org.junit.jupiter.params.provider.CsvSource;
 import com.odyssey.cell.entity.Area;
 import com.odyssey.cellslotscore.repository.RankedCell;
 import com.odyssey.store.entity.StoreKind;
@@ -23,7 +22,7 @@ class RecommendationSelectorTest {
 		var cells = List.of(new RankedCell(1L, 100), new RankedCell(2L, 10));
 		var stores = List.of(store(1, 1, 600), store(2, 2, 100));
 		// when
-		var result = RecommendationSelector.select(cells, stores, 0.0, 0.0, 0).stores();
+		var result = RecommendationSelector.rank(cells, stores, 0.0, 0.0);
 		// then
 		assertThat(result).extracting(StoreCardRow::id).containsExactly(2L, 1L);
 	}
@@ -36,7 +35,7 @@ class RecommendationSelectorTest {
 			.mapToObj(i -> new RankedCell((long) i, i)).toList();
 		var stores = List.of(store(1, 10, 300), store(2, 9, 200), store(3, 1, 10));
 		// when
-		var result = RecommendationSelector.select(cells, stores, 0.0, 0.0, 0).stores();
+		var result = RecommendationSelector.rank(cells, stores, 0.0, 0.0);
 		// then
 		assertThat(result).extracting(StoreCardRow::id).containsExactly(2L, 1L, 3L);
 	}
@@ -47,8 +46,8 @@ class RecommendationSelectorTest {
 		// given
 		var cells = List.of(new RankedCell(1L, 100), new RankedCell(2L, 10));
 		// when
-		var result = RecommendationSelector.select(cells,
-			List.of(store(1, 1, 900), store(2, 2, 600)), 0.0, 0.0, 0).stores();
+		var result = RecommendationSelector.rank(cells,
+			List.of(store(1, 1, 900), store(2, 2, 600)), 0.0, 0.0);
 		// then
 		assertThat(result).extracting(StoreCardRow::id).containsExactly(2L, 1L);
 	}
@@ -59,34 +58,34 @@ class RecommendationSelectorTest {
 		// given
 		var cells = List.of(new RankedCell(1L, 100), new RankedCell(2L, 10));
 		// when
-		var result = RecommendationSelector.select(cells,
-			List.of(store(1, 2, 10), store(3, 1, 10), store(2, 1, 20)), null, null, 0).stores();
+		var result = RecommendationSelector.rank(cells,
+			List.of(store(1, 2, 10), store(3, 1, 10), store(2, 1, 20)), null, null);
 		// then
 		assertThat(result).extracting(StoreCardRow::id).containsExactly(2L, 3L, 1L);
 	}
 
 	@ParameterizedTest
 	@ValueSource(ints = {29, 30, 31, 201})
-	@DisplayName("후보가 많아도 오류 없이 최대 30곳까지만 반환한다")
-	void limit(int count) {
+	@DisplayName("후보가 30곳을 넘어도 전체 후보의 추천 순서를 정한다")
+	void ranksAllCandidates(int count) {
 		// given
 		var stores = IntStream.rangeClosed(1, count)
 			.mapToObj(i -> store(count + 1 - i, 1, i)).toList();
 		// when
-		var result = RecommendationSelector.select(
-			List.of(new RankedCell(1L, 100)), stores, null, null, 0).stores();
+		var result = RecommendationSelector.rank(
+			List.of(new RankedCell(1L, 100)), stores, null, null);
 		// then
-		assertThat(result).hasSize(Math.min(30, count));
+		assertThat(result).hasSize(count);
 		assertThat(result.getFirst().id()).isEqualTo(1L);
-		assertThat(result.getLast().id()).isEqualTo((long) Math.min(30, count));
+		assertThat(result.getLast().id()).isEqualTo((long) count);
 	}
 
 	@Test
 	@DisplayName("후보가 아닌 인접 칸은 추천에 섞이지 않는다")
 	void noNeighborExpansion() {
 		// given / when
-		var result = RecommendationSelector.select(List.of(new RankedCell(1L, 100)),
-			List.of(store(1, 2, 10)), null, null, 0).stores();
+		var result = RecommendationSelector.rank(List.of(new RankedCell(1L, 100)),
+			List.of(store(1, 2, 10)), null, null);
 		// then
 		assertThat(result).isEmpty();
 	}
@@ -98,8 +97,8 @@ class RecommendationSelectorTest {
 		var cells = List.of(new RankedCell(1L, 1), new RankedCell(2L, 10),
 			new RankedCell(3L, 10), new RankedCell(4L, 10));
 		// when
-		var result = RecommendationSelector.select(cells,
-			List.of(store(1, 4, 300), store(2, 2, 100), store(3, 3, 200)), 0.0, 0.0, 0).stores();
+		var result = RecommendationSelector.rank(cells,
+			List.of(store(1, 4, 300), store(2, 2, 100), store(3, 3, 200)), 0.0, 0.0);
 		// then
 		assertThat(result).extracting(StoreCardRow::id).containsExactly(2L, 3L, 1L);
 	}
@@ -108,32 +107,11 @@ class RecommendationSelectorTest {
 	@DisplayName("500m 경계 안쪽은 낮은 점수여도 경계 바깥보다 먼저 선택된다")
 	void radiusBoundary() {
 		// given / when
-		var result = RecommendationSelector.select(
+		var result = RecommendationSelector.rank(
 			List.of(new RankedCell(1L, 100), new RankedCell(2L, 1)),
-			List.of(store(1, 1, 500.01), store(2, 2, 499.99)), 0.0, 0.0, 0).stores();
+			List.of(store(1, 1, 500.01), store(2, 2, 499.99)), 0.0, 0.0);
 		// then
 		assertThat(result).extracting(StoreCardRow::id).containsExactly(2L, 1L);
-	}
-
-	@ParameterizedTest
-	@CsvSource({"0,0,0,false", "29,0,29,false", "30,0,30,false", "31,0,30,true",
-		"30,1,0,false", "31,1,1,false", "60,0,30,true", "60,1,30,false",
-		"61,1,30,true", "61,2,1,false", "61,3,0,false", "61,2147483647,0,false"})
-	@DisplayName("요청한 페이지의 장소만 반환하고 다음 페이지가 있을 때만 hasNext가 참이다")
-	void pageBoundaries(int count, int page, int expectedCount, boolean hasNext) {
-		// given
-		var stores = IntStream.rangeClosed(1, count)
-			.mapToObj(i -> store(count + 1 - i, 1, 100)).toList();
-		long firstId = (long) page * 30 + 1;
-		var expectedIds = LongStream.range(firstId, firstId + expectedCount).boxed().toList();
-
-		// when
-		var result = RecommendationSelector.select(
-			List.of(new RankedCell(1L, 100)), stores, null, null, page);
-
-		// then
-		assertThat(result.stores()).extracting(StoreCardRow::id).containsExactlyElementsOf(expectedIds);
-		assertThat(result.hasNext()).isEqualTo(hasNext);
 	}
 
 	@Test
@@ -148,9 +126,10 @@ class RecommendationSelectorTest {
 		stores.add(store(61, 9, 100));
 
 		// when
-		var first = RecommendationSelector.select(cells, stores, 0.0, 0.0, 0);
-		var second = RecommendationSelector.select(cells, stores, 0.0, 0.0, 1);
-		var last = RecommendationSelector.select(cells, stores, 0.0, 0.0, 2);
+		var ranked = RecommendationSelector.rank(cells, stores, 0.0, 0.0);
+		var first = RecommendationPage.from(ranked, 0);
+		var second = RecommendationPage.from(ranked, 1);
+		var last = RecommendationPage.from(ranked, 2);
 		var actual = Stream.of(first, second, last)
 			.flatMap(page -> page.stores().stream()).map(StoreCardRow::id).toList();
 		var expected = new ArrayList<Long>();

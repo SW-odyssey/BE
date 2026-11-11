@@ -99,19 +99,17 @@ public record RecommendationResponse(
 
 	/** 조건에 맞는 칸이나 가게가 없을 때. 오류가 아니라 200 과 빈 목록 (#30) */
 	public static RecommendationResponse empty(LocalDate date, DayType day, TimeSlot slot, int page) {
-		return of(date, day, slot, List.of(), Map.of(), page, false);
+		return of(date, day, slot, RecommendationPage.from(List.of(), page), Map.of());
 	}
 
 	/**
-	 * @param stores 이미 추천 순서로 정렬된 가게
+	 * @param page 이미 추천 순서로 정렬하고 잘라 낸 한 페이지
 	 * @param badges 선택된 가게의 ID별 공식 노포 배지
-	 * @param page 요청한 페이지 번호
-	 * @param hasNext 전체 후보 중 다음 페이지에 담을 가게가 남아 있는지 여부
 	 */
-	public static RecommendationResponse of(LocalDate date, DayType day, TimeSlot slot,
-		List<StoreCardRow> stores, Map<Long, List<StoreBadge>> badges, int page, boolean hasNext) {
-		return new RecommendationResponse(new Applied(date, day, slot), stores.size(),
-			stores.stream().map(row -> Item.from(row, badges.getOrDefault(row.id(), List.of())))
-				.toList(), page, hasNext);
+	static RecommendationResponse of(LocalDate date, DayType day, TimeSlot slot,
+		RecommendationPage page, Map<Long, List<StoreBadge>> badges) {
+		return new RecommendationResponse(new Applied(date, day, slot), page.stores().size(),
+			page.stores().stream().map(row -> Item.from(row, badges.getOrDefault(row.id(), List.of())))
+				.toList(), page.number(), page.hasNext());
 	}
 }

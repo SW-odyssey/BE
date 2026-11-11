@@ -67,9 +67,10 @@ public class RecommendationService {
 		// 4. 받은 ID순이 아니라 추천 순서로 선별한다. 이 순서가 응답 items의 순서다.
 		boolean useDistance = request.lat() != null && request.lng() != null
 			&& cells.containsPoint(request.lat(), request.lng());
-		var page = RecommendationSelector.select(
+		var ordered = RecommendationSelector.rank(
 			ranked, candidates, useDistance ? request.lat() : null,
-			useDistance ? request.lng() : null, request.page());
+			useDistance ? request.lng() : null);
+		var page = RecommendationPage.from(ordered, request.page());
 		var selected = page.stores();
 		if (selected.isEmpty()) {
 			return RecommendationResponse.empty(
@@ -81,6 +82,6 @@ public class RecommendationService {
 			.collect(Collectors.groupingBy(StoreBadgeId::getStoreId,
 				Collectors.mapping(StoreBadgeId::getBadge, Collectors.toList())));
 		return RecommendationResponse.of(
-			request.visitDate(), day, request.timeSlot(), selected, byStore, request.page(), page.hasNext());
+			request.visitDate(), day, request.timeSlot(), page, byStore);
 	}
 }

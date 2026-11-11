@@ -48,7 +48,7 @@ class RecommendationResponseTest {
 
 		// when
 		RecommendationResponse response = RecommendationResponse.of(
-			MONDAY, DayType.MON_THU, TimeSlot.AFTERNOON, stores, Map.of(), 1, true);
+			MONDAY, DayType.MON_THU, TimeSlot.AFTERNOON, new RecommendationPage(1, stores, true), Map.of());
 
 		// then: 응답이 다시 정렬하면 추천 순서가 깨진다
 		assertThat(response.items())

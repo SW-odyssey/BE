@@ -309,8 +309,8 @@ class RecommendationControllerTest {
 			Area.INSADONG, 37.57, 126.98, LocalDate.of(1968, 3, 11), null);
 		given(recommendationService.recommend(any())).willReturn(RecommendationResponse.of(
 			TODAY, DayType.MON_THU, TimeSlot.AFTERNOON,
-			List.of(store),
-			Map.of(1L, List.of(StoreBadge.ORAE_GAGE)), 0, false));
+			RecommendationPage.from(List.of(store), 0),
+			Map.of(1L, List.of(StoreBadge.ORAE_GAGE))));
 
 		// when
 		ResultActions result = mockMvc.perform(get(URL));
