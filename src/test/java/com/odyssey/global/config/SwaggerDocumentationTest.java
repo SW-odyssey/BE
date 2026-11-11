@@ -9,6 +9,8 @@ import java.util.stream.Stream;
 
 import com.odyssey.health.HealthController;
 import com.odyssey.metadata.MetaController;
+import com.odyssey.recommendation.CellRecommendationController;
+import com.odyssey.recommendation.CellRecommendationService;
 import com.odyssey.recommendation.RecommendationController;
 import com.odyssey.recommendation.RecommendationService;
 import org.junit.jupiter.api.DisplayName;
@@ -28,7 +30,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
-@WebMvcTest({RecommendationController.class, MetaController.class, HealthController.class})
+@WebMvcTest({RecommendationController.class, CellRecommendationController.class,
+	MetaController.class, HealthController.class})
 @Import({SwaggerConfig.class, ClockConfig.class})
 @ImportAutoConfiguration({SpringDocConfiguration.class, SpringDocConfigProperties.class,
 	SpringDocWebMvcConfiguration.class})
@@ -42,6 +45,9 @@ class SwaggerDocumentationTest {
 
 	@MockitoBean
 	private RecommendationService recommendationService;
+
+	@MockitoBean
+	private CellRecommendationService cellRecommendationService;
 
 	@ParameterizedTest
 	@MethodSource("filterOptions")
@@ -135,6 +141,28 @@ class SwaggerDocumentationTest {
 			.containsExactly("century_store", "orae_gage", "future_heritage");
 		assertThat(applied.at("/dayType/enum").valueStream().map(JsonNode::asText).toList())
 			.containsExactly("mon_thu", "fri", "sat", "sun");
+	}
+
+	@Test
+	@DisplayName("셀 경계 API는 필수 ID 목록과 최대 30개 제한을 문서화한다")
+	void cellEndpoint() throws Exception {
+		// given
+		JsonNode document = document();
+
+		// when
+		JsonNode operation = document.at("/paths/~1api~1v1~1recommendations~1cell/get");
+		JsonNode parameter = operation.path("parameters").get(0);
+		JsonNode wrapper = resolve(document,
+			operation.at("/responses/200/content/application~1json/schema"));
+		JsonNode data = resolve(document, wrapper.at("/properties/data"));
+
+		// then
+		assertThat(parameter.path("name").asText()).isEqualTo("cellIds");
+		assertThat(parameter.path("required").asBoolean()).isTrue();
+		assertThat(parameter.at("/schema/type").asText()).isEqualTo("array");
+		assertThat(parameter.at("/schema/minItems").asInt()).isEqualTo(1);
+		assertThat(parameter.at("/schema/maxItems").asInt()).isEqualTo(30);
+		assertThat(data.at("/properties/cells/items/$ref").asText()).isNotBlank();
 	}
 
 	private JsonNode document() throws Exception {

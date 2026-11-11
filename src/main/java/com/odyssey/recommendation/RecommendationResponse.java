@@ -13,7 +13,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * 추천 응답 (#43). 목록과 개수 미리보기를 채운다.
- * 지도 칸은 별도 API로 제공할 예정이므로 이 응답에는 포함하지 않는다.
+ * 지도 칸 경계는 필요할 때 /api/v1/recommendations/cell로 조회하므로 이 응답에는 포함하지 않는다.
  *
  * <p>enum 필드(category, areaId, dayType, slot)는 Jackson 설정으로 소문자가 된다 ("insadong").
  *
@@ -67,7 +67,8 @@ public record RecommendationResponse(
 		@Schema(description = "매장이 속한 지역", implementation = String.class,
 			allowableValues = {"jongno", "ikseon", "insadong", "euljiro", "myeongdong"}) Area areaId,
 		@Schema(description = "매장 위치. 사용자 위치가 아닙니다.") Point point,
-		@Schema(description = "매장이 속한 50m 칸 번호", example = "81383966") Long cellId,
+		@Schema(description = "매장이 속한 50m 칸 번호. 지도 경계는 "
+			+ "/api/v1/recommendations/cell의 cellIds로 조회", example = "81383966") Long cellId,
 		@Schema(description = "인허가 이력을 연결한 개업 연도. 미확정이면 null. "
 			+ "요청의 since(노포 필터)와 달리 연도입니다.", example = "1974", nullable = true) Integer since,
 		@Schema(description = "구글에서 사진·주소·리뷰·영업시간을 조회할 때 사용하는 ID") String googlePlaceId,
