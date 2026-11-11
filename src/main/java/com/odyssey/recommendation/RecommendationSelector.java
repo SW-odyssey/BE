@@ -6,8 +6,6 @@ import com.odyssey.store.repository.StoreCardRow;
 
 /** DB와 무관한 후보 선별. 백분위는 매장 수가 아닌 조건에 맞는 칸 수로 계산한다. */
 final class RecommendationSelector {
-	/** 응답 한 번에 담는 최대 매장 수. 초과 후보는 다음 페이지로 넘기지 않는다. */
-	static final int MAX_RESULTS = 30;
 	/** 사용자 위치 주변에서 먼저 후보를 채우는 반경. 단위는 m이다. */
 	private static final double RADIUS_METERS = 500;
 
@@ -16,7 +14,7 @@ final class RecommendationSelector {
 	}
 
 	/**
-	 * 후보 칸 안 백분위 구간과 거리로 최대 30곳을 고른다.
+	 * 전체 후보를 백분위 구간과 거리로 정렬한다.
 	 *
 	 * <p>500m 안에서는 80+ · 60+ · 40+ · 20+ · 전체 구간 순으로, 같은 구간은 거리순으로 담는다.
 	 * 부족하면 500m 밖 후보를 거리순으로 채운다. 위치가 없으면 점수순, 동점은 매장 ID순이다.
@@ -27,7 +25,7 @@ final class RecommendationSelector {
 	 * @param lat    서비스 칸 안 사용자 위도(도). 위치 정렬을 쓰지 않으면 null
 	 * @param lng    서비스 칸 안 사용자 경도(도). 위치 정렬을 쓰지 않으면 null
 	 */
-	static List<StoreCardRow> select(List<RankedCell> cells, List<StoreCardRow> stores,
+	static List<StoreCardRow> rank(List<RankedCell> cells, List<StoreCardRow> stores,
 		Double lat, Double lng) {
 		Map<Long, Double> scores = new HashMap<>();
 		// band 0~4는 각각 80+ · 60+ · 40+ · 20+ · 나머지 구간이다. 작을수록 우선한다.
@@ -62,7 +60,7 @@ final class RecommendationSelector {
 				.thenComparingDouble(s -> distance.get(s.id())).thenComparing(StoreCardRow::id);
 		}
 		return stores.stream().filter(s -> scores.containsKey(s.cellId()))
-			.sorted(order).limit(MAX_RESULTS).toList();
+			.sorted(order).toList();
 	}
 
 	/**

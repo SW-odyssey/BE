@@ -1,8 +1,11 @@
 package com.odyssey.recommendation;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.IntStream;
+import java.util.stream.LongStream;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -19,7 +22,7 @@ class RecommendationSelectorTest {
 		var cells = List.of(new RankedCell(1L, 100), new RankedCell(2L, 10));
 		var stores = List.of(store(1, 1, 600), store(2, 2, 100));
 		// when
-		var result = RecommendationSelector.select(cells, stores, 0.0, 0.0);
+		var result = RecommendationSelector.rank(cells, stores, 0.0, 0.0);
 		// then
 		assertThat(result).extracting(StoreCardRow::id).containsExactly(2L, 1L);
 	}
@@ -32,7 +35,7 @@ class RecommendationSelectorTest {
 			.mapToObj(i -> new RankedCell((long) i, i)).toList();
 		var stores = List.of(store(1, 10, 300), store(2, 9, 200), store(3, 1, 10));
 		// when
-		var result = RecommendationSelector.select(cells, stores, 0.0, 0.0);
+		var result = RecommendationSelector.rank(cells, stores, 0.0, 0.0);
 		// then
 		assertThat(result).extracting(StoreCardRow::id).containsExactly(2L, 1L, 3L);
 	}
@@ -43,7 +46,7 @@ class RecommendationSelectorTest {
 		// given
 		var cells = List.of(new RankedCell(1L, 100), new RankedCell(2L, 10));
 		// when
-		var result = RecommendationSelector.select(cells,
+		var result = RecommendationSelector.rank(cells,
 			List.of(store(1, 1, 900), store(2, 2, 600)), 0.0, 0.0);
 		// then
 		assertThat(result).extracting(StoreCardRow::id).containsExactly(2L, 1L);
@@ -55,7 +58,7 @@ class RecommendationSelectorTest {
 		// given
 		var cells = List.of(new RankedCell(1L, 100), new RankedCell(2L, 10));
 		// when
-		var result = RecommendationSelector.select(cells,
+		var result = RecommendationSelector.rank(cells,
 			List.of(store(1, 2, 10), store(3, 1, 10), store(2, 1, 20)), null, null);
 		// then
 		assertThat(result).extracting(StoreCardRow::id).containsExactly(2L, 3L, 1L);
@@ -63,25 +66,25 @@ class RecommendationSelectorTest {
 
 	@ParameterizedTest
 	@ValueSource(ints = {29, 30, 31, 201})
-	@DisplayName("후보가 많아도 오류 없이 최대 30곳까지만 반환한다")
-	void limit(int count) {
+	@DisplayName("후보가 30곳을 넘어도 전체 후보의 추천 순서를 정한다")
+	void ranksAllCandidates(int count) {
 		// given
 		var stores = IntStream.rangeClosed(1, count)
 			.mapToObj(i -> store(count + 1 - i, 1, i)).toList();
 		// when
-		var result = RecommendationSelector.select(
+		var result = RecommendationSelector.rank(
 			List.of(new RankedCell(1L, 100)), stores, null, null);
 		// then
-		assertThat(result).hasSize(Math.min(30, count));
+		assertThat(result).hasSize(count);
 		assertThat(result.getFirst().id()).isEqualTo(1L);
-		assertThat(result.getLast().id()).isEqualTo((long) Math.min(30, count));
+		assertThat(result.getLast().id()).isEqualTo((long) count);
 	}
 
 	@Test
 	@DisplayName("후보가 아닌 인접 칸은 추천에 섞이지 않는다")
 	void noNeighborExpansion() {
 		// given / when
-		var result = RecommendationSelector.select(List.of(new RankedCell(1L, 100)),
+		var result = RecommendationSelector.rank(List.of(new RankedCell(1L, 100)),
 			List.of(store(1, 2, 10)), null, null);
 		// then
 		assertThat(result).isEmpty();
@@ -94,7 +97,7 @@ class RecommendationSelectorTest {
 		var cells = List.of(new RankedCell(1L, 1), new RankedCell(2L, 10),
 			new RankedCell(3L, 10), new RankedCell(4L, 10));
 		// when
-		var result = RecommendationSelector.select(cells,
+		var result = RecommendationSelector.rank(cells,
 			List.of(store(1, 4, 300), store(2, 2, 100), store(3, 3, 200)), 0.0, 0.0);
 		// then
 		assertThat(result).extracting(StoreCardRow::id).containsExactly(2L, 3L, 1L);
@@ -104,11 +107,44 @@ class RecommendationSelectorTest {
 	@DisplayName("500m 경계 안쪽은 낮은 점수여도 경계 바깥보다 먼저 선택된다")
 	void radiusBoundary() {
 		// given / when
-		var result = RecommendationSelector.select(
+		var result = RecommendationSelector.rank(
 			List.of(new RankedCell(1L, 100), new RankedCell(2L, 1)),
 			List.of(store(1, 1, 500.01), store(2, 2, 499.99)), 0.0, 0.0);
 		// then
 		assertThat(result).extracting(StoreCardRow::id).containsExactly(2L, 1L);
+	}
+
+	@Test
+	@DisplayName("위치 추천도 전체 후보의 점수 구간과 거리순을 유지하며 페이지 사이 중복이 없다")
+	void locationPagesKeepGlobalOrder() {
+		// given: 높은 두 칸이 같은 구간이며, 가까운 61번 다음에 31~60번이 온다.
+		var cells = IntStream.rangeClosed(1, 10)
+			.mapToObj(i -> new RankedCell((long) i, i)).toList();
+		var stores = new ArrayList<StoreCardRow>();
+		IntStream.rangeClosed(1, 30).forEach(i -> stores.add(store(i, 1, 10)));
+		IntStream.rangeClosed(31, 60).forEach(i -> stores.add(store(i, 10, 300)));
+		stores.add(store(61, 9, 100));
+
+		// when
+		var ranked = RecommendationSelector.rank(cells, stores, 0.0, 0.0);
+		var first = RecommendationPage.from(ranked, 0);
+		var second = RecommendationPage.from(ranked, 1);
+		var last = RecommendationPage.from(ranked, 2);
+		var actual = Stream.of(first, second, last)
+			.flatMap(page -> page.stores().stream()).map(StoreCardRow::id).toList();
+		var expected = new ArrayList<Long>();
+		expected.add(61L);
+		expected.addAll(LongStream.rangeClosed(31, 60).boxed().toList());
+		expected.addAll(LongStream.rangeClosed(1, 30).boxed().toList());
+
+		// then
+		assertThat(actual).containsExactlyElementsOf(expected).doesNotHaveDuplicates();
+		assertThat(first.stores()).hasSize(30);
+		assertThat(second.stores()).hasSize(30);
+		assertThat(last.stores()).hasSize(1);
+		assertThat(first.hasNext()).isTrue();
+		assertThat(second.hasNext()).isTrue();
+		assertThat(last.hasNext()).isFalse();
 	}
 
 	private StoreCardRow store(long id, long cell, double meters) {

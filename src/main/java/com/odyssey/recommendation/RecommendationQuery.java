@@ -24,9 +24,10 @@ import com.odyssey.store.entity.FoodType;
  * @param query        이름 검색어. null 이면 검색 안 함
  * @param lat          사용자 위도(WGS84, 도). lng와 함께 있거나 둘 다 null이다
  * @param lng          사용자 경도(WGS84, 도). 서비스 칸 밖이면 위치 기반 정렬을 쓰지 않는다
+ * @param page         0부터 시작하는 페이지 번호. 컨트롤러에서 음수를 거절한다
  */
 public record RecommendationQuery(
 	Area area, Category category, FoodType foodType, LocalDate openedBefore,
 	LocalDate visitDate, TimeSlot timeSlot, DensityLevel densityLevel,
-	String query, Double lat, Double lng) {
+	String query, Double lat, Double lng, int page) {
 }

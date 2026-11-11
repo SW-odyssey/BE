@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @Tag(name = "추천")
 public class CellRecommendationController {
+	private static final int MAX_CELL_IDS = 30;
 
 	private final CellRecommendationService cellRecommendationService;
 
@@ -53,7 +54,7 @@ public class CellRecommendationController {
 			array = @ArraySchema(minItems = 1, maxItems = 30,
 				schema = @Schema(type = "integer", format = "int64", minimum = "1")))
 		@RequestParam List<Long> cellIds) {
-		if (cellIds.isEmpty() || cellIds.size() > RecommendationSelector.MAX_RESULTS
+		if (cellIds.isEmpty() || cellIds.size() > MAX_CELL_IDS
 			|| cellIds.stream().anyMatch(id -> id == null || id <= 0)) {
 			throw new BusinessException(CommonErrorCode.INVALID_INPUT,
 				"cellIds 는 양의 정수 ID를 1개 이상 30개 이하로 보내야 합니다");

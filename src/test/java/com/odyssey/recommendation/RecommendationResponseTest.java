@@ -48,13 +48,15 @@ class RecommendationResponseTest {
 
 		// when
 		RecommendationResponse response = RecommendationResponse.of(
-			MONDAY, DayType.MON_THU, TimeSlot.AFTERNOON, stores, Map.of());
+			MONDAY, DayType.MON_THU, TimeSlot.AFTERNOON, new RecommendationPage(1, stores, true), Map.of());
 
 		// then: 응답이 다시 정렬하면 추천 순서가 깨진다
 		assertThat(response.items())
 			.extracting(RecommendationResponse.Item::id)
 			.containsExactly(3L, 1L);
 		assertThat(response.total()).isEqualTo(2);
+		assertThat(response.page()).isEqualTo(1);
+		assertThat(response.hasNext()).isTrue();
 	}
 
 	@Test
@@ -65,13 +67,15 @@ class RecommendationResponseTest {
 
 		// when
 		RecommendationResponse response = RecommendationResponse.empty(
-			visitDate, DayType.MON_THU, TimeSlot.AFTERNOON);
+			visitDate, DayType.MON_THU, TimeSlot.AFTERNOON, 3);
 
 		// then: 결과가 없어도 FE 는 "월~목 오후 기준" 같은 문구를 띄운다
 		assertThat(response.applied())
 			.isEqualTo(new RecommendationResponse.Applied(MONDAY, DayType.MON_THU, TimeSlot.AFTERNOON));
 		assertThat(response.total()).isZero();
 		assertThat(response.items()).isEmpty();
+		assertThat(response.page()).isEqualTo(3);
+		assertThat(response.hasNext()).isFalse();
 	}
 
 	private static StoreCardRow store(long id, LocalDate licenseDate) {

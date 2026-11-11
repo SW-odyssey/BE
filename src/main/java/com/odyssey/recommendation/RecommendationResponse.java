@@ -18,17 +18,23 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * <p>enum 필드(category, areaId, dayType, slot)는 Jackson 설정으로 소문자가 된다 ("insadong").
  *
  * @param applied 서버가 채우거나 판단한 값. FE 가 보낸 그대로인 값은 돌려주지 않는다
- * @param total   "장소 N곳 보기" (S03). items 길이와 같고 최대 30이다
+ * @param total   이번 페이지의 장소 수. items 길이와 같고 최대 30이며 전체 검색 결과 수가 아니다
  * @param items   추천 가게. 이 순서가 추천 순서다
+ * @param page    요청한 페이지 번호. 0부터 시작한다
+ * @param hasNext 같은 조건으로 조회할 다음 페이지가 있는지 여부
  */
-@Schema(description = "추천 결과. 지도 칸 도형과 페이지 정보는 포함하지 않습니다.")
+@Schema(description = "추천 한 페이지. 지도 칸 경계는 별도 API로 조회합니다.")
 public record RecommendationResponse(
 	@Schema(description = "서버가 확정한 방문일·요일 묶음·시간대") Applied applied,
-	@Schema(description = "반환한 장소 수. items 길이와 같습니다.", minimum = "0", maximum = "30")
+	@Schema(description = "이번 페이지의 장소 수. items 길이와 같으며 전체 검색 결과 수가 아닙니다.",
+		minimum = "0", maximum = "30")
 	int total,
 	@ArraySchema(arraySchema = @Schema(description = "추천 순서의 장소 목록. 결과가 없으면 빈 배열"),
 		maxItems = 30)
-	List<Item> items) {
+	List<Item> items,
+	@Schema(description = "요청한 페이지 번호. 0부터 시작", minimum = "0", example = "0") int page,
+	@Schema(description = "다음 페이지가 있으면 true. 같은 조건으로 page를 1 늘려 요청합니다.")
+	boolean hasNext) {
 	/**
 	 * @param visitDate 생략하면 서버가 오늘로 채운다
 	 * @param dayType   방문일로 서버가 판단한 월~목 / 금 / 토 / 일
@@ -92,18 +98,18 @@ public record RecommendationResponse(
 	}
 
 	/** 조건에 맞는 칸이나 가게가 없을 때. 오류가 아니라 200 과 빈 목록 (#30) */
-	public static RecommendationResponse empty(LocalDate date, DayType day, TimeSlot slot) {
-		return of(date, day, slot, List.of(), Map.of());
+	public static RecommendationResponse empty(LocalDate date, DayType day, TimeSlot slot, int page) {
+		return of(date, day, slot, RecommendationPage.from(List.of(), page), Map.of());
 	}
 
 	/**
-	 * @param stores 이미 추천 순서로 정렬된 가게
+	 * @param page 이미 추천 순서로 정렬하고 잘라 낸 한 페이지
 	 * @param badges 선택된 가게의 ID별 공식 노포 배지
 	 */
-	public static RecommendationResponse of(LocalDate date, DayType day, TimeSlot slot,
-		List<StoreCardRow> stores, Map<Long, List<StoreBadge>> badges) {
-		return new RecommendationResponse(new Applied(date, day, slot), stores.size(),
-			stores.stream().map(row -> Item.from(row, badges.getOrDefault(row.id(), List.of())))
-				.toList());
+	static RecommendationResponse of(LocalDate date, DayType day, TimeSlot slot,
+		RecommendationPage page, Map<Long, List<StoreBadge>> badges) {
+		return new RecommendationResponse(new Applied(date, day, slot), page.stores().size(),
+			page.stores().stream().map(row -> Item.from(row, badges.getOrDefault(row.id(), List.of())))
+				.toList(), page.number(), page.hasNext());
 	}
 }
