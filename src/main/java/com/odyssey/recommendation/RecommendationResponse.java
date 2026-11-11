@@ -8,10 +8,12 @@ import com.odyssey.cellslotscore.entity.DayType;
 import com.odyssey.cellslotscore.entity.TimeSlot;
 import com.odyssey.store.entity.*;
 import com.odyssey.store.repository.StoreCardRow;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
  * 추천 응답 (#43). 목록과 개수 미리보기를 채운다.
- * 지도 칸은 별도 API로 제공할 예정이므로 이 응답에는 포함하지 않는다.
+ * 지도 칸 경계는 필요할 때 /api/v1/recommendations/cell로 조회하므로 이 응답에는 포함하지 않는다.
  *
  * <p>enum 필드(category, areaId, dayType, slot)는 Jackson 설정으로 소문자가 된다 ("insadong").
  *
@@ -19,17 +21,33 @@ import com.odyssey.store.repository.StoreCardRow;
  * @param total   "장소 N곳 보기" (S03). items 길이와 같고 최대 30이다
  * @param items   추천 가게. 이 순서가 추천 순서다
  */
-public record RecommendationResponse(Applied applied, int total, List<Item> items) {
+@Schema(description = "추천 결과. 지도 칸 도형과 페이지 정보는 포함하지 않습니다.")
+public record RecommendationResponse(
+	@Schema(description = "서버가 확정한 방문일·요일 묶음·시간대") Applied applied,
+	@Schema(description = "반환한 장소 수. items 길이와 같습니다.", minimum = "0", maximum = "30")
+	int total,
+	@ArraySchema(arraySchema = @Schema(description = "추천 순서의 장소 목록. 결과가 없으면 빈 배열"),
+		maxItems = 30)
+	List<Item> items) {
 	/**
 	 * @param visitDate 생략하면 서버가 오늘로 채운다
 	 * @param dayType   방문일로 서버가 판단한 월~목 / 금 / 토 / 일
 	 * @param slot      생략하면 서버가 오후로 채운다
 	 */
-	public record Applied(LocalDate visitDate, DayType dayType, TimeSlot slot) {
+	public record Applied(
+		@Schema(description = "적용한 방문일. 요청에서 생략하면 서울 기준 오늘", format = "date")
+		LocalDate visitDate,
+		@Schema(description = "방문일의 요일 묶음. 공휴일도 해당 요일로 분류합니다.",
+			implementation = String.class, allowableValues = {"mon_thu", "fri", "sat", "sun"})
+		DayType dayType,
+		@Schema(description = "적용한 방문 시간대", implementation = String.class,
+			allowableValues = {"lunch", "afternoon", "dinner", "late_night"}) TimeSlot slot) {
 	}
 
 	/** 지도 표시와 거리 계산에 쓴다 */
-	public record Point(double lat, double lng) {
+	public record Point(
+		@Schema(description = "매장 위도(WGS84, 도)", example = "37.5718") double lat,
+		@Schema(description = "매장 경도(WGS84, 도)", example = "126.9827") double lng) {
 	}
 
 	/**
@@ -40,8 +58,25 @@ public record RecommendationResponse(Applied applied, int total, List<Item> item
 	 * @param badges        공식 노포 지정. 없으면 빈 목록
 	 */
 	public record Item(
-		Long id, String name, Category category, FoodType foodType, Area areaId,
-		Point point, Long cellId, Integer since, String googlePlaceId, List<StoreBadge> badges) {
+		@Schema(description = "매장 DB 식별자. 구글 place ID와 다릅니다.", example = "83") Long id,
+		@Schema(description = "매장 이름", example = "예시식당") String name,
+		@Schema(description = "매장 분류", implementation = String.class,
+			allowableValues = {"food", "cafe"}) Category category,
+		@Schema(description = "음식점 종류. 카페이면 null", nullable = true,
+			implementation = String.class, allowableValues = {"korean", "bar", "other"}) FoodType foodType,
+		@Schema(description = "매장이 속한 지역", implementation = String.class,
+			allowableValues = {"jongno", "ikseon", "insadong", "euljiro", "myeongdong"}) Area areaId,
+		@Schema(description = "매장 위치. 사용자 위치가 아닙니다.") Point point,
+		@Schema(description = "매장이 속한 50m 칸 번호. 지도 경계는 "
+			+ "/api/v1/recommendations/cell의 cellIds로 조회", example = "81383966") Long cellId,
+		@Schema(description = "인허가 이력을 연결한 개업 연도. 미확정이면 null. "
+			+ "요청의 since(노포 필터)와 달리 연도입니다.", example = "1974", nullable = true) Integer since,
+		@Schema(description = "구글에서 사진·주소·리뷰·영업시간을 조회할 때 사용하는 ID") String googlePlaceId,
+		@ArraySchema(arraySchema = @Schema(description = "공식 노포 배지. 없으면 빈 배열. "
+			+ "century_store=백년가게, orae_gage=서울 오래가게, future_heritage=서울미래유산"),
+			schema = @Schema(implementation = String.class,
+				allowableValues = {"century_store", "orae_gage", "future_heritage"}))
+		List<StoreBadge> badges) {
 		/**
 		 * DB의 단일 분류를 기존 API의 category · foodType으로 나누고 개업일은 연도로 바꾼다.
 		 * 개업일이 미확정이면 since를 null로 유지한다.

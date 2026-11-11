@@ -12,7 +12,13 @@ public class SwaggerConfig {
 	public OpenAPI odysseyOpenAPI() {
 		Info info = new Info();
 		info.setTitle("Odyssey API");
-		info.setDescription("U+ 유동인구 데이터 조회 API");
+		info.setDescription("""
+			U+ 유동인구 기반의 음식점·카페 추천 API입니다.
+			먼저 /api/v1/meta에서 선택지와 방문 날짜 범위를 확인하고,
+			/api/v1/recommendations에서 Try it out으로 조건을 고른 뒤 Execute로 실행하세요.
+			조건을 생략하면 오늘·오후·전체 지역으로 추천하며, 결과는 최대 30곳입니다.
+			응답은 {success, data, error} 형식이며 날짜 기준은 Asia/Seoul입니다.
+			""");
 		info.setVersion("v0.0.1");
 
 		OpenAPI openAPI = new OpenAPI();
