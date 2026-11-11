@@ -146,7 +146,7 @@ class RecommendationControllerTest {
 	}
 
 	@Test
-	@DisplayName("음식점이면 음식점 종류와 방문일 기준 30년 전 날짜가 조건이 된다")
+	@DisplayName("음식점에 since=true 를 보내면 → 음식점 종류와 방문일 기준 30년 전 날짜가 조건이 된다")
 	void foodFilters() throws Exception {
 		// given: 30년 이상 된 한식
 
@@ -166,7 +166,7 @@ class RecommendationControllerTest {
 	}
 
 	@Test
-	@DisplayName("카페면 음식점 종류 · since 가 같이 와도 무시한다")
+	@DisplayName("카페에 음식점 종류 · since 가 같이 오면 → 무시한다")
 	void cafeIgnoresFoodFilters() throws Exception {
 		// given: 화면을 오가며 음식점 조건이 남은 채로 카페를 고른 경우
 
@@ -185,40 +185,29 @@ class RecommendationControllerTest {
 	}
 
 	@Test
-	@DisplayName("방문일은 오늘부터 6일 뒤까지 고를 수 있다")
-	void visitDateLastDay() throws Exception {
-		// given: 2026-10-26 + 6일
+	@DisplayName("방문일이 오늘보다 앞이어도 → 그대로 서비스에 전달한다")
+	void visitDatePast() throws Exception {
+		// given: 어제. 방문일은 범위를 검사하지 않는다
 
 		// when
-		mockMvc.perform(get(URL).param("visitDate", "2026-11-01"))
+		mockMvc.perform(get(URL).param("visitDate", "2026-10-25"))
 			.andExpect(status().isOk());
 
 		// then
-		assertThat(capturedQuery().visitDate()).isEqualTo(LocalDate.of(2026, 11, 1));
+		assertThat(capturedQuery().visitDate()).isEqualTo(LocalDate.of(2026, 10, 25));
 	}
 
 	@Test
-	@DisplayName("방문일이 오늘보다 앞이면 400 INVALID_INPUT")
-	void visitDatePast() throws Exception {
-		// given: 어제
+	@DisplayName("방문일이 1년 넘게 뒤여도 → 그대로 서비스에 전달한다")
+	void visitDateFarFuture() throws Exception {
+		// given: 오늘 2026-10-26 에서 한참 뒤
 
 		// when
-		ResultActions result = mockMvc.perform(get(URL).param("visitDate", "2026-10-25"));
+		mockMvc.perform(get(URL).param("visitDate", "2030-01-01"))
+			.andExpect(status().isOk());
 
 		// then
-		expectInvalidInput(result);
-	}
-
-	@Test
-	@DisplayName("방문일이 7일 뒤면 400 INVALID_INPUT")
-	void visitDateTooFar() throws Exception {
-		// given: 2026-10-26 + 7일
-
-		// when
-		ResultActions result = mockMvc.perform(get(URL).param("visitDate", "2026-11-02"));
-
-		// then
-		expectInvalidInput(result);
+		assertThat(capturedQuery().visitDate()).isEqualTo(LocalDate.of(2030, 1, 1));
 	}
 
 	@Test
@@ -274,11 +263,11 @@ class RecommendationControllerTest {
 	}
 
 	@ParameterizedTest
-	@ValueSource(strings = {"abc", "25", "201", "-1", "2000000000"})
-	@DisplayName("since 가 true/false가 아니면 400 INVALID_INPUT")
+	@ValueSource(strings = {"", "abc", "1", "0", "yes", "on", "TRUE", "20", "-1", "2000000000"})
+	@DisplayName("since 가 true · false 가 아니면 → 400 INVALID_INPUT")
 	void invalidSince(String since) throws Exception {
 		// given: since 는 음식점일 때만 읽으므로 음식점을 같이 보낸다.
-		// 2000000000 은 날짜 계산에서, -1 은 미래 날짜가 되어 걸러지지 않으면 500 이나 엉뚱한 조건이 된다
+		// 1 · yes · on 은 Boolean 변환이면 true 로 통과하는 값이라 문자열로 엄격하게 받는지 본다
 
 		// when
 		ResultActions result = mockMvc.perform(get(URL)
@@ -287,6 +276,7 @@ class RecommendationControllerTest {
 
 		// then
 		expectInvalidInput(result);
+		result.andExpect(jsonPath("$.error.message").value("since 는 true 또는 false 입니다"));
 	}
 
 	@Test

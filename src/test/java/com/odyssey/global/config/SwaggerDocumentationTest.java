@@ -91,7 +91,7 @@ class SwaggerDocumentationTest {
 		assertThat(date.at("/schema/format").asText()).isEqualTo("date");
 		assertThat(date.at("/schema/default").isMissingNode()).isTrue();
 		assertThat(date.at("/schema/example").isMissingNode()).isTrue();
-		assertThat(date.path("description").asText()).contains("서울", "6일", "생략하면 오늘");
+		assertThat(date.path("description").asText()).contains("서울", "생략하면 오늘", "제한은 없습니다");
 		assertThat(parameter(document, "q").at("/schema/maxLength").asInt()).isEqualTo(80);
 		assertThat(parameter(document, "lat").at("/schema/minimum").asDouble()).isEqualTo(-90);
 		assertThat(parameter(document, "lat").at("/schema/maximum").asDouble()).isEqualTo(90);
