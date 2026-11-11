@@ -34,7 +34,7 @@ public class MetaController {
 	/** 방문 날짜는 오늘부터 6일 뒤까지 고를 수 있다 */
 	private static final int VISIT_DAYS_AHEAD = 6;
 
-	/** 추천 한 번에 내려 주는 최대 장소 수 */
+	/** 추천 한 페이지에 내려 주는 최대 장소 수 */
 	private static final int MAX_RESULTS = 30;
 
 	private final Clock clock;

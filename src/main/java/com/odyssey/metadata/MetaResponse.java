@@ -16,7 +16,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * @param since              노포 사용 여부(30년 이상 또는 공식 배지). category=food 일 때만 화면에 보인다
  * @param slots              시간대
  * @param densities          붐빔 정도
- * @param maxResults         추천 한 번에 내려 주는 최대 장소 수
+ * @param maxResults         추천 한 페이지에 내려 주는 최대 장소 수
  */
 public record MetaResponse(
 	@Schema(description = "날짜 계산 기준 시간대", example = "Asia/Seoul")
@@ -37,7 +37,7 @@ public record MetaResponse(
 	List<Option> slots,
 	@Schema(description = "붐빔 선택지. id를 density로 전달")
 	List<Option> densities,
-	@Schema(description = "추천 한 번에 반환하는 최대 장소 수", example = "30")
+	@Schema(description = "추천 한 페이지에 반환하는 최대 장소 수", example = "30")
 	int maxResults) {
 
 	/**
