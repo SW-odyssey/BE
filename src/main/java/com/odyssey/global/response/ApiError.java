@@ -1,5 +1,7 @@
 package com.odyssey.global.response;
 
+import io.swagger.v3.oas.annotations.media.Schema;
+
 /**
  * 에러 응답의 error 필드에 들어가는 값.
  *
@@ -14,5 +16,8 @@ package com.odyssey.global.response;
  * }
  * }</pre>
  */
-public record ApiError(String code, String message) {
+public record ApiError(
+	@Schema(description = "오류 코드", example = "INVALID_INPUT") String code,
+	@Schema(description = "오류 원인과 입력 수정 안내", example = "since 는 true 또는 false 입니다")
+	String message) {
 }

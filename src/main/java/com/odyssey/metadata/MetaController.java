@@ -4,6 +4,9 @@ import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -25,6 +28,7 @@ import com.odyssey.store.entity.FoodType;
  */
 @RestController
 @RequestMapping("/api/v1/meta")
+@Tag(name = "메타", description = "추천 화면의 선택지와 기본값")
 public class MetaController {
 
 	/** 방문 날짜는 오늘부터 6일 뒤까지 고를 수 있다 */
@@ -42,6 +46,12 @@ public class MetaController {
 
 	/** 화면의 선택지·기본값·방문 날짜 범위와 추천 최대 개수를 반환한다. DB는 조회하지 않는다. */
 	@GetMapping
+	@Operation(summary = "추천 필터 선택지 조회", description = """
+		지역·분류·음식점 종류·노포·시간대·붐빔 선택지와 기본 선택 여부를 반환합니다.
+		각 선택지의 id를 추천 API 파라미터로 보냅니다. isDefault=true가 기본 선택입니다.
+		방문 날짜 범위는 서울 기준 오늘부터 6일 뒤까지이며 양끝을 포함합니다.
+		DB를 조회하지 않습니다.
+		""")
 	public ApiResult<MetaResponse> meta() {
 		// 서버가 UTC 로 돌아도 서울 기준 오늘이 나오도록 주입받은 시계를 쓴다
 		LocalDate today = LocalDate.now(clock);
