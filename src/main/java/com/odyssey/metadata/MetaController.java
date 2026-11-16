@@ -31,9 +31,6 @@ import com.odyssey.store.entity.FoodType;
 @Tag(name = "메타", description = "추천 화면의 선택지와 기본값")
 public class MetaController {
 
-	/** 방문 날짜는 오늘부터 6일 뒤까지 고를 수 있다 */
-	private static final int VISIT_DAYS_AHEAD = 6;
-
 	/** 추천 한 페이지에 내려 주는 최대 장소 수 */
 	private static final int MAX_RESULTS = 30;
 
@@ -44,12 +41,13 @@ public class MetaController {
 		this.clock = clock;
 	}
 
-	/** 화면의 선택지·기본값·방문 날짜 범위와 추천 최대 개수를 반환한다. DB는 조회하지 않는다. */
+	/** 화면의 선택지·기본값·방문 날짜 기본값과 추천 최대 개수를 반환한다. DB는 조회하지 않는다. */
 	@GetMapping
 	@Operation(summary = "추천 필터 선택지 조회", description = """
-		지역·분류·음식점 종류·노포·시간대·붐빔 선택지와 기본 선택 여부를 반환합니다.
+		지역·분류·음식점 종류·시간대·붐빔 선택지와 기본 선택 여부를 반환합니다.
 		각 선택지의 id를 추천 API 파라미터로 보냅니다. isDefault=true가 기본 선택입니다.
-		방문 날짜 범위는 서울 기준 오늘부터 6일 뒤까지이며 양끝을 포함합니다.
+		방문 날짜 visitDate는 서울 기준 오늘이 기본값이며, 날짜 범위는 제한하지 않습니다.
+		노포 since는 기본값 false 하나만 내려가며, 켜면 추천 API에 since=true로 보냅니다.
 		DB를 조회하지 않습니다.
 		""")
 	public ApiResult<MetaResponse> meta() {
@@ -58,13 +56,13 @@ public class MetaController {
 
 		MetaResponse response = new MetaResponse(
 			ClockConfig.SEOUL.getId(),
-			List.of("ko"),
-			new MetaResponse.VisitDate(today, today.plusDays(VISIT_DAYS_AHEAD)),
+			List.of("ko", "ja", "zh", "en"),
+			today,
 			areas(),
 			categories(),
 			foodTypes(),
-			since(),
-			slots(),
+			false,
+			timeSlots(),
 			densities(),
 			MAX_RESULTS);
 
@@ -90,25 +88,16 @@ public class MetaController {
 			option(Category.CAFE, "카페", false));
 	}
 
-	// FoodType.OTHER 는 화면에서 고를 수 없어서 내려 주지 않는다
+	// FoodType.OTHER · BAR 는 앱 선택지에 없어서 내려 주지 않는다 (추천 API 는 bar 도 받는다)
 	/** 음식점을 고른 경우 사용할 종류 선택지를 반환한다. */
 	private static List<Option> foodTypes() {
 		return List.of(
 			new Option("any", "상관없음", true),
-			option(FoodType.KOREAN, "한식", false),
-			option(FoodType.BAR, "술집", false));
-	}
-
-	// 30년 이상 또는 공식 노포 배지가 있는 가게를 고른다
-	/** 노포 필터의 켜기/끄기 선택지. id는 추천 요청의 since 값과 같다. */
-	private static List<Option> since() {
-		return List.of(
-			new Option("false", "상관없음", true),
-			new Option("true", "노포", false));
+			option(FoodType.KOREAN, "한식", false));
 	}
 
 	/** 방문 시간대 선택지. 기본은 오후이며, 화면 라벨에 각 시간 범위를 함께 제공한다. */
-	private static List<Option> slots() {
+	private static List<Option> timeSlots() {
 		return List.of(
 			option(TimeSlot.LUNCH, "점심 11~13시", false),
 			option(TimeSlot.AFTERNOON, "오후 14~17시", true),

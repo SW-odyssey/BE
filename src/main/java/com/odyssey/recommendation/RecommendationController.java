@@ -38,8 +38,6 @@ import java.time.LocalDate;
 @Tag(name = "추천", description = "방문 조건에 맞는 음식점과 카페 추천")
 public class RecommendationController {
 
-	/** 방문일은 오늘부터 6일 뒤까지 고를 수 있다 (meta API 와 같은 값) */
-	private static final int VISIT_DAYS_AHEAD = 6;
 	/** 검색어 최대 길이 (#30) */
 	private static final int MAX_QUERY_LENGTH = 80;
 
@@ -105,8 +103,8 @@ public class RecommendationController {
 			+ "true이면 방문일 기준 개업 30년 이상(기준일 포함) 또는 공식 노포 배지가 있는 곳입니다.",
 			schema = @Schema(defaultValue = "false", allowableValues = {"false", "true"}))
 		@RequestParam(required = false) String since,
-		@Parameter(description = "방문일(YYYY-MM-DD). 서울 기준 오늘부터 6일 뒤까지, 양끝 포함. "
-			+ "생략하면 오늘입니다. 실행 시 /api/v1/meta의 visitDate 범위에서 입력하세요.",
+		@Parameter(description = "방문일(YYYY-MM-DD). 날짜 범위 제한은 없습니다. "
+			+ "생략하면 오늘(서울 기준)입니다. /api/v1/meta의 visitDate가 기본 날짜입니다.",
 			schema = @Schema(type = "string", format = "date"))
 		@RequestParam(required = false) LocalDate visitDate,
 		@Parameter(description = "방문 시간대. lunch=11~13시, afternoon=14~17시, "
@@ -168,17 +166,11 @@ public class RecommendationController {
 	}
 
 	/**
-	 * 방문일을 정한다. 생략하면 오늘이다.
-	 *
-	 * @throws BusinessException 오늘 ~ 6일 뒤 범위 밖이면 INVALID_INPUT
+	 * 방문일을 정한다. 생략하면 서울 기준 오늘이고, 지난 날짜나 먼 날짜도 그대로 받는다.
+	 * 점수는 평일 · 주말 구분으로만 계산하므로 날짜 범위를 검사하지 않는다.
 	 */
 	private static LocalDate toVisitDate(LocalDate visitDate, LocalDate today) {
-		LocalDate date = visitDate == null ? today : visitDate;
-		if (date.isBefore(today) || date.isAfter(today.plusDays(VISIT_DAYS_AHEAD))) {
-			throw new BusinessException(CommonErrorCode.INVALID_INPUT,
-				"visitDate 는 오늘부터 " + VISIT_DAYS_AHEAD + "일 뒤까지입니다: " + date);
-		}
-		return date;
+		return visitDate == null ? today : visitDate;
 	}
 
 	/** @throws BusinessException 검색어가 80자를 넘으면 INVALID_INPUT */
