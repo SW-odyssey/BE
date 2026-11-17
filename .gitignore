@@ -38,6 +38,7 @@ out/
 
 ### 데이터 파일 / 시크릿 ###
 .env
+.env.v2-local
 *.csv
 *.tsv
 *.xls

@@ -1,0 +1,95 @@
+{
+  "success": true,
+  "data": {
+    "datasets": [
+      {
+        "id": "2025-12-b7786edeeae8",
+        "referenceMonth": "2025-12",
+        "population": "DOMESTIC_20_39"
+      },
+      {
+        "id": "2025-11-3579cd2a97d8",
+        "referenceMonth": "2025-11",
+        "population": "DOMESTIC_20_39"
+      },
+      {
+        "id": "2025-10-82979aa73b37",
+        "referenceMonth": "2025-10",
+        "population": "DOMESTIC_20_39"
+      },
+      {
+        "id": "2025-09-b09ff896cc5b",
+        "referenceMonth": "2025-09",
+        "population": "DOMESTIC_20_39"
+      },
+      {
+        "id": "2025-08-6ea1c855b746",
+        "referenceMonth": "2025-08",
+        "population": "DOMESTIC_20_39"
+      },
+      {
+        "id": "2025-07-77f309edb00c",
+        "referenceMonth": "2025-07",
+        "population": "DOMESTIC_20_39"
+      },
+      {
+        "id": "2025-06-e3e6310a1ca6",
+        "referenceMonth": "2025-06",
+        "population": "DOMESTIC_20_39"
+      },
+      {
+        "id": "2025-05-ab54fcc45249",
+        "referenceMonth": "2025-05",
+        "population": "DOMESTIC_20_39"
+      },
+      {
+        "id": "2025-04-696f6e13e45b",
+        "referenceMonth": "2025-04",
+        "population": "DOMESTIC_20_39"
+      },
+      {
+        "id": "2025-03-ba4390a4c8ff",
+        "referenceMonth": "2025-03",
+        "population": "DOMESTIC_20_39"
+      },
+      {
+        "id": "2025-02-6e3d1c78d42e",
+        "referenceMonth": "2025-02",
+        "population": "DOMESTIC_20_39"
+      },
+      {
+        "id": "2025-01-d7890779cf8d",
+        "referenceMonth": "2025-01",
+        "population": "DOMESTIC_20_39"
+      }
+    ],
+    "weekdays": [
+      "mon",
+      "tue",
+      "wed",
+      "thu",
+      "fri",
+      "sat",
+      "sun"
+    ],
+    "slots": [
+      "lunch",
+      "afternoon",
+      "dinner",
+      "late_night"
+    ],
+    "categories": [
+      "food",
+      "cafe",
+      "all"
+    ],
+    "kinds": [
+      "korean",
+      "bar",
+      "other",
+      "cafe",
+      "all"
+    ]
+  },
+  "error": null
+}

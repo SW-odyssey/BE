@@ -1,0 +1,70 @@
+{
+  "months": 12,
+  "http": {
+    "sourceConditionsCompared": 228816,
+    "selectionRequests": 1008,
+    "orderedSelectionMismatches": 0,
+    "reasonBatchRequests": 7728,
+    "cellReasonChecks": 228816,
+    "profileRequests": 57204,
+    "invalidRequestsRejected": 132
+  },
+  "javaV2Tests": {
+    "tests": 21,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "semanticRegression": {
+    "cells": {
+      "comparedRows": 8172,
+      "mismatches": 0
+    },
+    "conditions": {
+      "comparedRows": 228816,
+      "mismatches": 0
+    },
+    "profiles": {
+      "comparedRows": 57204,
+      "mismatches": 0
+    },
+    "reasons": {
+      "comparedRows": 71723,
+      "mismatches": 0
+    },
+    "stores": {
+      "comparedRows": 20304,
+      "mismatches": 0
+    }
+  },
+  "schema": {
+    "actualCounts": {
+      "recommendation_dataset": 12,
+      "cell_condition": 228816,
+      "cell_reason": 71723,
+      "cell_visit_profile": 57204,
+      "cell_visit_bar": 58964
+    },
+    "expectedCounts": {
+      "recommendation_dataset": 12,
+      "cell_condition": 228816,
+      "cell_reason": 71723,
+      "cell_visit_profile": 57204,
+      "cell_visit_bar": 58964
+    },
+    "invalidPublicationRejected": {
+      "incomplete_available": true,
+      "bars_for_unavailable": true
+    },
+    "auditRowsRemaining": 0,
+    "allAssertionsPassed": true
+  },
+  "analysisTests": 20,
+  "frontendTests": 4,
+  "typeScriptStrictPassed": true,
+  "postV10LoaderSmoke": {
+    "passed": true,
+    "rolledBack": true,
+    "remainingAuditRows": 0
+  }
+}
