@@ -1,0 +1,14 @@
+{
+  "success": true,
+  "data": {
+    "id": 1676,
+    "name": "제주침시술소 을지로점",
+    "cellId": "81607938",
+    "kind": "korean",
+    "lat": 37.5655,
+    "lng": 126.9904598,
+    "sinceDate": "2018-07-09",
+    "googlePlaceId": "ChIJX4PnaQCjfDURPDbvw6jZwqY"
+  },
+  "error": null
+}

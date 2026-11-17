@@ -1,0 +1,11 @@
+.git
+.gradle
+.idea
+.env*
+build
+data
+out
+docs
+.worktrees
+*.csv
+*.tsv

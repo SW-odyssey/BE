@@ -1,0 +1,316 @@
+{
+  "success": true,
+  "data": {
+    "status": "OK",
+    "total": 30,
+    "context": {
+      "datasetId": "2025-11-3579cd2a97d8",
+      "referenceMonth": "2025-11",
+      "weekday": "sun",
+      "slot": "dinner"
+    },
+    "items": [
+      {
+        "id": 1676,
+        "name": "제주침시술소 을지로점",
+        "cellId": "81607938",
+        "kind": "korean",
+        "lat": 37.5655,
+        "lng": 126.9904598,
+        "distanceMeters": 11.4,
+        "googlePlaceId": "ChIJX4PnaQCjfDURPDbvw6jZwqY"
+      },
+      {
+        "id": 1503,
+        "name": "1/10 (십분의일)",
+        "cellId": "81591938",
+        "kind": "bar",
+        "lat": 37.5653268,
+        "lng": 126.9902371,
+        "distanceMeters": 24.7,
+        "googlePlaceId": "ChIJ166pQeSifDURncSXBHHCXy8"
+      },
+      {
+        "id": 1505,
+        "name": "로바타카미",
+        "cellId": "81591938",
+        "kind": "other",
+        "lat": 37.5653268,
+        "lng": 126.9902371,
+        "distanceMeters": 24.7,
+        "googlePlaceId": "ChIJg6OLzw-jfDURDVNmKsfb9RA"
+      },
+      {
+        "id": 1508,
+        "name": "빈집;비어있는집",
+        "cellId": "81591938",
+        "kind": "bar",
+        "lat": 37.5652796,
+        "lng": 126.9902169,
+        "distanceMeters": 30.2,
+        "googlePlaceId": "ChIJJeQ0zsWjfDURBaIOLfHIPCI"
+      },
+      {
+        "id": 1522,
+        "name": "지유켄",
+        "cellId": "81591938",
+        "kind": "other",
+        "lat": 37.5652796,
+        "lng": 126.9902169,
+        "distanceMeters": 30.2,
+        "googlePlaceId": "ChIJJ_QOsVGjfDURxHpX1rE66rY"
+      },
+      {
+        "id": 1513,
+        "name": "에비스야 우동",
+        "cellId": "81591938",
+        "kind": "other",
+        "lat": 37.5653376,
+        "lng": 126.9900876,
+        "distanceMeters": 31.0,
+        "googlePlaceId": "ChIJobjElpGjfDURDDD6JBeJ6Do"
+      },
+      {
+        "id": 1675,
+        "name": "전주집",
+        "cellId": "81607938",
+        "kind": "korean",
+        "lat": 37.5654116,
+        "lng": 126.9906701,
+        "distanceMeters": 32.3,
+        "googlePlaceId": "ChIJ0x3qy-aifDURBVvjMR2gfOw"
+      },
+      {
+        "id": 1542,
+        "name": "달맞이 광장 바베큐 본점",
+        "cellId": "81591940",
+        "kind": "bar",
+        "lat": 37.5658285,
+        "lng": 126.990446,
+        "distanceMeters": 34.1,
+        "googlePlaceId": "ChIJ2xI4RQCjfDURiZ0atPhWxcY"
+      },
+      {
+        "id": 1526,
+        "name": "힙지로누룽지통닭",
+        "cellId": "81591938",
+        "kind": "bar",
+        "lat": 37.5652554,
+        "lng": 126.9900585,
+        "distanceMeters": 39.6,
+        "googlePlaceId": "ChIJdxx2C9ijfDURxtm-lICaoZc"
+      },
+      {
+        "id": 1519,
+        "name": "을지잔치",
+        "cellId": "81591938",
+        "kind": "korean",
+        "lat": 37.5652554,
+        "lng": 126.9900585,
+        "distanceMeters": 39.6,
+        "googlePlaceId": "ChIJc3ZfXwCjfDUR_Dpp0fKouOQ"
+      },
+      {
+        "id": 1681,
+        "name": "산청숯불가든 을지로",
+        "cellId": "81607939",
+        "kind": "korean",
+        "lat": 37.56582,
+        "lng": 126.9906213,
+        "distanceMeters": 40.5,
+        "googlePlaceId": "ChIJNyduCUCjfDURI3HOclQsBho"
+      },
+      {
+        "id": 1518,
+        "name": "을지오케이",
+        "cellId": "81591938",
+        "kind": "bar",
+        "lat": 37.5651665,
+        "lng": 126.9901749,
+        "distanceMeters": 43.3,
+        "googlePlaceId": "ChIJQbyG6DajfDURLmpNzUsRGTk"
+      },
+      {
+        "id": 1523,
+        "name": "촙촙",
+        "cellId": "81591938",
+        "kind": "other",
+        "lat": 37.5651955,
+        "lng": 126.9900643,
+        "distanceMeters": 44.7,
+        "googlePlaceId": "ChIJPZVw74ajfDURm15FD7WAiAs"
+      },
+      {
+        "id": 1546,
+        "name": "양평해장국",
+        "cellId": "81591940",
+        "kind": "korean",
+        "lat": 37.5658687,
+        "lng": 126.9899915,
+        "distanceMeters": 48.1,
+        "googlePlaceId": "ChIJYx2IX3ujfDUR0xqT750l9KA"
+      },
+      {
+        "id": 1674,
+        "name": "을지육점",
+        "cellId": "81607938",
+        "kind": "korean",
+        "lat": 37.565523,
+        "lng": 126.9908935,
+        "distanceMeters": 49.0,
+        "googlePlaceId": "ChIJlbK8j_ujfDURR1b4vrLV4Xo"
+      },
+      {
+        "id": 1669,
+        "name": "아루코루",
+        "cellId": "81607938",
+        "kind": "other",
+        "lat": 37.565523,
+        "lng": 126.9908935,
+        "distanceMeters": 49.0,
+        "googlePlaceId": "ChIJS7RcOwCjfDUR5EH5aC_6bc0"
+      },
+      {
+        "id": 1515,
+        "name": "요술",
+        "cellId": "81591938",
+        "kind": "other",
+        "lat": 37.5650842,
+        "lng": 126.9903373,
+        "distanceMeters": 50.0,
+        "googlePlaceId": "ChIJffCCGxqjfDURsEOGUk9Ae1k"
+      },
+      {
+        "id": 1512,
+        "name": "실비바 파도",
+        "cellId": "81591938",
+        "kind": "other",
+        "lat": 37.5650842,
+        "lng": 126.9903373,
+        "distanceMeters": 50.0,
+        "googlePlaceId": "ChIJR4YjFQCjfDUR8hyij0E4UAk"
+      },
+      {
+        "id": 1525,
+        "name": "콘부 을지로",
+        "cellId": "81591938",
+        "kind": "other",
+        "lat": 37.5650842,
+        "lng": 126.9903373,
+        "distanceMeters": 50.0,
+        "googlePlaceId": "ChIJq8Pta5KjfDUR885FLv7BOBo"
+      },
+      {
+        "id": 1511,
+        "name": "신세계분식",
+        "cellId": "81591938",
+        "kind": "korean",
+        "lat": 37.5650943,
+        "lng": 126.9900799,
+        "distanceMeters": 53.9,
+        "googlePlaceId": "ChIJEZB7Q-SifDURXj3ZaGO-3n4"
+      },
+      {
+        "id": 1555,
+        "name": "한국관",
+        "cellId": "81591940",
+        "kind": "korean",
+        "lat": 37.5660158,
+        "lng": 126.9901617,
+        "distanceMeters": 55.7,
+        "googlePlaceId": "ChIJB0oVVgWjfDURQ3faI4FsGR8"
+      },
+      {
+        "id": 1544,
+        "name": "바지선 라딸랑뜨",
+        "cellId": "81591940",
+        "kind": "bar",
+        "lat": 37.565922,
+        "lng": 126.9899337,
+        "distanceMeters": 55.9,
+        "googlePlaceId": "ChIJVYI_1hWjfDURb0KyvKhOWAs"
+      },
+      {
+        "id": 1504,
+        "name": "골목식당",
+        "cellId": "81591938",
+        "kind": "korean",
+        "lat": 37.5650269,
+        "lng": 126.9902771,
+        "distanceMeters": 56.7,
+        "googlePlaceId": "ChIJr8VYQuSifDURjJ4rRaRpieI"
+      },
+      {
+        "id": 1666,
+        "name": "꽃지로",
+        "cellId": "81607938",
+        "kind": "bar",
+        "lat": 37.5655978,
+        "lng": 126.9909764,
+        "distanceMeters": 56.8,
+        "googlePlaceId": "ChIJx1ot2smjfDURCr5660Epi5w"
+      },
+      {
+        "id": 1540,
+        "name": "금돈옥 을지로점",
+        "cellId": "81591940",
+        "kind": "korean",
+        "lat": 37.5660606,
+        "lng": 126.9903919,
+        "distanceMeters": 58.7,
+        "googlePlaceId": "ChIJmcRdeQCjfDURBqVbcgtYKSY"
+      },
+      {
+        "id": 1552,
+        "name": "청와옥 을지로점",
+        "cellId": "81591940",
+        "kind": "korean",
+        "lat": 37.5660176,
+        "lng": 126.9900579,
+        "distanceMeters": 59.1,
+        "googlePlaceId": "ChIJpSfFT-GifDURIiC5FecV2c8"
+      },
+      {
+        "id": 1549,
+        "name": "오덕장 을지로점",
+        "cellId": "81591940",
+        "kind": "korean",
+        "lat": 37.5660176,
+        "lng": 126.9900579,
+        "distanceMeters": 59.1,
+        "googlePlaceId": "ChIJYWKxUzyjfDUR3ZB4YjW6Mj4"
+      },
+      {
+        "id": 1680,
+        "name": "발해감자탕 을지로 직영점",
+        "cellId": "81607939",
+        "kind": "korean",
+        "lat": 37.5660502,
+        "lng": 126.9905275,
+        "distanceMeters": 59.8,
+        "googlePlaceId": "ChIJxQQmVwyjfDURx3-phIHjCTs"
+      },
+      {
+        "id": 1679,
+        "name": "레코드피자 힙지로점",
+        "cellId": "81607939",
+        "kind": "other",
+        "lat": 37.5660393,
+        "lng": 126.9905992,
+        "distanceMeters": 60.7,
+        "googlePlaceId": "ChIJsWkBNQCjfDURy3sUnVD1gUQ"
+      },
+      {
+        "id": 1550,
+        "name": "을지로 양대장",
+        "cellId": "81591940",
+        "kind": "korean",
+        "lat": 37.5659738,
+        "lng": 126.989925,
+        "distanceMeters": 60.9,
+        "googlePlaceId": "ChIJrSwDZDujfDURZcdMsfUfl90"
+      }
+    ]
+  },
+  "error": null
+}
