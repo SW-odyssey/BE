@@ -6,6 +6,8 @@ import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -50,6 +52,13 @@ class SplitRecommendationSchemaTest {
 
 	private DataAccessException publishFailure() {
 		return catchThrowableOfType(DataAccessException.class, () -> db.publish(DS));
+	}
+
+	/** 다른 CHECK 에 걸려도 통과하지 않도록 PostgreSQL 이 알려 준 제약 이름까지 확인한다. */
+	private static void assertViolatesCheck(DataIntegrityViolationException exception,
+		String constraint) {
+		assertThat(exception.getMostSpecificCause())
+			.hasMessageContaining("violates check constraint \"" + constraint + "\"");
 	}
 
 	@Test
@@ -144,7 +153,7 @@ class SplitRecommendationSchemaTest {
 			() -> db.condition(DS, 101, MON, "lunch", "AVAILABLE", null));
 
 		// then
-		assertThat(exception).isNotNull();
+		assertViolatesCheck(exception, "cell_condition_check");
 	}
 
 	@Test
@@ -156,7 +165,7 @@ class SplitRecommendationSchemaTest {
 			() -> db.condition(DS, 101, MON, "lunch", "NOT_OBSERVED", 80.0));
 
 		// then
-		assertThat(exception).isNotNull();
+		assertViolatesCheck(exception, "cell_condition_check");
 	}
 
 	@Test
@@ -171,21 +180,38 @@ class SplitRecommendationSchemaTest {
 			() -> db.reason(DS, 101, MON, "lunch", 1, "WORKER_DISTINCT"));
 
 		// then
-		assertThat(exception).isNotNull();
+		assertViolatesCheck(exception, "cell_reason_code_check");
 	}
 
-	@Test
-	@DisplayName("같은 조건에 이유를 세 번째 위치에 넣는다 → 위치 제약(1~2)이 막는다")
-	void reasonPositionLimitedToTwo() {
+	@ParameterizedTest
+	@ValueSource(ints = {0, 3})
+	@DisplayName("이유 위치가 1~2 밖이다 → 위치 제약이 막는다")
+	void reasonPositionOutOfRangeRejected(int position) {
 		// given
 		db.condition(DS, 101, MON, "lunch", "AVAILABLE", 90.0);
 
 		// when
 		DataIntegrityViolationException exception = catchThrowableOfType(
 			DataIntegrityViolationException.class,
-			() -> db.reason(DS, 101, MON, "lunch", 3, "TIME_PEAK"));
+			() -> db.reason(DS, 101, MON, "lunch", position, "TIME_PEAK"));
 
 		// then
-		assertThat(exception).isNotNull();
+		assertViolatesCheck(exception, "cell_reason_position_check");
+	}
+
+	@ParameterizedTest
+	@ValueSource(ints = {1, 2})
+	@DisplayName("이유 위치가 1 또는 2다 → 저장된다")
+	void reasonPositionWithinRangeAccepted(int position) {
+		// given
+		db.condition(DS, 101, MON, "lunch", "AVAILABLE", 90.0);
+
+		// when
+		db.reason(DS, 101, MON, "lunch", position, "TIME_PEAK");
+
+		// then
+		Integer stored = jdbc.sql("select position from cell_reason where dataset_id = ?")
+			.params(DS).query(Integer.class).single();
+		assertThat(stored).isEqualTo(position);
 	}
 }
