@@ -1,19 +1,23 @@
 package com.odyssey.recommendation.v2;
 
-import java.util.List;
-import java.util.Locale;
-import java.util.Comparator;
+import com.odyssey.cellinsight.repository.CellInsightRepository;
+import com.odyssey.cellinsight.repository.CellInsightRepository.Candidate;
+import com.odyssey.cellinsight.repository.CellInsightRepository.Dataset;
+import com.odyssey.cellinsight.repository.CellInsightRepository.Place;
+import com.odyssey.recommendation.v2.V2RecommendationResponse.Item;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import com.odyssey.cellinsight.repository.CellInsightRepository;
-import com.odyssey.cellinsight.repository.CellInsightRepository.*;
-import com.odyssey.recommendation.v2.V2RecommendationResponse.Item;
+
+import java.util.Comparator;
+import java.util.List;
+import java.util.Locale;
 
 @Service
 @Transactional(readOnly = true)
 public class V2RecommendationService {
 	static final int RADIUS_METERS = 300;
 	static final int MAX_RESULTS = 30;
+	static final double MIN_VISITOR_PERCENTILE = 75;
 	private final CellInsightRepository repository;
 	private final V2DatasetResolver datasets;
 	public V2RecommendationService(CellInsightRepository repository, V2DatasetResolver datasets) {
@@ -22,7 +26,8 @@ public class V2RecommendationService {
 	}
 	public V2RecommendationResponse recommend(V2Query query) {
 		Dataset batch = datasets.require(query.datasetId());
-		List<Located> selected = repository.candidates(query.datasetId(), query.weekday(), query.slot())
+		List<Located> selected = repository.candidates(query.datasetId(), query.weekday(), query.slot(),
+				MIN_VISITOR_PERCENTILE)
 			.stream().filter(c -> matches(c, query))
 			.map(c -> new Located(c, distance(query.lat(), query.lng(), c.place().lat(), c.place().lng())))
 			.filter(c -> c.distance() <= RADIUS_METERS)
@@ -41,7 +46,7 @@ public class V2RecommendationService {
 
 	private static boolean matches(Candidate c, V2Query q) {
 		Place s = c.place();
-		return c.percentile() >= 75
+		return c.percentile() >= MIN_VISITOR_PERCENTILE
 			&& !("food".equals(q.category()) && s.kind().equals("cafe"))
 			&& !("cafe".equals(q.category()) && !s.kind().equals("cafe"))
 			&& (q.kind() == null || q.kind().equals(s.kind()))

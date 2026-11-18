@@ -1,23 +1,5 @@
 package com.odyssey.recommendation.v2;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.catchThrowableOfType;
-import static org.assertj.core.api.Assertions.within;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.never;
-
-import java.util.List;
-import java.util.stream.IntStream;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.CsvSource;
-
 import com.odyssey.cellinsight.repository.CellInsightRepository;
 import com.odyssey.cellinsight.repository.CellInsightRepository.Candidate;
 import com.odyssey.cellinsight.repository.CellInsightRepository.Dataset;
@@ -25,6 +7,22 @@ import com.odyssey.cellinsight.repository.CellInsightRepository.Place;
 import com.odyssey.global.exception.BusinessException;
 import com.odyssey.global.exception.CommonErrorCode;
 import com.odyssey.recommendation.v2.V2RecommendationResponse.Item;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+
+import java.util.List;
+import java.util.stream.IntStream;
+
+import static org.assertj.core.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.anyDouble;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 
 /**
  * {@link V2RecommendationService} 의 추천 규칙을 확인한다. 리포지토리는 목으로 대신한다.
@@ -70,7 +68,7 @@ class V2RecommendationServiceTest {
 	}
 
 	private void givenCandidates(Candidate... rows) {
-		given(repo.candidates(DS, "mon", "dinner")).willReturn(List.of(rows));
+		given(repo.candidates(DS, "mon", "dinner", 75.0)).willReturn(List.of(rows));
 	}
 
 	private static List<Long> ids(V2RecommendationResponse response) {
@@ -375,7 +373,7 @@ class V2RecommendationServiceTest {
 		catchThrowableOfType(BusinessException.class, () -> service.recommend(unknown));
 
 		// then
-		then(repo).should(never()).candidates(anyString(), anyString(), anyString());
+		then(repo).should(never()).candidates(anyString(), anyString(), anyString(), anyDouble());
 	}
 
 	@ParameterizedTest

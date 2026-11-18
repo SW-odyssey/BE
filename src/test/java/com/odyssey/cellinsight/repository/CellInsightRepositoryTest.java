@@ -1,11 +1,7 @@
 package com.odyssey.cellinsight.repository;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
-import java.time.LocalDate;
-import java.util.List;
-import java.util.stream.LongStream;
-
+import com.odyssey.TestcontainersConfiguration;
+import com.odyssey.cellinsight.repository.CellInsightRepository.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -16,13 +12,11 @@ import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.odyssey.TestcontainersConfiguration;
-import com.odyssey.cellinsight.repository.CellInsightRepository.Candidate;
-import com.odyssey.cellinsight.repository.CellInsightRepository.Dataset;
-import com.odyssey.cellinsight.repository.CellInsightRepository.Place;
-import com.odyssey.cellinsight.repository.CellInsightRepository.ProfileRow;
-import com.odyssey.cellinsight.repository.CellInsightRepository.ReasonRow;
-import com.odyssey.cellinsight.repository.CellInsightRepository.VisitBar;
+import java.time.LocalDate;
+import java.util.List;
+import java.util.stream.LongStream;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * {@link CellInsightRepository} 의 SQL 을 실제 Postgres(Testcontainers)에서 확인한다.
@@ -39,6 +33,7 @@ class CellInsightRepositoryTest {
 	private static final String DS = "ds-2026-10";
 	private static final String MON = "mon";
 	private static final String LUNCH = "lunch";
+	private static final double MIN_PERCENTILE = 75.0;
 
 	@Autowired
 	private CellInsightRepository repository;
@@ -138,10 +133,27 @@ class CellInsightRepositoryTest {
 		db.store(2, 102, "경계 미만", "KOREAN", "1995-05-20", "place-2", true);
 
 		// when
-		List<Candidate> candidates = repository.candidates(DS, MON, LUNCH);
+		List<Candidate> candidates = repository.candidates(DS, MON, LUNCH, MIN_PERCENTILE);
 
 		// then
 		assertThat(candidates).extracting(c -> c.place().name()).containsExactly("경계 포함");
+	}
+
+	@Test
+	@DisplayName("최소 백분위를 90으로 넘긴다 → 90 미만은 75 이상이어도 뺀다")
+	void candidatesUseGivenMinPercentile() {
+		// given: 둘 다 75 이상이지만 90 기준으로는 한 곳만 남는다
+		baseDataset();
+		db.condition(DS, 101, MON, LUNCH, "AVAILABLE", 90.0);
+		db.condition(DS, 102, MON, LUNCH, "AVAILABLE", 80.0);
+		db.store(1, 101, "90점 매장", "KOREAN", null, "place-1", true);
+		db.store(2, 102, "80점 매장", "KOREAN", null, "place-2", true);
+
+		// when
+		List<Candidate> candidates = repository.candidates(DS, MON, LUNCH, 90.0);
+
+		// then
+		assertThat(candidates).extracting(c -> c.place().name()).containsExactly("90점 매장");
 	}
 
 	@Test
@@ -155,7 +167,7 @@ class CellInsightRepositoryTest {
 		db.store(2, 102, "관측 안 된 칸", "CAFE", null, "place-2", true);
 
 		// when
-		List<Candidate> candidates = repository.candidates(DS, MON, LUNCH);
+		List<Candidate> candidates = repository.candidates(DS, MON, LUNCH, MIN_PERCENTILE);
 
 		// then
 		assertThat(candidates).extracting(c -> c.place().name()).containsExactly("추천 칸");
@@ -173,7 +185,7 @@ class CellInsightRepositoryTest {
 		db.store(4, 101, "place ID 공백", "KOREAN", null, "   ", true);
 
 		// when
-		List<Candidate> candidates = repository.candidates(DS, MON, LUNCH);
+		List<Candidate> candidates = repository.candidates(DS, MON, LUNCH, MIN_PERCENTILE);
 
 		// then
 		assertThat(candidates).extracting(c -> c.place().name()).containsExactly("적격");
@@ -194,7 +206,7 @@ class CellInsightRepositoryTest {
 		db.store(3, 103, "다른 요일·시간대", "KOREAN", null, "place-3", true);
 
 		// when
-		List<Candidate> candidates = repository.candidates(DS, MON, LUNCH);
+		List<Candidate> candidates = repository.candidates(DS, MON, LUNCH, MIN_PERCENTILE);
 
 		// then
 		assertThat(candidates).extracting(c -> c.place().name()).containsExactly("맞는 칸");
@@ -210,7 +222,7 @@ class CellInsightRepositoryTest {
 		db.store(2, 101, "신생 카페", "CAFE", null, "place-2", true);
 
 		// when
-		List<Candidate> candidates = repository.candidates(DS, MON, LUNCH);
+		List<Candidate> candidates = repository.candidates(DS, MON, LUNCH, MIN_PERCENTILE);
 
 		// then
 		assertThat(candidates).hasSize(2);

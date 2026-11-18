@@ -1,11 +1,12 @@
 package com.odyssey.cellinsight.repository;
 
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.stereotype.Repository;
+
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
-import org.springframework.stereotype.Repository;
 
 /** 공개 응답과 분리된 DB 조회 모델. 방문 백분위는 매장 선택에만 쓰고 응답에 노출하지 않는다. */
 @Repository
@@ -33,15 +34,17 @@ public class CellInsightRepository {
 				rs.getString("reason_version"), rs.getString("profile_version")));
 	}
 
-	public List<Candidate> candidates(String dataset, String day, String slot) {
+	public List<Candidate> candidates(String dataset, String day, String slot,
+									  double minVisitorPercentile) {
 		return jdbc.query("""
 			select s.id,s.name,s.cell_id,s.kind,s.lat,s.lng,s.since_date,s.google_place_id,
 			s.mgmt_no,c.visitor_percentile from cell_condition c
 			join store s on s.cell_id=c.cell_id
 			where c.dataset_id=:dataset and c.weekday=:day and c.slot=:slot
-			and c.quality_status='AVAILABLE' and c.visitor_percentile>=75
+			and c.quality_status='AVAILABLE' and c.visitor_percentile>=:minVisitorPercentile
 			and s.active and s.google_place_id is not null and trim(s.google_place_id)<>''
-			""", Map.of("dataset", dataset, "day", day, "slot", slot), (rs, n) -> new Candidate(
+			""", Map.of("dataset", dataset, "day", day, "slot", slot,
+			"minVisitorPercentile", minVisitorPercentile), (rs, n) -> new Candidate(
 				place(rs), rs.getString("mgmt_no"), rs.getDouble("visitor_percentile")));
 	}
 

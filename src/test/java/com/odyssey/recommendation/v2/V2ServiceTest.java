@@ -1,15 +1,17 @@
 package com.odyssey.recommendation.v2;
 
-import static org.assertj.core.api.Assertions.*;
-import static org.mockito.Mockito.*;
-import java.util.List;
-import java.util.Optional;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import tools.jackson.databind.json.JsonMapper;
 import com.odyssey.cellinsight.repository.CellInsightRepository;
 import com.odyssey.cellinsight.repository.CellInsightRepository.*;
 import com.odyssey.global.exception.BusinessException;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+
+import java.util.List;
+import java.util.Optional;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.*;
 
 class V2ServiceTest {
 	CellInsightRepository repo;
@@ -36,21 +38,21 @@ class V2ServiceTest {
 	}
 
 	@Test void bandPriorityThenDistanceDoesNotUseExactPercentileForTies() {
-		when(repo.candidates("nov", "mon", "dinner")).thenReturn(List.of(
+		when(repo.candidates("nov", "mon", "dinner", 75.0)).thenReturn(List.of(
 			candidate(1, 79, 10), candidate(2, 99, 200), candidate(3, 80, 100)));
 		assertThat(service.recommend(query()).items()).extracting(V2RecommendationResponse.Item::id)
 			.containsExactly(3L, 2L, 1L);
 	}
 
 	@Test void lowEvidenceAndOutsideRadiusDoNotBackfillThirty() {
-		when(repo.candidates("nov", "mon", "dinner")).thenReturn(List.of(
+		when(repo.candidates("nov", "mon", "dinner", 75.0)).thenReturn(List.of(
 			candidate(1, 74.999, 10), candidate(2, 100, 301), candidate(3, 75, 100)));
 		assertThat(service.recommend(query()).items()).extracting(V2RecommendationResponse.Item::id).containsExactly(3L);
 	}
 
 	@Test void thirtyOneCandidatesReturnThirtyInDistanceOrder() {
 		// given
-		when(repo.candidates("nov", "mon", "dinner")).thenReturn(
+		when(repo.candidates("nov", "mon", "dinner", 75.0)).thenReturn(
 			java.util.stream.IntStream.iterate(31, i -> i > 0, i -> i - 1)
 				.mapToObj(i -> candidate(i, 90, i)).toList());
 		// when
