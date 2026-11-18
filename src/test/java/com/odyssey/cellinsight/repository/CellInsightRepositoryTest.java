@@ -376,10 +376,8 @@ class CellInsightRepositoryTest {
 		assertThat(profile.bars()).isEmpty();
 	}
 
-	@Test
-	@DisplayName("다른 요일 · 칸 · 데이터셋의 프로필이 있다 → 요청한 키의 프로필만 준다")
-	void profileScopedByKey() {
-		// given: 칸 101 은 월요일만 AVAILABLE, 화요일은 상태만 다르게 둔다
+	private void givenProfilesInOtherScopes() {
+		// 칸 101 은 월요일만 AVAILABLE 이고, 화요일 · 다른 칸 · 다른 데이터셋에는 다른 프로필을 둔다
 		draftDataset();
 		db.dataset("ds-other", "2026-09-01", "2026-09-30T00:00:00Z", true);
 		db.profile(DS, 101, MON, "AVAILABLE");
@@ -390,14 +388,46 @@ class CellInsightRepositoryTest {
 		db.profile(DS, 101, "tue", "NO_DISTINCT_PEAK");
 		db.profile("ds-other", 102, MON, "INCOMPLETE_TIME_SLOTS");
 		db.publish(DS);
+	}
 
-		// when / then: 화요일은 화요일 프로필
+	@Test
+	@DisplayName("같은 칸에 요일이 다른 프로필이 있다 → 요청한 요일의 프로필만 준다")
+	void profileScopedByWeekday() {
+		// given
+		givenProfilesInOtherScopes();
+
+		// when
 		ProfileRow tue = repository.profile(DS, "tue", 101L).orElseThrow();
+
+		// then
 		assertThat(tue.status()).isEqualTo("NO_DISTINCT_PEAK");
 		assertThat(tue.bars()).isEmpty();
-		// 다른 칸 · 다른 데이터셋의 프로필은 보이지 않는다
-		assertThat(repository.profile(DS, MON, 102L)).isEmpty();
-		assertThat(repository.profile("ds-other", MON, 101L)).isEmpty();
+	}
+
+	@Test
+	@DisplayName("다른 칸의 프로필만 있다 → 요청한 칸은 빈 값을 준다")
+	void profileScopedByCell() {
+		// given
+		givenProfilesInOtherScopes();
+
+		// when
+		var profile = repository.profile(DS, MON, 102L);
+
+		// then
+		assertThat(profile).isEmpty();
+	}
+
+	@Test
+	@DisplayName("다른 데이터셋의 프로필만 있다 → 요청한 데이터셋은 빈 값을 준다")
+	void profileScopedByDataset() {
+		// given
+		givenProfilesInOtherScopes();
+
+		// when
+		var profile = repository.profile("ds-other", MON, 101L);
+
+		// then
+		assertThat(profile).isEmpty();
 	}
 
 	// ------------------------------------------------------------------- place
@@ -417,14 +447,26 @@ class CellInsightRepositoryTest {
 	}
 
 	@Test
-	@DisplayName("영업 종료한 매장 · 없는 ID → 빈 값을 준다")
-	void placeNotFound() {
+	@DisplayName("영업 종료한 매장 → 빈 값을 준다")
+	void placeClosed() {
 		// given
 		db.store(8, 101, "닫은 가게", "KOREAN", null, "place-8", false);
 
-		// when / then
-		assertThat(repository.place(8L)).isEmpty();
-		assertThat(repository.place(999L)).isEmpty();
+		// when
+		var place = repository.place(8L);
+
+		// then
+		assertThat(place).isEmpty();
+	}
+
+	@Test
+	@DisplayName("없는 ID → 빈 값을 준다")
+	void placeUnknownId() {
+		// when
+		var place = repository.place(999L);
+
+		// then
+		assertThat(place).isEmpty();
 	}
 
 	@Test

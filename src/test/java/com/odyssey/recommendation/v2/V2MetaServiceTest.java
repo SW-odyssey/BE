@@ -1,15 +1,17 @@
 package com.odyssey.recommendation.v2;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
+import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 import java.util.List;
+import java.util.stream.Stream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.MethodSource;
 
 import com.odyssey.cellinsight.repository.CellInsightRepository;
 import com.odyssey.cellinsight.repository.CellInsightRepository.Dataset;
@@ -34,11 +36,34 @@ class V2MetaServiceTest {
 		service = new V2MetaService(repo);
 	}
 
+	/** 데이터셋과 무관한 고정 선택지를 꺼내는 도우미. 파라미터 테스트의 입력으로 쓴다. */
+	private static V2MetaResponse fixedMeta() {
+		CellInsightRepository empty = mock(CellInsightRepository.class);
+		given(empty.datasets()).willReturn(List.of());
+		return new V2MetaService(empty).meta();
+	}
+
+	static Stream<String> weekdays() {
+		return fixedMeta().weekdays().stream();
+	}
+
+	static Stream<String> slots() {
+		return fixedMeta().slots().stream();
+	}
+
+	static Stream<String> categories() {
+		return fixedMeta().categories().stream();
+	}
+
+	static Stream<String> kinds() {
+		return fixedMeta().kinds().stream();
+	}
+
 	@Test
 	@DisplayName("지원하는 데이터셋이 여럿이다 → 리포지토리가 준 순서대로 id · 기준월 · 대상을 준다")
 	void listsSupportedDatasets() {
 		// given
-		when(repo.datasets()).thenReturn(List.of(
+		given(repo.datasets()).willReturn(List.of(
 			new Dataset("nov", "2025-11", "DOMESTIC_20_39", POLICY, REASON, PROFILE),
 			new Dataset("oct", "2025-10", "DOMESTIC_20_39", POLICY, REASON, PROFILE)));
 
@@ -55,7 +80,7 @@ class V2MetaServiceTest {
 	@DisplayName("서버가 모르는 버전의 데이터셋이 섞여 있다 → 지원하는 것만 준다")
 	void hidesUnsupportedDatasets() {
 		// given
-		when(repo.datasets()).thenReturn(List.of(
+		given(repo.datasets()).willReturn(List.of(
 			new Dataset("old", "2025-09", "DOMESTIC_20_39", "other-policy", REASON, PROFILE),
 			new Dataset("nov", "2025-11", "DOMESTIC_20_39", POLICY, REASON, PROFILE)));
 
@@ -67,59 +92,73 @@ class V2MetaServiceTest {
 	}
 
 	@Test
-	@DisplayName("공개된 데이터셋이 없다 → 데이터셋만 빈 목록이고 나머지 선택지는 그대로 준다")
+	@DisplayName("공개된 데이터셋이 없다 → 데이터셋 목록만 비어 있다")
 	void noDatasets() {
 		// given
-		when(repo.datasets()).thenReturn(List.of());
+		given(repo.datasets()).willReturn(List.of());
 
 		// when
 		V2MetaResponse response = service.meta();
 
 		// then
 		assertThat(response.datasets()).isEmpty();
-		assertThat(response.weekdays()).hasSize(7);
-		assertThat(response.slots()).hasSize(4);
 	}
 
 	@Test
-	@DisplayName("고정 선택지 → 요일 7개 · 시간대 4개 · 카테고리 · 종류를 약속한 값과 순서로 준다")
+	@DisplayName("조회하면 → 요일 7개 · 시간대 4개 · 카테고리 · 종류를 약속한 값과 순서로 준다")
 	void fixedOptions() {
-		// given
-		when(repo.datasets()).thenReturn(List.of());
-
 		// when
-		V2MetaResponse response = service.meta();
+		V2MetaResponse response = fixedMeta();
 
 		// then
-		assertThat(response.weekdays()).containsExactly("mon", "tue", "wed", "thu", "fri", "sat", "sun");
+		assertThat(response.weekdays())
+			.containsExactly("mon", "tue", "wed", "thu", "fri", "sat", "sun");
 		assertThat(response.slots()).containsExactly("lunch", "afternoon", "dinner", "late_night");
 		assertThat(response.categories()).containsExactly("food", "cafe", "all");
 		assertThat(response.kinds()).containsExactly("korean", "bar", "other", "cafe", "all");
 	}
 
-	@Test
-	@DisplayName("meta 가 준 요일 · 시간대 · 카테고리 · 종류 → V2Query 가 모두 받아들인다")
-	void metaValuesAreAcceptedByQuery() {
-		// given
-		when(repo.datasets()).thenReturn(List.of());
-		V2MetaResponse meta = service.meta();
+	@ParameterizedTest
+	@MethodSource("weekdays")
+	@DisplayName("meta 가 준 요일 → V2Query 가 받아들인다")
+	void queryAcceptsMetaWeekday(String weekday) {
+		// when
+		V2Query query = new V2Query("nov", weekday, "dinner", 37.5, 127.0, "all", "all", "");
 
-		// when / then
-		for (String weekday : meta.weekdays()) {
-			assertThatCode(() -> new V2Query("nov", weekday, "dinner", 37.5, 127.0, "all", "all", ""))
-				.doesNotThrowAnyException();
-		}
-		for (String slot : meta.slots()) {
-			assertThatCode(() -> new V2Query("nov", "mon", slot, 37.5, 127.0, "all", "all", ""))
-				.doesNotThrowAnyException();
-		}
-		for (String category : meta.categories()) {
-			assertThatCode(() -> new V2Query("nov", "mon", "dinner", 37.5, 127.0, category, "all", ""))
-				.doesNotThrowAnyException();
-		}
-		for (String kind : meta.kinds()) {
-			assertThatCode(() -> new V2Query("nov", "mon", "dinner", 37.5, 127.0, "all", kind, ""))
-				.doesNotThrowAnyException();
-		}
+		// then
+		assertThat(query.weekday()).isEqualTo(weekday);
+	}
+
+	@ParameterizedTest
+	@MethodSource("slots")
+	@DisplayName("meta 가 준 시간대 → V2Query 가 받아들인다")
+	void queryAcceptsMetaSlot(String slot) {
+		// when
+		V2Query query = new V2Query("nov", "mon", slot, 37.5, 127.0, "all", "all", "");
+
+		// then
+		assertThat(query.slot()).isEqualTo(slot);
+	}
+
+	@ParameterizedTest
+	@MethodSource("categories")
+	@DisplayName("meta 가 준 카테고리 → V2Query 가 받아들인다")
+	void queryAcceptsMetaCategory(String category) {
+		// when
+		V2Query query = new V2Query("nov", "mon", "dinner", 37.5, 127.0, category, "all", "");
+
+		// then
+		assertThat(query).isNotNull();
+	}
+
+	@ParameterizedTest
+	@MethodSource("kinds")
+	@DisplayName("meta 가 준 종류 → V2Query 가 받아들인다")
+	void queryAcceptsMetaKind(String kind) {
+		// when
+		V2Query query = new V2Query("nov", "mon", "dinner", 37.5, 127.0, "all", kind, "");
+
+		// then
+		assertThat(query).isNotNull();
 	}
 }

@@ -1,8 +1,7 @@
 package com.odyssey.cellinsight.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatCode;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -10,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.context.ActiveProfiles;
@@ -48,6 +48,10 @@ class SplitRecommendationSchemaTest {
 		db.dataset(DS, "2026-10-01", "2026-10-31T00:00:00Z", false);
 	}
 
+	private DataAccessException publishFailure() {
+		return catchThrowableOfType(DataAccessException.class, () -> db.publish(DS));
+	}
+
 	@Test
 	@DisplayName("AVAILABLE 프로필에 막대 4개와 높이 100 하나가 있다 → 공개된다")
 	void publishValidProfile() {
@@ -58,10 +62,12 @@ class SplitRecommendationSchemaTest {
 		db.bar(DS, 101, MON, "dinner", 30);
 		db.bar(DS, 101, MON, "late_night", 0);
 
-		// when / then
-		assertThatCode(() -> db.publish(DS)).doesNotThrowAnyException();
-		Boolean published = jdbc.sql("select published from recommendation_dataset where dataset_id = ?")
-			.params(DS).query(Boolean.class).single();
+		// when
+		db.publish(DS);
+
+		// then
+		Boolean published = jdbc.sql("select published from recommendation_dataset"
+			+ " where dataset_id = ?").params(DS).query(Boolean.class).single();
 		assertThat(published).isTrue();
 	}
 
@@ -74,8 +80,11 @@ class SplitRecommendationSchemaTest {
 		db.bar(DS, 101, MON, "afternoon", 50);
 		db.bar(DS, 101, MON, "dinner", 30);
 
-		// when / then
-		assertThatThrownBy(() -> db.publish(DS)).hasMessageContaining(PUBLISH_ERROR);
+		// when
+		DataAccessException exception = publishFailure();
+
+		// then
+		assertThat(exception).hasMessageContaining(PUBLISH_ERROR);
 	}
 
 	@Test
@@ -88,8 +97,11 @@ class SplitRecommendationSchemaTest {
 		db.bar(DS, 101, MON, "dinner", 30);
 		db.bar(DS, 101, MON, "late_night", 0);
 
-		// when / then
-		assertThatThrownBy(() -> db.publish(DS)).hasMessageContaining(PUBLISH_ERROR);
+		// when
+		DataAccessException exception = publishFailure();
+
+		// then
+		assertThat(exception).hasMessageContaining(PUBLISH_ERROR);
 	}
 
 	@Test
@@ -102,8 +114,11 @@ class SplitRecommendationSchemaTest {
 		db.bar(DS, 101, MON, "dinner", 30);
 		db.bar(DS, 101, MON, "late_night", 0);
 
-		// when / then
-		assertThatThrownBy(() -> db.publish(DS)).hasMessageContaining(PUBLISH_ERROR);
+		// when
+		DataAccessException exception = publishFailure();
+
+		// then
+		assertThat(exception).hasMessageContaining(PUBLISH_ERROR);
 	}
 
 	@Test
@@ -113,24 +128,35 @@ class SplitRecommendationSchemaTest {
 		db.profile(DS, 101, MON, "NO_POSITIVE_VISITS");
 		db.bar(DS, 101, MON, "lunch", 100);
 
-		// when / then
-		assertThatThrownBy(() -> db.publish(DS)).hasMessageContaining(PUBLISH_ERROR);
+		// when
+		DataAccessException exception = publishFailure();
+
+		// then
+		assertThat(exception).hasMessageContaining(PUBLISH_ERROR);
 	}
 
 	@Test
 	@DisplayName("AVAILABLE 조건인데 백분위가 없다 → CHECK 제약이 막는다")
 	void availableConditionRequiresPercentile() {
-		// when / then
-		assertThatThrownBy(() -> db.condition(DS, 101, MON, "lunch", "AVAILABLE", null))
-			.isInstanceOf(DataIntegrityViolationException.class);
+		// when
+		DataIntegrityViolationException exception = catchThrowableOfType(
+			DataIntegrityViolationException.class,
+			() -> db.condition(DS, 101, MON, "lunch", "AVAILABLE", null));
+
+		// then
+		assertThat(exception).isNotNull();
 	}
 
 	@Test
 	@DisplayName("AVAILABLE 이 아닌 조건에 백분위가 있다 → CHECK 제약이 막는다")
 	void unavailableConditionForbidsPercentile() {
-		// when / then
-		assertThatThrownBy(() -> db.condition(DS, 101, MON, "lunch", "NOT_OBSERVED", 80.0))
-			.isInstanceOf(DataIntegrityViolationException.class);
+		// when
+		DataIntegrityViolationException exception = catchThrowableOfType(
+			DataIntegrityViolationException.class,
+			() -> db.condition(DS, 101, MON, "lunch", "NOT_OBSERVED", 80.0));
+
+		// then
+		assertThat(exception).isNotNull();
 	}
 
 	@Test
@@ -139,19 +165,27 @@ class SplitRecommendationSchemaTest {
 		// given
 		db.condition(DS, 101, MON, "lunch", "AVAILABLE", 90.0);
 
-		// when / then
-		assertThatThrownBy(() -> db.reason(DS, 101, MON, "lunch", 1, "WORKER_DISTINCT"))
-			.isInstanceOf(DataIntegrityViolationException.class);
+		// when
+		DataIntegrityViolationException exception = catchThrowableOfType(
+			DataIntegrityViolationException.class,
+			() -> db.reason(DS, 101, MON, "lunch", 1, "WORKER_DISTINCT"));
+
+		// then
+		assertThat(exception).isNotNull();
 	}
 
 	@Test
-	@DisplayName("같은 조건에 이유를 세 개 넣는다 → 위치 제약(1~2)이 막는다")
+	@DisplayName("같은 조건에 이유를 세 번째 위치에 넣는다 → 위치 제약(1~2)이 막는다")
 	void reasonPositionLimitedToTwo() {
 		// given
 		db.condition(DS, 101, MON, "lunch", "AVAILABLE", 90.0);
 
-		// when / then
-		assertThatThrownBy(() -> db.reason(DS, 101, MON, "lunch", 3, "TIME_PEAK"))
-			.isInstanceOf(DataIntegrityViolationException.class);
+		// when
+		DataIntegrityViolationException exception = catchThrowableOfType(
+			DataIntegrityViolationException.class,
+			() -> db.reason(DS, 101, MON, "lunch", 3, "TIME_PEAK"));
+
+		// then
+		assertThat(exception).isNotNull();
 	}
 }
