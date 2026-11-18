@@ -1,4 +1,4 @@
-package com.odyssey.cellinsight.repository;
+package com.odyssey.support;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;

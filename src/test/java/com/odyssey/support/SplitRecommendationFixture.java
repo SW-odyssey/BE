@@ -1,4 +1,4 @@
-package com.odyssey.cellinsight.repository;
+package com.odyssey.support;
 
 import org.springframework.jdbc.core.simple.JdbcClient;
 
@@ -7,15 +7,15 @@ import org.springframework.jdbc.core.simple.JdbcClient;
  *
  * <p>BE 엔티티가 읽기 전용이라 시드는 SQL 로 넣는다. 테스트마다 트랜잭션을 되돌리므로 서로 영향을 주지 않는다.
  */
-final class SplitRecommendationFixture {
+public final class SplitRecommendationFixture {
 
 	private final JdbcClient jdbc;
 
-	SplitRecommendationFixture(JdbcClient jdbc) {
+	public SplitRecommendationFixture(JdbcClient jdbc) {
 		this.jdbc = jdbc;
 	}
 
-	void cell(long cellId) {
+	public void cell(long cellId) {
 		jdbc.sql("insert into legal_dong values ('공평동', 'INSADONG') on conflict do nothing").update();
 		jdbc.sql("""
 			insert into cell (cell_id, legal_dong, sw_lat, sw_lng, ne_lat, ne_lng)
@@ -24,7 +24,7 @@ final class SplitRecommendationFixture {
 	}
 
 	/** month 는 "2026-10-01", computedAt 은 "2026-10-31T08:00:00Z" 형식이다. */
-	void dataset(String datasetId, String month, String computedAt, boolean published) {
+	public void dataset(String datasetId, String month, String computedAt, boolean published) {
 		jdbc.sql("""
 			insert into recommendation_dataset (dataset_id, reference_month, policy_version,
 				reason_version, profile_version, source_sha256, computed_at, published)
@@ -34,12 +34,12 @@ final class SplitRecommendationFixture {
 	}
 
 	/** 자식 행을 다 넣은 뒤 공개한다. 공개 시점에 DB 트리거가 프로필·막대를 검증한다. */
-	void publish(String datasetId) {
+	public void publish(String datasetId) {
 		jdbc.sql("update recommendation_dataset set published = true where dataset_id = ?")
 			.params(datasetId).update();
 	}
 
-	void condition(String datasetId, long cellId, String weekday, String slot,
+	public void condition(String datasetId, long cellId, String weekday, String slot,
 		String qualityStatus, Double percentile) {
 		jdbc.sql("""
 			insert into cell_condition (dataset_id, cell_id, weekday, slot, quality_status,
@@ -48,21 +48,21 @@ final class SplitRecommendationFixture {
 			""").params(datasetId, cellId, weekday, slot, qualityStatus, percentile).update();
 	}
 
-	void reason(String datasetId, long cellId, String weekday, String slot, int position, String code) {
+	public void reason(String datasetId, long cellId, String weekday, String slot, int position, String code) {
 		jdbc.sql("""
 			insert into cell_reason (dataset_id, cell_id, weekday, slot, position, code)
 			values (?, ?, ?, ?, ?, ?)
 			""").params(datasetId, cellId, weekday, slot, position, code).update();
 	}
 
-	void profile(String datasetId, long cellId, String weekday, String status) {
+	public void profile(String datasetId, long cellId, String weekday, String status) {
 		jdbc.sql("""
 			insert into cell_visit_profile (dataset_id, cell_id, weekday, status)
 			values (?, ?, ?, ?)
 			""").params(datasetId, cellId, weekday, status).update();
 	}
 
-	void bar(String datasetId, long cellId, String weekday, String slot, int relativeHeight) {
+	public void bar(String datasetId, long cellId, String weekday, String slot, int relativeHeight) {
 		jdbc.sql("""
 			insert into cell_visit_bar (dataset_id, cell_id, weekday, slot, relative_height)
 			values (?, ?, ?, ?, ?)
@@ -70,7 +70,7 @@ final class SplitRecommendationFixture {
 	}
 
 	/** sinceDate 는 "1995-05-20" 형식이고 null 이면 개업일 없음이다. placeId 가 null 이면 place ID 없음이다. */
-	void store(long id, long cellId, String name, String kind, String sinceDate,
+	public void store(long id, long cellId, String name, String kind, String sinceDate,
 		String placeId, boolean active) {
 		jdbc.sql("""
 			insert into store (id, mgmt_no, cell_id, name, kind, lat, lng, since_date,
