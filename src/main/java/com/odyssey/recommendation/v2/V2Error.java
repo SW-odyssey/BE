@@ -8,7 +8,10 @@ import com.odyssey.global.exception.ErrorType;
 public enum V2Error implements ErrorType {
 
 	// 요청한 분석 배치가 없거나 공개되지 않았다. 다른 달의 배치로 대신하지 않는다
-	DATASET_NOT_FOUND(HttpStatus.NOT_FOUND);
+	DATASET_NOT_FOUND(HttpStatus.NOT_FOUND),
+
+	// 요청한 분석 배치에 이 칸의 방문 프로필이 없다
+	CELL_NOT_FOUND(HttpStatus.NOT_FOUND);
 
 	private final HttpStatus status;
 
