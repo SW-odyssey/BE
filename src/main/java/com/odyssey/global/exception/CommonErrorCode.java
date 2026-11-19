@@ -15,7 +15,7 @@ public enum CommonErrorCode implements ErrorType {
 	// 없는 장소 id 이거나 폐업(active=false). 프론트는 목록으로 돌아간다
 	PLACE_NOT_FOUND(HttpStatus.NOT_FOUND),
 
-	// DB 조회 실패
+	// DB 조회 실패이거나, 서버가 지원하지 않는 데이터 버전을 직접 조회한 경우
 	DATA_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE),
 
 	// 그 밖의 서버 오류
