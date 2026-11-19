@@ -6,6 +6,7 @@ import java.util.Map;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import com.odyssey.cellcondition.entity.CellQualityStatus;
 import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.cellslotscore.entity.TimeSlot;
 import com.odyssey.global.api.ApiEnums;
@@ -29,6 +30,16 @@ public class CellConditionRepository {
 	 * @param percentile 칸의 방문 백분위. 선택에만 쓰고 응답에 넣지 않는다
 	 */
 	public record Candidate(Place place, String mgmtNo, double percentile) {
+	}
+
+	/**
+	 * 한 칸의 조건과 이유 한 줄. 이유가 없는 칸은 position 과 code 가 null 인 행 하나다.
+	 *
+	 * @param position 표시 순서. 1 또는 2
+	 * @param code     이유 코드
+	 */
+	public record ReasonRow(long cellId, CellQualityStatus qualityStatus, Integer position,
+		String code) {
 	}
 
 	private final NamedParameterJdbcTemplate jdbc;
@@ -69,5 +80,37 @@ public class CellConditionRepository {
 				StorePlaceRepository.MAPPER.mapRow(rs, rowNum),
 				rs.getString("mgmt_no"),
 				rs.getDouble("visitor_percentile")));
+	}
+
+	/**
+	 * 요청한 칸들의 품질 상태와 이유를 한 번에 조회한다.
+	 *
+	 * <p>이유가 없는 칸도 행이 남도록 LEFT JOIN 한다. 지정한 배치·요일·시간대의 조건이 없는 칸은 행이
+	 * 없다. 이유는 같은 배치·칸·요일·시간대의 것만 붙는다.
+	 *
+	 * @param cellIds 칸 번호들
+	 * @return 칸 번호 오름차순, 같은 칸 안에서는 이유의 표시 순서(position)대로
+	 */
+	public List<ReasonRow> reasons(String datasetId, Weekday weekday, TimeSlot slot,
+		List<Long> cellIds) {
+		return jdbc.query("""
+			select c.cell_id, c.quality_status, r.position, r.code
+			from cell_condition c
+			left join cell_reason r
+				on r.dataset_id = c.dataset_id and r.cell_id = c.cell_id
+				and r.weekday = c.weekday and r.slot = c.slot
+			where c.dataset_id = :datasetId and c.weekday = :weekday and c.slot = :slot
+				and c.cell_id in (:cellIds)
+			order by c.cell_id, r.position
+			""", Map.of(
+			"datasetId", datasetId,
+			"weekday", ApiEnums.toValue(weekday),
+			"slot", ApiEnums.toValue(slot),
+			"cellIds", cellIds),
+			(rs, rowNum) -> new ReasonRow(
+				rs.getLong("cell_id"),
+				CellQualityStatus.valueOf(rs.getString("quality_status")),
+				rs.getObject("position", Integer.class),
+				rs.getString("code")));
 	}
 }

@@ -30,9 +30,7 @@ public record V2RecommendationQuery(String datasetId, Weekday weekday, TimeSlot 
 		Objects.requireNonNull(weekday, "weekday");
 		Objects.requireNonNull(slot, "slot");
 		Objects.requireNonNull(origin, "origin");
-		if (datasetId == null || !datasetId.matches("[a-zA-Z0-9_-]{1,80}")) {
-			throw invalid("meta에서 제공한 datasetId가 필요합니다.");
-		}
+		V2RequestParams.requireDatasetId(datasetId);
 		q = q == null ? "" : q.strip();
 		if (q.length() > MAX_QUERY_LENGTH) {
 			throw invalid("q는 80자까지입니다.");

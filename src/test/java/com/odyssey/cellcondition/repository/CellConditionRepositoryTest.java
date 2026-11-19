@@ -1,9 +1,11 @@
 package com.odyssey.cellcondition.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.stream.LongStream;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -16,8 +18,10 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.odyssey.TestcontainersConfiguration;
+import com.odyssey.cellcondition.entity.CellQualityStatus;
 import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.cellcondition.repository.CellConditionRepository.Candidate;
+import com.odyssey.cellcondition.repository.CellConditionRepository.ReasonRow;
 import com.odyssey.cellslotscore.entity.TimeSlot;
 import com.odyssey.store.entity.StoreKind;
 import com.odyssey.store.repository.StorePlaceRepository.Place;
@@ -196,5 +200,118 @@ class CellConditionRepositoryTest {
 			.filter(c -> c.place().id() == 2).findFirst().orElseThrow();
 		assertThat(cafe.place().kind()).isEqualTo(StoreKind.CAFE);
 		assertThat(cafe.place().sinceDate()).isNull();
+	}
+
+	private List<ReasonRow> reasons(List<Long> cellIds) {
+		return repository.reasons(DS, Weekday.MON, TimeSlot.LUNCH, cellIds);
+	}
+
+	@Test
+	@DisplayName("이유가 둘인 칸 → 넣은 순서와 상관없이 위치 순서대로 준다")
+	void reasonsOrderedByPosition() {
+		// given: 위치 2 를 먼저 넣는다
+		db.condition(DS, 101, MON, LUNCH, "AVAILABLE", 90.0);
+		db.reason(DS, 101, MON, LUNCH, 2, "TIME_PEAK");
+		db.reason(DS, 101, MON, LUNCH, 1, "VISIT_RELATIVE_HIGH");
+
+		// when
+		List<ReasonRow> rows = reasons(List.of(101L));
+
+		// then
+		assertThat(rows).containsExactly(
+			new ReasonRow(101, CellQualityStatus.AVAILABLE, 1, "VISIT_RELATIVE_HIGH"),
+			new ReasonRow(101, CellQualityStatus.AVAILABLE, 2, "TIME_PEAK"));
+	}
+
+	@Test
+	@DisplayName("이유가 없는 칸 → 칸과 품질 상태는 남기고 위치와 코드는 null 로 준다")
+	void reasonsKeepCellWithoutReasons() {
+		// given
+		db.condition(DS, 102, MON, LUNCH, "NOT_OBSERVED", null);
+
+		// when
+		List<ReasonRow> rows = reasons(List.of(102L));
+
+		// then
+		assertThat(rows).containsExactly(
+			new ReasonRow(102, CellQualityStatus.NOT_OBSERVED, null, null));
+	}
+
+	@Test
+	@DisplayName("서로 다른 두 칸의 이유 → 코드가 다른 칸으로 넘어가지 않는다")
+	void reasonsStayWithTheirOwnCell() {
+		// given
+		db.condition(DS, 101, MON, LUNCH, "AVAILABLE", 90.0);
+		db.condition(DS, 102, MON, LUNCH, "AVAILABLE", 80.0);
+		db.reason(DS, 101, MON, LUNCH, 1, "VISIT_RELATIVE_HIGH");
+		db.reason(DS, 101, MON, LUNCH, 2, "TIME_PEAK");
+		db.reason(DS, 102, MON, LUNCH, 1, "DAY_DISTINCT");
+
+		// when
+		List<ReasonRow> rows = reasons(List.of(101L, 102L));
+
+		// then
+		assertThat(rows).extracting(ReasonRow::cellId, ReasonRow::code).containsExactly(
+			tuple(101L, "VISIT_RELATIVE_HIGH"),
+			tuple(101L, "TIME_PEAK"),
+			tuple(102L, "DAY_DISTINCT"));
+	}
+
+	@Test
+	@DisplayName("여러 칸을 한 번에 요청한다 → 칸 번호순으로 주고 요청하지 않은 칸 · 없는 칸은 뺀다")
+	void reasonsMultipleCells() {
+		// given: 칸 102 는 조건이 있어도 요청하지 않는다. 999 는 조건 자체가 없다
+		db.condition(DS, 101, MON, LUNCH, "AVAILABLE", 90.0);
+		db.condition(DS, 102, MON, LUNCH, "AVAILABLE", 90.0);
+		db.condition(DS, 103, MON, LUNCH, "AVAILABLE", 90.0);
+		db.reason(DS, 101, MON, LUNCH, 1, "DAY_DISTINCT");
+		db.reason(DS, 102, MON, LUNCH, 1, "STAY_DISTINCT");
+		db.reason(DS, 103, MON, LUNCH, 1, "WALK_DISTINCT");
+
+		// when: 요청 순서를 거꾸로 준다
+		List<ReasonRow> rows = reasons(List.of(103L, 101L, 999L));
+
+		// then
+		assertThat(rows).extracting(ReasonRow::cellId).containsExactly(101L, 103L);
+		assertThat(rows).extracting(ReasonRow::code)
+			.containsExactly("DAY_DISTINCT", "WALK_DISTINCT");
+	}
+
+	@Test
+	@DisplayName("같은 칸에 다른 요일 · 시간대 · 배치의 이유가 있다 → 요청한 조건의 이유만 준다")
+	void reasonsScopedByCondition() {
+		// given
+		db.dataset("ds-other", "2026-09-01", "2026-09-30T00:00:00Z", true);
+		db.condition(DS, 101, MON, LUNCH, "AVAILABLE", 90.0);
+		db.condition(DS, 101, "tue", LUNCH, "AVAILABLE", 90.0);
+		db.condition(DS, 101, MON, "dinner", "AVAILABLE", 90.0);
+		db.condition("ds-other", 101, MON, LUNCH, "AVAILABLE", 90.0);
+		db.reason(DS, 101, MON, LUNCH, 1, "VISIT_RELATIVE_HIGH");
+		db.reason(DS, 101, "tue", LUNCH, 1, "DAY_DISTINCT");
+		db.reason(DS, 101, MON, "dinner", 1, "STAY_DISTINCT");
+		db.reason("ds-other", 101, MON, LUNCH, 1, "WALK_DISTINCT");
+
+		// when
+		List<ReasonRow> rows = reasons(List.of(101L));
+
+		// then
+		assertThat(rows).extracting(ReasonRow::code).containsExactly("VISIT_RELATIVE_HIGH");
+	}
+
+	@Test
+	@DisplayName("칸 30개를 한 번에 요청한다 → 30개 모두 칸 번호순으로 준다")
+	void reasonsThirtyCells() {
+		// given
+		List<Long> ids = LongStream.rangeClosed(201, 230).boxed().toList();
+		for (long id : ids) {
+			db.cell(id);
+			db.condition(DS, id, MON, LUNCH, "AVAILABLE", 80.0);
+		}
+
+		// when
+		List<ReasonRow> rows = reasons(ids);
+
+		// then
+		assertThat(rows).extracting(ReasonRow::cellId).containsExactlyElementsOf(ids);
 	}
 }
