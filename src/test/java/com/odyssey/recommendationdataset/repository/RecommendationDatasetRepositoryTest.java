@@ -70,7 +70,7 @@ class RecommendationDatasetRepositoryTest {
 	void findPublishedOrder() {
 		// given: 일부러 정렬 순서와 다르게 넣는다
 		db.dataset("ds-sep", "2026-09-01", "2026-12-01T00:00:00Z", true);
-		db.dataset("ds-oct-early", "2026-10-01", "2026-10-31T08:00:00Z", true);
+		db.dataset("ds-0-oct-early", "2026-10-01", "2026-10-31T08:00:00Z", true);
 		db.dataset("ds-b-oct-late", "2026-10-01", "2026-11-01T00:00:00Z", true);
 		db.dataset("ds-a-oct-late", "2026-10-01", "2026-11-01T00:00:00Z", true);
 
@@ -79,7 +79,7 @@ class RecommendationDatasetRepositoryTest {
 
 		// then
 		assertThat(datasets).extracting(Dataset::id)
-			.containsExactly("ds-a-oct-late", "ds-b-oct-late", "ds-oct-early", "ds-sep");
+			.containsExactly("ds-a-oct-late", "ds-b-oct-late", "ds-0-oct-early", "ds-sep");
 	}
 
 	@Test
