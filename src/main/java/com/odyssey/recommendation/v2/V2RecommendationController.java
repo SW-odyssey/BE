@@ -12,8 +12,6 @@ import com.odyssey.cell.GeoPoint;
 import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.cellslotscore.entity.TimeSlot;
 import com.odyssey.global.api.ApiEnums;
-import com.odyssey.global.exception.BusinessException;
-import com.odyssey.global.exception.CommonErrorCode;
 import com.odyssey.global.response.ApiResult;
 import com.odyssey.store.entity.Category;
 import com.odyssey.store.entity.StoreKind;
@@ -56,18 +54,12 @@ public class V2RecommendationController {
 		V2RequestParams.check(params, KEYS);
 		V2RecommendationQuery query = new V2RecommendationQuery(
 			datasetId,
-			required(Weekday.class, "weekday", weekday),
-			required(TimeSlot.class, "slot", slot),
+			V2RequestParams.required(Weekday.class, "weekday", weekday),
+			V2RequestParams.required(TimeSlot.class, "slot", slot),
 			new GeoPoint(lat, lng),
 			ApiEnums.parse(Category.class, "category", category, ALL).orElse(null),
 			ApiEnums.parse(StoreKind.class, "kind", kind, ALL).orElse(null),
 			q);
 		return ApiResult.ok(service.recommend(query));
-	}
-
-	private static <E extends Enum<E>> E required(Class<E> type, String name, String value) {
-		return ApiEnums.parse(type, name, value, (String) null)
-			.orElseThrow(() -> new BusinessException(
-				CommonErrorCode.INVALID_INPUT, name + " 값이 필요합니다."));
 	}
 }
