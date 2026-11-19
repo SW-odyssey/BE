@@ -90,3 +90,15 @@ tasks.named('test') {
 		jvmArgs += "-javaagent:${configurations.mockitoAgent.asPath}"
 	}
 }
+
+// FE WireMock 매핑 357건과 실제 v2 HTTP 응답을 대조한다. 기본 test 에는 들어가지 않는다.
+// 예) ./gradlew contractCheck -PmappingsDir=../FE/mock/v2/mappings
+//     -PmockUrl=http://localhost:8080 -PbeUrl=http://localhost:8081
+tasks.register('contractCheck', JavaExec) {
+	group = 'verification'
+	description = 'FE 목서버 응답과 실제 BE 의 /api/v2 응답을 매핑 건별로 대조한다'
+	dependsOn 'testClasses'
+	classpath = sourceSets.test.runtimeClasspath
+	mainClass = 'com.odyssey.contract.ContractReplay'
+	args = ['mappingsDir', 'mockUrl', 'beUrl', 'expectedTotal'].collect { findProperty(it) ?: '' }
+}
