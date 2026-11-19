@@ -100,5 +100,7 @@ tasks.register('contractCheck', JavaExec) {
 	dependsOn 'testClasses'
 	classpath = sourceSets.test.runtimeClasspath
 	mainClass = 'com.odyssey.contract.ContractReplay'
+	// Windows 콘솔 기본 인코딩(cp949)으로 나가면 한글 결과가 깨진다
+	jvmArgs '-Dstdout.encoding=UTF-8', '-Dstderr.encoding=UTF-8'
 	args = ['mappingsDir', 'mockUrl', 'beUrl', 'expectedTotal'].collect { findProperty(it) ?: '' }
 }
