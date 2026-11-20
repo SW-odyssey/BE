@@ -47,7 +47,7 @@ management:
 
 # CORS - 이 주소의 프론트엔드에서 오는 요청을 허용한다
 cors:
-  allowed-origins: http://localhost:3000
+  allowed-origins: http://localhost:3000,https://local.hrxlou.com
 
 springdoc:
   api-docs:
