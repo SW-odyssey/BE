@@ -13,12 +13,30 @@ public class SwaggerConfig {
 		Info info = new Info();
 		info.setTitle("Odyssey API");
 		info.setDescription("""
-			U+ 유동인구 기반의 음식점·카페 추천 API입니다.
-			먼저 /api/v1/meta에서 선택지와 방문 날짜 범위를 확인하고,
-			/api/v1/recommendations에서 Try it out으로 조건을 고른 뒤 Execute로 실행하세요.
-			조건을 생략하면 오늘·오후·전체 지역으로 추천하며, 한 페이지는 최대 30곳입니다.
-			page=0부터 요청하고 hasNext=true이면 같은 조건으로 다음 페이지를 조회하세요.
-			응답은 {success, data, error} 형식이며 날짜 기준은 Asia/Seoul입니다.
+			U+ 유동인구로 음식점·카페를 추천하는 API입니다. 앱 화면은 v2(/api/v2)를 씁니다.
+
+			**용어**
+			- 배치(dataset): 한 달 치 유동인구를 분석한 결과 묶음입니다. 달마다 하나씩 있고 datasetId로 구분합니다.
+			- 칸(cell): 지도를 50m 격자로 나눈 한 칸입니다. cellId가 칸 번호입니다. 매장은 모두 어느 한 칸에 속합니다.
+
+			**v2 호출 순서**
+			1. GET /api/v2/meta: 배치 목록과 요일·시간대 같은 선택지를 받습니다.
+			2. GET /api/v2/recommendations: 고른 배치의 id를 datasetId로 넣어 내 위치 주변 추천 매장을 받습니다.
+			3. GET /api/v2/cells/reasons: 2번 목록에 나온 cellId를 모아 추천 이유를 한 번에 받습니다.
+			4. 매장 카드를 누르면 GET /api/v2/places/{id}(매장 정보)와 GET /api/v2/cells/{cellId}/visit-pattern(방문 그래프)을 부릅니다.
+
+			2~4번에는 같은 datasetId를 보냅니다. 그 이유는 2번 API 설명에 있습니다.
+
+			**Try it out**
+			예시 값이 미리 들어 있어 Execute만 누르면 실제 응답을 볼 수 있습니다.
+			예시의 datasetId는 배치를 새로 올리면 없어질 수 있습니다. 404 DATASET_NOT_FOUND가 나오면 1번 meta에서 새 id를 받아 넣으세요.
+
+			**공통 규칙**
+			- 응답은 항상 {success, data, error} 모양입니다. 실패하면 success=false이고 error.code와 error.message가 옵니다.
+			- 설명에 없는 쿼리 파라미터를 보내거나 같은 파라미터를 두 번 보내면 400입니다.
+			- 문제가 여러 개면 400(요청 형식) → 404(없는 배치) → 503(서버 문제) 순서로 먼저 걸린 것 하나만 알려 줍니다.
+
+			v1(/api/v1)은 이전 버전입니다.
 			""");
 		info.setVersion("v0.0.1");
 
