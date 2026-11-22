@@ -29,8 +29,7 @@ final class CheckOrder implements Iterator<Integer> {
 	 */
 	static final int MAX_CHECKS = 10;
 
-	private final List<Double> percentiles;
-	private final List<Integer> remaining = new ArrayList<>();
+	private final Iterator<List<Integer>> bands;
 	private final Deque<Integer> band = new ArrayDeque<>();
 	private final Random random;
 	private int given;
@@ -38,13 +37,8 @@ final class CheckOrder implements Iterator<Integer> {
 	private int lastBandSize;
 
 	private CheckOrder(List<Double> percentiles, Set<Integer> excluded, Random random) {
-		this.percentiles = percentiles;
 		this.random = random;
-		for (int i = 0; i < percentiles.size(); i++) {
-			if (!excluded.contains(i)) {
-				remaining.add(i);
-			}
-		}
+		this.bands = groupByPercentileBand(percentiles, excluded).iterator();
 	}
 
 	/**
@@ -57,19 +51,34 @@ final class CheckOrder implements Iterator<Integer> {
 		return new CheckOrder(List.copyOf(percentiles), Set.copyOf(excluded), random);
 	}
 
+	/** 백분위 내림차순에서 제외된 매장을 건너뛴 뒤 각 점수대의 첫 후보가 하한을 정한다. */
+	static List<List<Integer>> groupByPercentileBand(List<Double> percentiles, Set<Integer> excluded) {
+		List<List<Integer>> bands = new ArrayList<>();
+		double minimumPercentile = Double.POSITIVE_INFINITY;
+		for (int index = 0; index < percentiles.size(); index++) {
+			if (excluded.contains(index)) {
+				continue;
+			}
+			double percentile = percentiles.get(index);
+			if (bands.isEmpty() || percentile < minimumPercentile) {
+				bands.add(new ArrayList<>());
+				minimumPercentile = percentile - BAND;
+			}
+			bands.getLast().add(index);
+		}
+		return bands;
+	}
+
 	@Override
 	public boolean hasNext() {
 		if (given == MAX_CHECKS) {
 			return false;
 		}
-		if (band.isEmpty() && !remaining.isEmpty()) {
-			double floor = percentiles.get(remaining.getFirst()) - BAND;
-			List<Integer> next = remaining.stream().filter(i -> percentiles.get(i) >= floor).toList();
-			List<Integer> shuffled = new ArrayList<>(next);
-			Collections.shuffle(shuffled, random);
-			band.addAll(shuffled);
+		if (band.isEmpty() && bands.hasNext()) {
+			List<Integer> next = bands.next();
+			Collections.shuffle(next, random);
+			band.addAll(next);
 			filledBandSize = next.size();
-			remaining.removeAll(next);
 		}
 		return !band.isEmpty();
 	}

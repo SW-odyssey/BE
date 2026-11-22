@@ -15,7 +15,6 @@ import com.odyssey.recommendation.v2.V2CourseResponse.Interruption;
 import com.odyssey.recommendation.v2.V2CourseResponse.Skipped;
 import com.odyssey.recommendation.v2.V2RecommendationResponse.Item;
 import com.odyssey.recommendation.v2.V2RecommendationSelector.Selected;
-import com.odyssey.store.entity.StoreKind;
 
 final class BandShuffleSelector implements CourseSelector {
 
@@ -66,12 +65,8 @@ final class BandShuffleSelector implements CourseSelector {
 			Item item = Item.from(ranked.get(i));
 			Result result = checker.check(item.googlePlaceId(), weekday, slot.visitTime(),
 				slot.stayMinutes(item.kind()));
-			if (result == Result.OPEN) {
-				return Pick.chosen(slot, i, item, false, order.bandSize(), percentiles.get(i));
-			}
-			// 작은 공방과 체험관은 정규 영업시간이 등록되지 않은 곳이 많다.
-			if (result == Result.HOURS_UNKNOWN && acceptsUnknownHours(item.kind())) {
-				return Pick.chosen(slot, i, item, true, order.bandSize(), percentiles.get(i));
+			if (result.allowsVisit(item.kind())) {
+				return Pick.chosen(slot, i, item, result == Result.HOURS_UNKNOWN, order.bandSize(), percentiles.get(i));
 			}
 			if (result == Result.UNAVAILABLE) {
 				return Pick.stopped("VERIFICATION_UNAVAILABLE");
@@ -90,7 +85,4 @@ final class BandShuffleSelector implements CourseSelector {
 		return skipped;
 	}
 
-	private static boolean acceptsUnknownHours(StoreKind kind) {
-		return kind == StoreKind.SHOP || kind == StoreKind.PLAY;
-	}
 }

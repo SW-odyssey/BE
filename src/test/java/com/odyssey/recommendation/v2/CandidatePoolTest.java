@@ -130,10 +130,12 @@ class CandidatePoolTest {
 			candidate(4, StoreKind.PLAY, WEST.lat() + 0.005, WEST.lng(), 96))));
 		CandidatePool.LegCandidates leg = pool.forLeg(slot, 150, 500, 100);
 
-		assertThat(ids(leg.near(WEST, List.of(), Set.of()))).containsExactly(2L, 3L);
+		assertThat(leg.near(WEST, List.of(), Set.of()))
+			.extracting(row -> row.selected().candidate().place().id()).containsExactly(2L, 3L);
 		GeoPoint earlier = new GeoPoint(WEST.lat() + 0.0022, WEST.lng());
-		assertThat(ids(leg.near(WEST, List.of(earlier), Set.of()))).containsExactly(3L);
-		assertThat(ids(leg.near(WEST, List.of(earlier), Set.of(3L)))).isEmpty();
+		assertThat(leg.near(WEST, List.of(earlier), Set.of()))
+			.extracting(row -> row.selected().candidate().place().id()).containsExactly(3L);
+		assertThat(leg.near(WEST, List.of(earlier), Set.of(3L))).isEmpty();
 	}
 
 	@Test

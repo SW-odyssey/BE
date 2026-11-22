@@ -9,6 +9,7 @@ import java.util.Set;
 
 import com.odyssey.cell.GeoPoint;
 import com.odyssey.recommendation.v2.CandidatePool.LegCandidates;
+import com.odyssey.recommendation.v2.CandidatePool.LegCandidates.Ranked;
 import com.odyssey.recommendation.v2.CourseSchedule.CourseSlot;
 import com.odyssey.recommendation.v2.V2CourseResponse.Interruption;
 import com.odyssey.recommendation.v2.V2CourseResponse.Skipped;
@@ -44,7 +45,7 @@ final class BeamSelector implements CourseSelector {
 		List<Path> next = new ArrayList<>();
 		for (Path path : beam) {
 			LegCandidates leg = path.picks().isEmpty() ? firstLeg : betweenStops;
-			List<Selected> nearby = leg.near(path.origin(), path.earlierStops(), path.excludedIds(excluded));
+			List<Ranked> nearby = leg.near(path.origin(), path.earlierStops(), path.excludedIds(excluded));
 			addCandidatePaths(next, path, slot, nearby);
 			if (slot.requirement().skipWhenMissing()) {
 				String reason = nearby.isEmpty() ? "NO_VERIFIED_MATCH" : "SKIPPED_FOR_ROUTE";
@@ -54,18 +55,13 @@ final class BeamSelector implements CourseSelector {
 		return next;
 	}
 
-	private void addCandidatePaths(List<Path> next, Path path, CourseSlot slot, List<Selected> nearby) {
-		int start = 0;
-		while (start < nearby.size()) {
-			double floor = nearby.get(start).candidate().percentile() - CheckOrder.BAND;
-			int end = start + 1;
-			while (end < nearby.size() && nearby.get(end).candidate().percentile() >= floor) {
-				end++;
+	private void addCandidatePaths(List<Path> next, Path path, CourseSlot slot, List<Ranked> nearby) {
+		List<Double> percentiles = nearby.stream().map(row -> row.selected().candidate().percentile()).toList();
+		for (List<Integer> band : CheckOrder.groupByPercentileBand(percentiles, Set.of())) {
+			for (int index : band) {
+				Ranked candidate = nearby.get(index);
+				next.add(path.visit(slot, candidate.selected(), candidate.rank() - 1, band.size()));
 			}
-			for (int index = start; index < end; index++) {
-				next.add(path.visit(slot, nearby.get(index), index, end - start));
-			}
-			start = end;
 		}
 	}
 
