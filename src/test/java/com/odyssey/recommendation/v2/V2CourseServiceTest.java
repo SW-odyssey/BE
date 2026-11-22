@@ -187,7 +187,7 @@ class V2CourseServiceTest {
 
 		// then
 		assertThat(course.interruption().reason()).isEqualTo("NO_VERIFIED_MATCH");
-		assertThat(checker.calls).hasSize(CheckOrder.MAX_CHECKS)
+		assertThat(checker.calls).hasSize(10)
 			.extracting(FakeChecker.Call::placeId).doesNotContain("place-11", "place-12");
 	}
 

@@ -2,7 +2,9 @@ package com.odyssey.recommendation.v2;
 
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
@@ -38,6 +40,14 @@ public class V2CourseService {
 		new Stage(TimeSlot.DINNER, StoreKind.KOREAN, LocalTime.of(19, 0), 60),
 		new Stage(TimeSlot.LATE_NIGHT, StoreKind.BAR, LocalTime.of(22, 30), 70));
 	static final int SHOP_STAY_MINUTES = 30;
+
+	/** 90점 이상 칸의 인접 월 백분위 변화는 중앙값 1.3점, 75%가 2.8점 이내였다(2025년 12개 배치). */
+	private static final double PERCENTILE_BAND = 3.0;
+	/**
+	 * 5번일 때 을지로 토요일 심야에서 3점 범위 7곳 중 영업하는 2곳에 닿기 전에 끊겼다(2026-11-21).
+	 * 범위 하나는 대개 10곳 이하라 범위 전체를 확인할 수 있게 잡았다.
+	 */
+	private static final int MAX_CHECKS = 10;
 
 	private final CourseCandidates candidates;
 	private final CourseVisitChecker checker;
@@ -111,7 +121,7 @@ public class V2CourseService {
 			return Pick.stopped("ALL_EXCLUDED");
 		}
 		List<Double> percentiles = ranked.stream().map(s -> s.candidate().percentile()).toList();
-		CheckOrder order = CheckOrder.of(percentiles, skipped, random);
+		Iterator<Integer> order = candidateCheckOrder(percentiles, skipped, random);
 		return findFirstVisitableStop(ranked, weekday, stage, order);
 	}
 
@@ -125,7 +135,36 @@ public class V2CourseService {
 		return skipped;
 	}
 
-	private Pick findFirstVisitableStop(List<Selected> ranked, Weekday weekday, Stage stage, CheckOrder order) {
+	/** 앞 구간에서 쓰고 남은 난수를 다음 구간이 이어 쓰므로 실제 확인할 점수대만 섞는다. */
+	static Iterator<Integer> candidateCheckOrder(List<Double> percentiles, Set<Integer> excluded, Random random) {
+		return groupByPercentileBand(percentiles, excluded).stream()
+			.flatMap(band -> {
+				Collections.shuffle(band, random);
+				return band.stream();
+			})
+			.limit(MAX_CHECKS)
+			.iterator();
+	}
+
+	/** 백분위 내림차순에서 제외된 매장을 건너뛴 뒤 각 점수대의 첫 후보가 하한을 정한다. */
+	private static List<List<Integer>> groupByPercentileBand(List<Double> percentiles, Set<Integer> excluded) {
+		List<List<Integer>> bands = new ArrayList<>();
+		double minimumPercentile = Double.POSITIVE_INFINITY;
+		for (int index = 0; index < percentiles.size(); index++) {
+			if (excluded.contains(index)) {
+				continue;
+			}
+			double percentile = percentiles.get(index);
+			if (bands.isEmpty() || percentile < minimumPercentile) {
+				bands.add(new ArrayList<>());
+				minimumPercentile = percentile - PERCENTILE_BAND;
+			}
+			bands.getLast().add(index);
+		}
+		return bands;
+	}
+
+	private Pick findFirstVisitableStop(List<Selected> ranked, Weekday weekday, Stage stage, Iterator<Integer> order) {
 		while (order.hasNext()) {
 			int index = order.next();
 			Item item = Item.from(ranked.get(index));
