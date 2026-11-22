@@ -2,6 +2,7 @@ package com.odyssey.recommendation.v2;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anySet;
 import static org.mockito.ArgumentMatchers.eq;
@@ -19,6 +20,8 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -47,13 +50,14 @@ import com.odyssey.store.entity.StoreKind;
 class V2CourseControllerTest {
 
 	private static final String URL = "/api/v2/course-recommendations";
-	private static final V2Context CONTEXT = new V2Context("nov", "2025-11", Weekday.FRI, TimeSlot.DINNER);
+	private static final V2Context CONTEXT = new V2Context("nov", "2025-11", Weekday.FRI, TimeSlot.AFTERNOON);
 	private static final V2CourseResponse PARTIAL = new V2CourseResponse("PARTIAL", CONTEXT, 7,
-		List.of(new Stop(3, TimeSlot.DINNER, "19:00", "20:00", 1, 2,
-			new Item(12, "백부장집", "81383966", StoreKind.KOREAN, 37.5661, 126.9901, 14.2, "place-12"), false,
-			List.of(new LocalTop(3), new OpenDuringStay("19:00", "20:00"), new PeakNow(), new AreaType("mixed"),
+		List.of(new Stop(2, TimeSlot.AFTERNOON, "14:00", "15:20", 1, 2,
+			new Item(12, "공평카페", "81383966", StoreKind.CAFE, 37.5661, 126.9901, 14.2, "place-12"), false,
+			List.of(new LocalTop(3), new OpenDuringStay("14:00", "15:20"), new PeakNow(), new AreaType("mixed"),
 				new SimilarChoices(2)))),
-		List.of(), new Interruption(TimeSlot.LATE_NIGHT, "NO_VERIFIED_MATCH"));
+		List.of(new V2CourseResponse.Skipped(TimeSlot.AFTERNOON, 3, "NO_NEARBY_MATCH")),
+		new Interruption(TimeSlot.DINNER, "NO_VERIFIED_MATCH"));
 
 	@Autowired
 	private MockMvc mvc;
@@ -62,7 +66,7 @@ class V2CourseControllerTest {
 
 	@BeforeEach
 	void anyCourse() {
-		given(service.recommend(any(), any(), any(), any(), anySet(), anyLong(), any())).willReturn(PARTIAL);
+		given(service.recommend(any(), any(), any(), any(), anySet(), anyLong(), any(), anyBoolean())).willReturn(PARTIAL);
 	}
 
 	/** 필수 값 다섯 개를 채운 요청에서 key 의 값만 value 로 바꾼다. */
@@ -96,14 +100,14 @@ class V2CourseControllerTest {
 	@DisplayName("모든 값을 보냄 → 바꾼 값 그대로 서비스에 넘긴다")
 	void passesParsedValues() throws Exception {
 		// given
-		MockHttpServletRequestBuilder request = valid().param("excludeIds", "3,4").param("seed", "7").param("afternoon", "shop");
+		MockHttpServletRequestBuilder request = valid().param("excludeIds", "3,4").param("seed", "7").param("afternoon", "shop").param("lateNight", "true");
 
 		// when
 		mvc.perform(request).andExpect(status().isOk());
 
 		// then
 		then(service).should().recommend("nov", Weekday.FRI, TimeSlot.DINNER, new GeoPoint(37.5655342, 126.9903373),
-			Set.of(3L, 4L), 7L, StoreKind.SHOP);
+			Set.of(3L, 4L), 7L, StoreKind.SHOP, true);
 	}
 
 	@ParameterizedTest(name = "afternoon=\"{0}\" → {1}")
@@ -117,7 +121,7 @@ class V2CourseControllerTest {
 		mvc.perform(request).andExpect(status().isOk());
 
 		// then
-		then(service).should().recommend(any(), any(), any(), any(), any(), anyLong(), eq(expected));
+		then(service).should().recommend(any(), any(), any(), any(), any(), anyLong(), eq(expected), eq(false));
 	}
 
 	@Test
@@ -132,7 +136,7 @@ class V2CourseControllerTest {
 		// then
 		ArgumentCaptor<Long> seed = ArgumentCaptor.forClass(Long.class);
 		then(service).should().recommend(any(), any(), any(), any(), eq(Set.of()), seed.capture(),
-			eq(StoreKind.CAFE));
+			eq(StoreKind.CAFE), eq(false));
 		assertThat(seed.getValue()).isBetween(1L, (1L << 53) - 1);
 	}
 
@@ -140,7 +144,7 @@ class V2CourseControllerTest {
 	@DisplayName("코스를 받음 → ApiResult 로 감싸고 enum 은 소문자로 내보낸다")
 	void responseShape() throws Exception {
 		// when
-		ResultActions result = mvc.perform(valid());
+		ResultActions result = mvc.perform(validWith("startSlot", "afternoon"));
 
 		// then
 		result.andExpect(status().isOk())
@@ -150,16 +154,18 @@ class V2CourseControllerTest {
 			.andExpect(jsonPath("$.data.seed").value(7))
 			.andExpect(jsonPath("$.data.context.datasetId").value("nov"))
 			.andExpect(jsonPath("$.data.context.weekday").value("fri"))
-			.andExpect(jsonPath("$.data.context.slot").value("dinner"))
-			.andExpect(jsonPath("$.data.stops[0].position").value(3))
-			.andExpect(jsonPath("$.data.skipped").isArray())
-			.andExpect(jsonPath("$.data.stops[0].slot").value("dinner"))
-			.andExpect(jsonPath("$.data.stops[0].visitTime").value("19:00"))
+			.andExpect(jsonPath("$.data.context.slot").value("afternoon"))
+			.andExpect(jsonPath("$.data.stops[0].position").value(2))
+			.andExpect(jsonPath("$.data.skipped[0].slot").value("afternoon"))
+			.andExpect(jsonPath("$.data.skipped[0].position").value(3))
+			.andExpect(jsonPath("$.data.skipped[0].reason").value("NO_NEARBY_MATCH"))
+			.andExpect(jsonPath("$.data.stops[0].slot").value("afternoon"))
+			.andExpect(jsonPath("$.data.stops[0].visitTime").value("14:00"))
 			.andExpect(jsonPath("$.data.stops[0].candidateRank").value(2))
 			.andExpect(jsonPath("$.data.stops[0].hoursUnknown").value(false))
 			.andExpect(jsonPath("$.data.stops[0].place.id").value(12))
-			.andExpect(jsonPath("$.data.stops[0].place.kind").value("korean"))
-			.andExpect(jsonPath("$.data.interruption.slot").value("late_night"))
+			.andExpect(jsonPath("$.data.stops[0].place.kind").value("cafe"))
+			.andExpect(jsonPath("$.data.interruption.slot").value("dinner"))
 			.andExpect(jsonPath("$.data.interruption.reason").value("NO_VERIFIED_MATCH"));
 	}
 
@@ -167,17 +173,17 @@ class V2CourseControllerTest {
 	@DisplayName("정류장을 받음 → 나오는 시각·도보 분과 code 를 단 이유 목록을 내보낸다")
 	void stopTimesAndReasons() throws Exception {
 		// when
-		ResultActions result = mvc.perform(valid());
+		ResultActions result = mvc.perform(validWith("startSlot", "afternoon"));
 
 		// then
 		result.andExpect(status().isOk())
-			.andExpect(jsonPath("$.data.stops[0].leaveTime").value("20:00"))
+			.andExpect(jsonPath("$.data.stops[0].leaveTime").value("15:20"))
 			.andExpect(jsonPath("$.data.stops[0].walkMinutes").value(1))
 			.andExpect(jsonPath("$.data.stops[0].reasons[0].code").value("LOCAL_TOP"))
 			.andExpect(jsonPath("$.data.stops[0].reasons[0].percent").value(3))
 			.andExpect(jsonPath("$.data.stops[0].reasons[1].code").value("OPEN_DURING_STAY"))
-			.andExpect(jsonPath("$.data.stops[0].reasons[1].from").value("19:00"))
-			.andExpect(jsonPath("$.data.stops[0].reasons[1].to").value("20:00"))
+			.andExpect(jsonPath("$.data.stops[0].reasons[1].from").value("14:00"))
+			.andExpect(jsonPath("$.data.stops[0].reasons[1].to").value("15:20"))
 			.andExpect(jsonPath("$.data.stops[0].reasons[2].code").value("PEAK_NOW"))
 			.andExpect(jsonPath("$.data.stops[0].reasons[3].code").value("AREA_TYPE"))
 			.andExpect(jsonPath("$.data.stops[0].reasons[3].type").value("mixed"))
@@ -238,6 +244,44 @@ class V2CourseControllerTest {
 		expectInvalidInput(result, "afternoon 은 cafe 또는 shop 입니다.");
 	}
 
+	@ParameterizedTest
+	@NullSource
+	@ValueSource(strings = {"false", "true"})
+	@DisplayName("심야 시작 요청 → lateNight가 true일 때만 심야 정류장을 반환한다")
+	void lateNightResponse(String value) throws Exception {
+		// given
+		boolean include = "true".equals(value);
+		V2Context context = new V2Context("nov", "2025-11", Weekday.FRI, TimeSlot.LATE_NIGHT);
+		Item bar = new Item(6, "주점", "6", StoreKind.BAR, 37.566, 126.990, 10, "place-6");
+		Stop lateStop = new Stop(6, TimeSlot.LATE_NIGHT, "22:00", "23:10", 1, 1, bar, false, List.of());
+		List<Stop> stops = include ? List.of(lateStop) : List.of();
+		given(service.recommend(any(), any(), eq(TimeSlot.LATE_NIGHT), any(), anySet(), anyLong(),
+			eq(StoreKind.CAFE), eq(include))).willReturn(new V2CourseResponse("COMPLETE", context, 7, stops, List.of(), null));
+		MockHttpServletRequestBuilder request = validWith("startSlot", "late_night").param("seed", "7");
+		if (value != null) {
+			request.param("lateNight", value);
+		}
+
+		// when
+		ResultActions result = mvc.perform(request);
+
+		// then
+		result.andExpect(status().isOk()).andExpect(jsonPath("$.data.stops.length()").value(stops.size()));
+		if (include) {
+			result.andExpect(jsonPath("$.data.stops[0].position").value(6));
+		}
+	}
+
+	@Test
+	@DisplayName("lateNight가 true·false 이외의 값 → 400 INVALID_INPUT")
+	void invalidLateNight() throws Exception {
+		// when
+		ResultActions result = mvc.perform(validWith("lateNight", "yes"));
+
+		// then
+		expectInvalidInput(result, "lateNight 는 true 또는 false 입니다.");
+	}
+
 	@Test
 	@DisplayName("startSlot 이 허용 값이 아님 → 400 INVALID_INPUT 과 허용 값 목록")
 	void invalidStartSlot() throws Exception {
@@ -287,11 +331,11 @@ class V2CourseControllerTest {
 	@DisplayName("서비스가 배치를 찾지 못함 → 404 DATASET_NOT_FOUND 를 같은 오류 형식으로 준다")
 	void datasetNotFound() throws Exception {
 		// given
-		given(service.recommend(any(), any(), any(), any(), anySet(), anyLong(), any()))
+		given(service.recommend(any(), any(), any(), any(), anySet(), anyLong(), any(), anyBoolean()))
 			.willThrow(new BusinessException(V2Error.DATASET_NOT_FOUND, "공개된 분석 배치를 찾을 수 없습니다."));
 
 		// when
-		ResultActions result = mvc.perform(valid());
+		ResultActions result = mvc.perform(validWith("startSlot", "afternoon"));
 
 		// then
 		result.andExpect(status().isNotFound())

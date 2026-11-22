@@ -63,13 +63,14 @@ public class V2CourseService {
 	/** @param afternoon 오후 자리의 종류. 카페(CAFE) 또는 구경(SHOP) */
 	public V2CourseResponse recommend(String datasetId, Weekday weekday, TimeSlot startSlot,
 		GeoPoint origin, Set<Long> excludeIds, long seed, StoreKind afternoon) {
-				if (afternoon != StoreKind.CAFE && afternoon != StoreKind.SHOP) {
-			throw new IllegalArgumentException("afternoon: " + afternoon);
-		}
-		List<CourseSlot> slots = CourseSchedule.slots(afternoon).stream()
-			.dropWhile(s -> s.slot() != startSlot).toList();
-		// DB 는 여기서 다 읽고 끝낸다. 아래 영업 확인은 트랜잭션 밖이다
-		CandidatePool pool = candidates.load(datasetId, weekday, slots.stream().map(CourseSlot::slot).distinct().toList());
+		return recommend(datasetId, weekday, startSlot, origin, excludeIds, seed, afternoon, false);
+	}
+
+	public V2CourseResponse recommend(String datasetId, Weekday weekday, TimeSlot startSlot,
+		GeoPoint origin, Set<Long> excludeIds, long seed, StoreKind afternoon, boolean lateNight) {
+		List<CourseSlot> slots = CourseSchedule.slots(weekday, afternoon, startSlot, lateNight);
+		List<TimeSlot> timeSlots = slots.stream().map(CourseSlot::slot).distinct().toList();
+		CandidatePool pool = candidates.load(datasetId, weekday, startSlot, timeSlots);
 		Selection selection = selectStops(pool, slots, origin, excludeIds, weekday, new Random(seed));
 		return response(pool.context(), seed, selection);
 	}
