@@ -23,7 +23,6 @@ import com.odyssey.recommendation.v2.CourseSelector.Request;
 import com.odyssey.recommendation.v2.CourseSelector.Selection;
 import com.odyssey.recommendation.v2.CourseVisitChecker.Result;
 import com.odyssey.store.entity.StoreKind;
-
 import com.odyssey.store.repository.StorePlaceRepository.Place;
 
 class VerifiedCourseSelectorTest {
@@ -71,6 +70,29 @@ class VerifiedCourseSelectorTest {
 		assertThat(result.interruption().reason()).isEqualTo(expectedReason);
 		assertThat(result.picks()).isEmpty();
 		assertThat(calls).hasSize(40).doesNotHaveDuplicates();
+	}
+
+	@Test
+	@DisplayName("선택 자리에서 외부 조회가 실패하면 그 자리를 건너뛰고 직전 매장부터 다시 이어간다")
+	void skipsUnavailableOptionalAndReplans() {
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(
+			TimeSlot.AFTERNOON, List.of(store(1, StoreKind.CAFE, 0, 99), store(2, StoreKind.PLAY, 200, 99)),
+			TimeSlot.DINNER, List.of(store(3, StoreKind.KOREAN, 400, 99))));
+		List<String> calls = new ArrayList<>();
+		CourseSelector selector = new CourseSelectionConfig().courseSelector(id -> {
+			calls.add(id);
+			return Hours.fixed(id.equals("p2") ? Result.UNAVAILABLE : Result.OPEN);
+		});
+
+		Selection result = selector.select(request(SLOTS.subList(1, 4), 7), pool);
+
+		assertThat(ids(result)).containsExactly(1L, 3L);
+		assertThat(result.interruption()).isNull();
+		assertThat(result.skipped()).singleElement().satisfies(skip -> {
+			assertThat(skip.position()).isEqualTo(3);
+			assertThat(skip.reason()).isEqualTo("VERIFICATION_UNAVAILABLE");
+		});
+		assertThat(calls).containsExactly("p1", "p2", "p3");
 	}
 
 	@Test

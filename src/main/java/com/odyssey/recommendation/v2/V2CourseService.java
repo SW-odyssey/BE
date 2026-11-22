@@ -5,7 +5,6 @@ import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.TransactionException;
@@ -36,11 +35,6 @@ public class V2CourseService {
 	private final CourseSelector selector;
 	private final CourseReasonFacts reasonFacts;
 
-	V2CourseService(CourseCandidates candidates, CourseVisitChecker checker, CourseReasonFacts reasonFacts) {
-		this(candidates, new BandShuffleSelector(checker), reasonFacts);
-	}
-
-	@Autowired
 	V2CourseService(CourseCandidates candidates, CourseSelector selector, CourseReasonFacts reasonFacts) {
 		this.candidates = candidates;
 		this.selector = selector;

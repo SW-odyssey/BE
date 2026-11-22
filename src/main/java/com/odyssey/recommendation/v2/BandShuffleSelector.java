@@ -126,7 +126,7 @@ final class BandShuffleSelector implements CourseSelector {
 			Result result = checker.check(item.googlePlaceId(), weekday, slot.visitTime(),
 				slot.stayMinutes(item.kind()));
 			if (result.allowsVisit(item.kind())) {
-				return Pick.chosen(slot, candidate.index(), item, result == Result.HOURS_UNKNOWN,
+				return Pick.chosen(slot, candidate.index() + 1, item, result == Result.HOURS_UNKNOWN,
 					candidate.bandSize(), selected.candidate().percentile());
 			}
 			if (result == Result.UNAVAILABLE) {

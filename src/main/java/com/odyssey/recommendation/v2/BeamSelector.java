@@ -61,7 +61,7 @@ final class BeamSelector implements CourseSelector {
 		for (List<Integer> band : BandShuffleSelector.groupByPercentileBand(percentiles, Set.of())) {
 			for (int index : band) {
 				Ranked candidate = nearby.get(index);
-				next.add(path.visit(slot, candidate.selected(), candidate.rank() - 1, band.size()));
+				next.add(path.visit(slot, candidate.selected(), candidate.rank(), band.size()));
 			}
 		}
 	}
@@ -97,9 +97,9 @@ final class BeamSelector implements CourseSelector {
 			return excluded;
 		}
 
-		Path visit(CourseSlot slot, Selected selected, int index, int bandSize) {
+		Path visit(CourseSlot slot, Selected selected, int rank, int bandSize) {
 			double percentile = selected.candidate().percentile();
-			Pick pick = Pick.chosen(slot, index, Item.from(selected), false, bandSize, percentile);
+			Pick pick = Pick.chosen(slot, rank, Item.from(selected), false, bandSize, percentile);
 			GeoPoint location = selected.location();
 			return new Path(location, append(visited, location), append(picks, pick), skipped,
 				score + percentile, distance + selected.distanceMeters());
