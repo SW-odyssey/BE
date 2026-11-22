@@ -45,15 +45,24 @@ final class V2RecommendationSelector {
 	 * 입력 목록은 바꾸지 않는다.
 	 */
 	static List<Selected> select(List<Candidate> candidates, V2RecommendationQuery query) {
-		return candidates.stream()
+		List<Candidate> matching = candidates.stream()
 			.filter(candidate -> matches(candidate.place(), query))
-			.map(candidate -> new Selected(candidate,
-				query.origin().distanceTo(new GeoPoint(candidate.place().lat(),
-					candidate.place().lng()))))
-			.filter(selected -> selected.distanceMeters() <= RADIUS_METERS)
-			.sorted(ORDER)
-			.limit(MAX_RESULTS)
 			.toList();
+		return rankNearby(matching, query.origin());
+	}
+
+	static List<Selected> rankNearby(List<Candidate> candidates, GeoPoint origin) {
+		List<Selected> nearby = candidates.stream()
+			.map(candidate -> measure(candidate, origin))
+			.filter(selected -> selected.distanceMeters() <= RADIUS_METERS)
+			.toList();
+		return nearby.stream().sorted(ORDER).limit(MAX_RESULTS).toList();
+	}
+
+	private static Selected measure(Candidate candidate, GeoPoint origin) {
+		Place place = candidate.place();
+		double distance = origin.distanceTo(new GeoPoint(place.lat(), place.lng()));
+		return new Selected(candidate, distance);
 	}
 
 	private static boolean matches(Place place, V2RecommendationQuery query) {

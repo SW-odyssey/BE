@@ -12,16 +12,21 @@ import com.odyssey.recommendation.v2.V2RecommendationResponse.Item;
  * @param seed 후보를 섞은 값. 다시 보내면 같은 순서로 확인한다
  */
 public record V2CourseResponse(String status, V2Context context, long seed,
-	List<Stop> stops, Interruption interruption) {
+	List<Stop> stops, List<Skipped> skipped, Interruption interruption) {
+
+	public V2CourseResponse {
+		stops = List.copyOf(stops);
+		skipped = List.copyOf(skipped);
+	}
 
 	/**
 	 * @param leaveTime     도착 시각에 머무는 시간을 더한 시각. 자정을 넘기면 00:00 부터 다시 센다
 	 * @param walkMinutes   직전 출발 위치에서 걸어오는 분. 직선거리를 그대로 쓰므로 실제 경로와 다를 수 있다
-	 * @param candidateRank 제외·무작위 선택 전 목록 API 의 순번
-	 * @param hoursUnknown  영업 중으로 등록돼 있지만 정규 영업시간이 없다. 쇼핑에서만 true 가 될 수 있다
+	 * @param candidateRank 제외·무작위 선택 전 이 자리 후보의 순번
+	 * @param hoursUnknown  영업 중으로 등록돼 있지만 정규 영업시간이 없다. 쇼핑·놀거리에서만 true 가 될 수 있다
 	 * @param reasons       고른 이유. 순서는 {@link CourseReasons} 가 정하고 문장은 FE 가 만든다
 	 */
-	public record Stop(TimeSlot slot, String visitTime, String leaveTime, int walkMinutes, int candidateRank,
+	public record Stop(int position, TimeSlot slot, String visitTime, String leaveTime, int walkMinutes, int candidateRank,
 		Item place, boolean hoursUnknown, List<CourseReason> reasons) {
 
 		public Stop {
@@ -33,20 +38,23 @@ public record V2CourseResponse(String status, V2Context context, long seed,
 		/** 분당 걷는 거리(m). 논문 4.7절과 같은 가정이다. */
 		static final double WALK_METERS_PER_MINUTE = 67;
 
-		static Stop of(TimeSlot slot, LocalTime visitTime, int stayMinutes, int candidateRank, Item place,
+		static Stop of(int position, TimeSlot slot, LocalTime visitTime, int stayMinutes, int candidateRank, Item place,
 			boolean hoursUnknown) {
-			return new Stop(slot, visitTime.toString(), visitTime.plusMinutes(stayMinutes).toString(),
+			return new Stop(position, slot, visitTime.toString(), visitTime.plusMinutes(stayMinutes).toString(),
 				walkMinutes(place.distanceMeters()), candidateRank, place, hoursUnknown, List.of());
 		}
 
 		Stop withReasons(List<CourseReason> reasons) {
-			return new Stop(slot, visitTime, leaveTime, walkMinutes, candidateRank, place, hoursUnknown, reasons);
+			return new Stop(position, slot, visitTime, leaveTime, walkMinutes, candidateRank, place, hoursUnknown, reasons);
 		}
 
 		/** 0m 여도 1분으로 보여 준다. */
 		static int walkMinutes(double distanceMeters) {
 			return Math.max(1, (int) Math.ceil(distanceMeters * DETOUR / WALK_METERS_PER_MINUTE));
 		}
+	}
+
+	public record Skipped(TimeSlot slot, int position, String reason) {
 	}
 
 	/** 이어갈 곳이 없는 첫 구간. 매장 부족, 영업 근거 부족, 외부 조회 실패를 구분한다. */

@@ -20,6 +20,7 @@ import com.odyssey.recommendation.v2.CourseReasons.StopFacts;
 import com.odyssey.recommendation.v2.CourseVisitChecker.Result;
 import com.odyssey.recommendation.v2.V2CourseResponse.Interruption;
 import com.odyssey.recommendation.v2.V2CourseResponse.Stop;
+import com.odyssey.recommendation.v2.V2CourseResponse.Skipped;
 import com.odyssey.recommendation.v2.V2RecommendationResponse.Item;
 import com.odyssey.recommendation.v2.V2RecommendationSelector.Selected;
 import com.odyssey.store.entity.StoreKind;
@@ -61,14 +62,27 @@ public class V2CourseService {
 			.dropWhile(s -> s.slot() != startSlot).toList();
 		// DB 는 여기서 다 읽고 끝낸다. 아래 영업 확인은 트랜잭션 밖이다
 		CandidatePool pool = candidates.load(datasetId, weekday, slots.stream().map(CourseSlot::slot).distinct().toList());
-		Random random = new Random(seed);
+		Selection selection = selectStops(pool, slots, origin, excludeIds, weekday, new Random(seed));
+		return response(pool.context(), seed, selection);
+	}
+
+	private record Selection(List<Pick> picks, List<Skipped> skipped, Interruption interruption) {
+	}
+
+	private Selection selectStops(CandidatePool pool, List<CourseSlot> slots, GeoPoint origin, Set<Long> excludeIds,
+		Weekday weekday, Random random) {
 		Set<Long> excluded = new HashSet<>(excludeIds);
 		List<Pick> picks = new ArrayList<>();
+		List<Skipped> skipped = new ArrayList<>();
 		Interruption interruption = null;
 		for (CourseSlot slot : slots) {
-			List<Selected> ranked = pool.near(slot.slot(), onlyKind(slot), origin, slot.minPercentile());
+			List<Selected> ranked = pool.near(slot.slot(), slot.kinds(), origin, slot.minPercentile());
 			Pick pick = pick(ranked, excluded, weekday, slot, random);
 			if (pick.stop() == null) {
+				if (slot.requirement().skipWhenMissing()) {
+					skipped.add(new Skipped(slot.slot(), slot.position(), pick.reason()));
+					continue;
+				}
 				interruption = new Interruption(slot.slot(), pick.reason());
 				break;
 			}
@@ -77,11 +91,15 @@ public class V2CourseService {
 			excluded.add(place.id());
 			origin = new GeoPoint(place.lat(), place.lng());
 		}
-		// 영업 확인이 다 끝난 뒤라 이 조회는 Google 호출 중에 커넥션을 잡지 않는다
-		Facts facts = facts(pool.context().datasetId(), weekday, picks);
+		return new Selection(picks, skipped, interruption);
+	}
+
+	private V2CourseResponse response(V2Context context, long seed, Selection selection) {
+		List<Pick> picks = selection.picks();
+		Facts facts = facts(context.datasetId(), context.weekday(), picks);
 		List<Stop> stops = picks.stream().map(pick -> withReasons(pick, facts)).toList();
-		String status = interruption == null ? "COMPLETE" : stops.isEmpty() ? "NO_MATCHES" : "PARTIAL";
-		return new V2CourseResponse(status, pool.context(), seed, stops, interruption);
+		String status = selection.interruption() == null ? "COMPLETE" : stops.isEmpty() ? "NO_MATCHES" : "PARTIAL";
+		return new V2CourseResponse(status, context, seed, stops, selection.skipped(), selection.interruption());
 	}
 
 	/** 이유 때문에 코스가 실패하지 않게, 조회가 실패하면 그 재료로 붙는 이유(PEAK_NOW, AREA_TYPE)만 뺀다. */
@@ -114,12 +132,7 @@ public class V2CourseService {
 		if (ranked.isEmpty()) {
 			return Pick.stopped("NO_NEARBY_MATCH");
 		}
-		Set<Integer> skipped = new HashSet<>();
-		for (int i = 0; i < ranked.size(); i++) {
-			if (excluded.contains(ranked.get(i).candidate().place().id())) {
-				skipped.add(i);
-			}
-		}
+		Set<Integer> skipped = excludedIndices(ranked, excluded);
 		if (skipped.size() == ranked.size()) {
 			return Pick.stopped("ALL_EXCLUDED");
 		}
@@ -132,8 +145,8 @@ public class V2CourseService {
 			if (result == Result.OPEN) {
 				return Pick.chosen(slot, i, item, false, order.bandSize(), percentiles.get(i));
 			}
-			// 작은 공방·갤러리는 Google 에 영업시간이 없는 곳이 많다. 쇼핑만 받고 응답에 표시한다
-			if (result == Result.HOURS_UNKNOWN && item.kind() == StoreKind.SHOP) {
+			// 작은 공방과 체험관은 정규 영업시간이 등록되지 않은 곳이 많다.
+			if (result == Result.HOURS_UNKNOWN && acceptsUnknownHours(item.kind())) {
 				return Pick.chosen(slot, i, item, true, order.bandSize(), percentiles.get(i));
 			}
 			if (result == Result.UNAVAILABLE) {
@@ -143,12 +156,18 @@ public class V2CourseService {
 		return Pick.stopped("NO_VERIFIED_MATCH");
 	}
 
-	/** 지금 일정은 자리마다 종류가 하나다. */
-	private static StoreKind onlyKind(CourseSlot slot) {
-		if (slot.kinds().size() != 1) {
-			throw new IllegalStateException("자리 " + slot.position() + " 의 종류가 하나가 아니다");
+	private static Set<Integer> excludedIndices(List<Selected> ranked, Set<Long> excluded) {
+		Set<Integer> skipped = new HashSet<>();
+		for (int i = 0; i < ranked.size(); i++) {
+			if (excluded.contains(ranked.get(i).candidate().place().id())) {
+				skipped.add(i);
+			}
 		}
-		return slot.kinds().iterator().next();
+		return skipped;
+	}
+
+	private static boolean acceptsUnknownHours(StoreKind kind) {
+		return kind == StoreKind.SHOP || kind == StoreKind.PLAY;
 	}
 
 	/**
@@ -158,7 +177,7 @@ public class V2CourseService {
 	private record Pick(Stop stop, String reason, int bandSize, double percentile) {
 		static Pick chosen(CourseSlot slot, int index, Item item, boolean hoursUnknown, int bandSize,
 			double percentile) {
-			return new Pick(Stop.of(slot.slot(), slot.visitTime(), slot.stayMinutes(item.kind()), index + 1, item,
+			return new Pick(Stop.of(slot.position(), slot.slot(), slot.visitTime(), slot.stayMinutes(item.kind()), index + 1, item,
 				hoursUnknown), null, bandSize, percentile);
 		}
 

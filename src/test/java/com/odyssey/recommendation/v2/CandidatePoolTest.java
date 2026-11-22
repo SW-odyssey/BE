@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -45,7 +46,7 @@ class CandidatePoolTest {
 			candidate(2, StoreKind.SHOP, 37.5661, 126.9902, 98))));
 
 		// when
-		List<Selected> near = pool.near(TimeSlot.AFTERNOON, kind, WEST, CourseSchedule.DEFAULT_MIN_PERCENTILE);
+		List<Selected> near = pool.near(TimeSlot.AFTERNOON, Set.of(kind), WEST, CourseSchedule.DEFAULT_MIN_PERCENTILE);
 
 		// then
 		assertThat(ids(near)).containsExactly(expectedId);
@@ -62,7 +63,7 @@ class CandidatePoolTest {
 		GeoPoint origin = originName.equals("WEST") ? WEST : EAST;
 
 		// when
-		List<Selected> near = pool.near(TimeSlot.DINNER, StoreKind.KOREAN, origin, CourseSchedule.DEFAULT_MIN_PERCENTILE);
+		List<Selected> near = pool.near(TimeSlot.DINNER, Set.of(StoreKind.KOREAN), origin, CourseSchedule.DEFAULT_MIN_PERCENTILE);
 
 		// then
 		assertThat(ids(near)).containsExactly(expectedId);
@@ -78,7 +79,7 @@ class CandidatePoolTest {
 		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(slot.slot(), List.of(play)));
 
 		// when
-		List<Selected> selected = pool.near(slot.slot(), StoreKind.PLAY, WEST, slot.minPercentile());
+		List<Selected> selected = pool.near(slot.slot(), Set.of(StoreKind.PLAY), WEST, slot.minPercentile());
 
 		// then
 		assertThat(selected).hasSize(eligible ? 1 : 0);
@@ -94,10 +95,28 @@ class CandidatePoolTest {
 			candidate(3, StoreKind.KOREAN, 37.5663, 126.9903, 95))));
 
 		// when
-		List<Selected> near = pool.near(TimeSlot.DINNER, StoreKind.KOREAN, WEST, CourseSchedule.DEFAULT_MIN_PERCENTILE);
+		List<Selected> near = pool.near(TimeSlot.DINNER, Set.of(StoreKind.KOREAN), WEST, CourseSchedule.DEFAULT_MIN_PERCENTILE);
 
 		// then
 		assertThat(ids(near)).containsExactly(2L, 3L, 1L);
+	}
+
+	@Test
+	@DisplayName("놀거리·쇼핑 후보가 섞임 → 종류를 합쳐 점수가 높고 거리가 가까운 순으로 고른다")
+	void ranksAcrossKinds() {
+		// given
+		List<Candidate> candidates = List.of(
+			candidate(1, StoreKind.PLAY, 37.5663, WEST.lng(), 90),
+			candidate(2, StoreKind.SHOP, 37.5661, WEST.lng(), 90),
+			candidate(3, StoreKind.PLAY, 37.5664, WEST.lng(), 95),
+			candidate(4, StoreKind.CAFE, WEST.lat(), WEST.lng(), 99));
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(TimeSlot.AFTERNOON, candidates));
+
+		// when
+		List<Selected> selected = pool.near(TimeSlot.AFTERNOON, Set.of(StoreKind.PLAY, StoreKind.SHOP), WEST, 75);
+
+		// then
+		assertThat(ids(selected)).containsExactly(3L, 2L, 1L);
 	}
 
 	@Test
@@ -107,7 +126,7 @@ class CandidatePoolTest {
 		CandidatePool pool = new CandidatePool(CONTEXT, Map.of());
 
 		// when
-		List<Selected> near = pool.near(TimeSlot.LATE_NIGHT, StoreKind.BAR, WEST, CourseSchedule.DEFAULT_MIN_PERCENTILE);
+		List<Selected> near = pool.near(TimeSlot.LATE_NIGHT, Set.of(StoreKind.BAR), WEST, CourseSchedule.DEFAULT_MIN_PERCENTILE);
 
 		// then
 		assertThat(near).isEmpty();
