@@ -1,13 +1,11 @@
 package com.odyssey.recommendation.v2;
 
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 
@@ -16,19 +14,16 @@ import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.cellslotscore.entity.TimeSlot;
 import com.odyssey.recommendation.v2.CourseReasonFacts.Facts;
 import com.odyssey.recommendation.v2.CourseSchedule.CourseSlot;
+import com.odyssey.recommendation.v2.CourseSelector.Pick;
+import com.odyssey.recommendation.v2.CourseSelector.Request;
+import com.odyssey.recommendation.v2.CourseSelector.Selection;
 import com.odyssey.recommendation.v2.CourseReasons.StopFacts;
-import com.odyssey.recommendation.v2.CourseVisitChecker.Result;
-import com.odyssey.recommendation.v2.V2CourseResponse.Interruption;
 import com.odyssey.recommendation.v2.V2CourseResponse.Stop;
-import com.odyssey.recommendation.v2.V2CourseResponse.Skipped;
-import com.odyssey.recommendation.v2.V2RecommendationResponse.Item;
-import com.odyssey.recommendation.v2.V2RecommendationSelector.Selected;
 import com.odyssey.store.entity.StoreKind;
 
 /**
  * 요청한 일정의 각 자리에서 다음에 방문할 매장을 고른다.
  *
- * <p>확인할 후보 순서는 {@link CheckOrder} 가 정한다. 뒤 구간이 끊겨도 앞에서 고른 매장을 되돌리지 않는다.
  * 코스를 다 고른 뒤 고른 칸들의 이유 재료를 한 번 읽어 정류장마다 이유를 붙인다.
  */
 @Service
@@ -37,12 +32,17 @@ public class V2CourseService {
 	private static final Logger log = LoggerFactory.getLogger(V2CourseService.class);
 
 	private final CourseCandidates candidates;
-	private final CourseVisitChecker checker;
+	private final CourseSelector selector;
 	private final CourseReasonFacts reasonFacts;
 
 	V2CourseService(CourseCandidates candidates, CourseVisitChecker checker, CourseReasonFacts reasonFacts) {
+		this(candidates, new BandShuffleSelector(checker), reasonFacts);
+	}
+
+	@Autowired
+	V2CourseService(CourseCandidates candidates, CourseSelector selector, CourseReasonFacts reasonFacts) {
 		this.candidates = candidates;
-		this.checker = checker;
+		this.selector = selector;
 		this.reasonFacts = reasonFacts;
 	}
 
@@ -63,36 +63,9 @@ public class V2CourseService {
 		List<CourseSlot> slots = CourseSchedule.slots(weekday, afternoon, startSlot, lateNight);
 		List<TimeSlot> timeSlots = slots.stream().map(CourseSlot::slot).distinct().toList();
 		CandidatePool pool = candidates.load(datasetId, weekday, startSlot, timeSlots);
-		Selection selection = selectStops(pool, slots, origin, excludeIds, weekday, new Random(seed));
+		Request request = new Request(slots, origin, excludeIds, weekday, seed);
+		Selection selection = selector.select(request, pool);
 		return response(pool.context(), seed, selection);
-	}
-
-	private record Selection(List<Pick> picks, List<Skipped> skipped, Interruption interruption) {
-	}
-
-	private Selection selectStops(CandidatePool pool, List<CourseSlot> slots, GeoPoint origin, Set<Long> excludeIds,
-		Weekday weekday, Random random) {
-		Set<Long> excluded = new HashSet<>(excludeIds);
-		List<Pick> picks = new ArrayList<>();
-		List<Skipped> skipped = new ArrayList<>();
-		Interruption interruption = null;
-		for (CourseSlot slot : slots) {
-			List<Selected> ranked = pool.near(slot.slot(), slot.kinds(), origin, slot.minPercentile());
-			Pick pick = pick(ranked, excluded, weekday, slot, random);
-			if (pick.stop() == null) {
-				if (slot.requirement().skipWhenMissing()) {
-					skipped.add(new Skipped(slot.slot(), slot.position(), pick.reason()));
-					continue;
-				}
-				interruption = new Interruption(slot.slot(), pick.reason());
-				break;
-			}
-			picks.add(pick);
-			Item place = pick.stop().place();
-			excluded.add(place.id());
-			origin = new GeoPoint(place.lat(), place.lng());
-		}
-		return new Selection(picks, skipped, interruption);
 	}
 
 	private V2CourseResponse response(V2Context context, long seed, Selection selection) {
@@ -127,63 +100,5 @@ public class V2CourseService {
 
 	private static long cellId(Stop stop) {
 		return Long.parseLong(stop.place().cellId());
-	}
-
-	private Pick pick(List<Selected> ranked, Set<Long> excluded, Weekday weekday, CourseSlot slot, Random random) {
-		if (ranked.isEmpty()) {
-			return Pick.stopped("NO_NEARBY_MATCH");
-		}
-		Set<Integer> skipped = excludedIndices(ranked, excluded);
-		if (skipped.size() == ranked.size()) {
-			return Pick.stopped("ALL_EXCLUDED");
-		}
-		List<Double> percentiles = ranked.stream().map(s -> s.candidate().percentile()).toList();
-		for (CheckOrder order = CheckOrder.of(percentiles, skipped, random); order.hasNext(); ) {
-			int i = order.next();
-			Item item = Item.from(ranked.get(i));
-			Result result = checker.check(item.googlePlaceId(), weekday, slot.visitTime(),
-				slot.stayMinutes(item.kind()));
-			if (result == Result.OPEN) {
-				return Pick.chosen(slot, i, item, false, order.bandSize(), percentiles.get(i));
-			}
-			// 작은 공방과 체험관은 정규 영업시간이 등록되지 않은 곳이 많다.
-			if (result == Result.HOURS_UNKNOWN && acceptsUnknownHours(item.kind())) {
-				return Pick.chosen(slot, i, item, true, order.bandSize(), percentiles.get(i));
-			}
-			if (result == Result.UNAVAILABLE) {
-				return Pick.stopped("VERIFICATION_UNAVAILABLE");
-			}
-		}
-		return Pick.stopped("NO_VERIFIED_MATCH");
-	}
-
-	private static Set<Integer> excludedIndices(List<Selected> ranked, Set<Long> excluded) {
-		Set<Integer> skipped = new HashSet<>();
-		for (int i = 0; i < ranked.size(); i++) {
-			if (excluded.contains(ranked.get(i).candidate().place().id())) {
-				skipped.add(i);
-			}
-		}
-		return skipped;
-	}
-
-	private static boolean acceptsUnknownHours(StoreKind kind) {
-		return kind == StoreKind.SHOP || kind == StoreKind.PLAY;
-	}
-
-	/**
-	 * @param bandSize   고른 후보가 속한 점수대(1위와 3점 이내)의 후보 수. 멈췄으면 0
-	 * @param percentile 고른 후보가 있는 칸의 방문 백분위. 멈췄으면 0
-	 */
-	private record Pick(Stop stop, String reason, int bandSize, double percentile) {
-		static Pick chosen(CourseSlot slot, int index, Item item, boolean hoursUnknown, int bandSize,
-			double percentile) {
-			return new Pick(Stop.of(slot.position(), slot.slot(), slot.visitTime(), slot.stayMinutes(item.kind()), index + 1, item,
-				hoursUnknown), null, bandSize, percentile);
-		}
-
-		static Pick stopped(String reason) {
-			return new Pick(null, reason, 0, 0);
-		}
 	}
 }
