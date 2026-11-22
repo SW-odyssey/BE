@@ -3,10 +3,13 @@ package com.odyssey.recommendation.v2;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.BDDMockito.then;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verifyNoInteractions;
 
 import java.time.LocalTime;
@@ -24,11 +27,18 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.springframework.dao.QueryTimeoutException;
 
 import com.odyssey.cell.GeoPoint;
 import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.cellcondition.repository.CellConditionRepository.Candidate;
 import com.odyssey.cellslotscore.entity.TimeSlot;
+import com.odyssey.recommendation.v2.CourseReason.AreaType;
+import com.odyssey.recommendation.v2.CourseReason.LocalTop;
+import com.odyssey.recommendation.v2.CourseReason.OpenDuringStay;
+import com.odyssey.recommendation.v2.CourseReason.PeakNow;
+import com.odyssey.recommendation.v2.CourseReason.SimilarChoices;
+import com.odyssey.recommendation.v2.CourseReasonFacts.Facts;
 import com.odyssey.recommendation.v2.CourseVisitChecker.Result;
 import com.odyssey.store.entity.StoreKind;
 import com.odyssey.store.repository.StorePlaceRepository.Place;
@@ -40,7 +50,8 @@ class V2CourseServiceTest {
 
 	private final CourseCandidates loader = mock(CourseCandidates.class);
 	private final FakeChecker checker = new FakeChecker();
-	private final V2CourseService service = new V2CourseService(loader, checker);
+	private final CourseReasonFacts reasonFacts = mock(CourseReasonFacts.class);
+	private final V2CourseService service = new V2CourseService(loader, checker, reasonFacts);
 	private final Map<TimeSlot, List<Candidate>> bySlot = new EnumMap<>(TimeSlot.class);
 
 	/** 영업 확인 호출을 기록하고, 정해 둔 결과(기본 OPEN)를 돌려준다. */
@@ -67,6 +78,7 @@ class V2CourseServiceTest {
 			V2Context context = new V2Context(call.getArgument(0), "2025-11", call.getArgument(1), slots.getFirst());
 			return new CandidatePool(context, bySlot);
 		});
+		given(reasonFacts.load(anyString(), any(), anyCollection())).willReturn(Facts.NONE);
 	}
 
 	/** 출발점 근처(매장 id 마다 약 11m 북쪽)에 둔다. id 20 까지는 출발점에서 300m 안이다. */
@@ -234,6 +246,7 @@ class V2CourseServiceTest {
 
 		// then
 		assertThat(course.stops().getFirst().hoursUnknown()).isTrue();
+		assertThat(course.stops().getFirst().reasons()).noneMatch(OpenDuringStay.class::isInstance);
 	}
 
 	@ParameterizedTest(name = "{0}")
@@ -329,5 +342,108 @@ class V2CourseServiceTest {
 		// then
 		assertThat(exception).hasMessage("afternoon: " + afternoon);
 		verifyNoInteractions(loader);
+	}
+
+	@Test
+	@DisplayName("두 구간 코스 → 영업 확인이 다 끝난 뒤 고른 칸들로 이유 재료를 한 번만 읽는다")
+	void loadsReasonFactsOnceAfterChecks() {
+		// given
+		candidates(TimeSlot.DINNER, store(1, StoreKind.KOREAN, 99));
+		candidates(TimeSlot.LATE_NIGHT, store(2, StoreKind.BAR, 99));
+		List<Integer> checksBeforeLoad = new ArrayList<>();
+		given(reasonFacts.load(anyString(), any(), anyCollection())).willAnswer(call -> {
+			checksBeforeLoad.add(checker.calls.size());
+			return Facts.NONE;
+		});
+
+		// when
+		V2CourseResponse course = recommend(TimeSlot.DINNER, 1);
+
+		// then
+		assertThat(course.stops()).hasSize(2);
+		assertThat(checksBeforeLoad).containsExactly(2);
+		then(reasonFacts).should().load("nov", Weekday.FRI, List.of(1L, 2L));
+	}
+
+	@Test
+	@DisplayName("재료가 모두 있음 → 칸 기준 백분위·체류 시각·점수대 수로 다섯 이유를 붙인다")
+	void attachesAllReasons() {
+		// given: 1위 점수대 2곳, 칸 1 은 저녁이 가장 붐비고 동네 유형이 있다
+		candidates(TimeSlot.DINNER, store(1, StoreKind.KOREAN, 97.2), store(2, StoreKind.KOREAN, 96));
+		checker.results.put("place-2", Result.NOT_OPEN);
+		given(reasonFacts.load(anyString(), any(), anyCollection())).willReturn(
+			new Facts(Map.of(1L, TimeSlot.DINNER), Map.of(1L, "late_night")));
+
+		// when
+		V2CourseResponse course = recommend(TimeSlot.DINNER, 1);
+
+		// then
+		assertThat(course.stops().getFirst().reasons()).containsExactly(new LocalTop(3),
+			new OpenDuringStay("19:00", "20:00"), new PeakNow(), new AreaType("late_night"), new SimilarChoices(2));
+	}
+
+	@Test
+	@DisplayName("고른 칸의 재료가 없음 → PEAK_NOW·AREA_TYPE 만 빠지고 코스는 그대로다")
+	void missingFactsDropOnlyThoseReasons() {
+		// given
+		candidates(TimeSlot.LATE_NIGHT, store(1, StoreKind.BAR, 99));
+		given(reasonFacts.load(anyString(), any(), anyCollection())).willReturn(
+			new Facts(Map.of(9L, TimeSlot.LATE_NIGHT), Map.of(9L, "mixed")));
+
+		// when
+		V2CourseResponse course = recommend(TimeSlot.LATE_NIGHT, 1);
+
+		// then
+		assertThat(course.status()).isEqualTo("COMPLETE");
+		assertThat(course.stops().getFirst().reasons()).containsExactly(new LocalTop(1),
+			new OpenDuringStay("22:30", "23:40"));
+	}
+
+	@Test
+	@DisplayName("이유 재료 조회가 실패함 → 그 재료의 이유만 빠지고 코스는 그대로다")
+	void failedFactsDoNotFailCourse() {
+		// given
+		candidates(TimeSlot.LATE_NIGHT, store(1, StoreKind.BAR, 99));
+		given(reasonFacts.load(anyString(), any(), anyCollection())).willThrow(new QueryTimeoutException("timeout"));
+
+		// when
+		V2CourseResponse course = recommend(TimeSlot.LATE_NIGHT, 1);
+
+		// then
+		assertThat(course.status()).isEqualTo("COMPLETE");
+		assertThat(course.stops().getFirst().reasons()).containsExactly(new LocalTop(1),
+			new OpenDuringStay("22:30", "23:40"));
+	}
+
+	@Test
+	@DisplayName("고른 곳이 없음 → 이유 재료를 읽지 않는다")
+	void noFactsWithoutStops() {
+		// given
+		candidates(TimeSlot.DINNER);
+
+		// when
+		recommend(TimeSlot.DINNER, 1);
+
+		// then
+		then(reasonFacts).should(never()).load(anyString(), any(), anyCollection());
+	}
+
+	@Test
+	@DisplayName("상위 점수대가 모두 닫혀 있다 → 부분 코스에도 실제 고른 점수대의 후보 수와 칸 백분위를 보낸다")
+	void partialCourseUsesChosenBandForReasons() {
+		// given
+		candidates(TimeSlot.DINNER, store(1, StoreKind.KOREAN, 99), store(2, StoreKind.KOREAN, 90),
+			store(3, StoreKind.KOREAN, 88));
+		checker.results.put("place-1", Result.NOT_OPEN);
+		checker.results.put("place-2", Result.NOT_OPEN);
+
+		// when
+		V2CourseResponse course = recommend(TimeSlot.DINNER, 1);
+
+		// then
+		assertThat(course.status()).isEqualTo("PARTIAL");
+		assertThat(course.stops().getFirst().candidateRank()).isEqualTo(3);
+		assertThat(course.stops().getFirst().reasons()).containsExactly(new LocalTop(12),
+			new OpenDuringStay("19:00", "20:00"), new SimilarChoices(2));
 	}
 }

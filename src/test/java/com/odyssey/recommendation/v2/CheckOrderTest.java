@@ -220,7 +220,7 @@ class CheckOrderTest {
 	}
 
 	@Test
-	@DisplayName("?? ???? 12?? ?? ? 10?? ???? ??? ??? 12?")
+	@DisplayName("같은 점수대에 12곳이 있다 → 10곳만 확인해도 점수대 크기는 12다")
 	void countsWholeBandBeyondCheckLimit() {
 		Iterator<BandCandidate> order = candidateCheckOrder(Collections.nCopies(12, 99.0), Set.of(), new Random(1));
 		List<BandCandidate> candidates = new ArrayList<>();
