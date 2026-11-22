@@ -3,9 +3,11 @@ package com.odyssey.recommendation.v2;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import com.odyssey.cell.GeoPoint;
 import com.odyssey.recommendation.v2.CandidatePool.LegCandidates;
@@ -16,8 +18,13 @@ import com.odyssey.recommendation.v2.V2CourseResponse.Skipped;
 import com.odyssey.recommendation.v2.V2RecommendationResponse.Item;
 import com.odyssey.recommendation.v2.V2RecommendationSelector.Selected;
 
+/**
+ * 자리마다 경로를 {@link #WIDTH} 개까지만 남기며 코스 전체를 한 번에 고른다. 정류장 수, 방문 백분위 합, 총 직선거리
+ * 순으로 비교하므로 앞 자리에서 가까운 곳을 고르다 뒤 자리가 막히는 일을 줄인다.
+ */
 final class BeamSelector implements CourseSelector {
 
+	/** 건너뛴 자리 조합마다 남기는 경로 수 */
 	private static final int WIDTH = 300;
 	private static final double EXTRA_METERS = 100;
 	private static final Comparator<Path> ORDER = Comparator
@@ -34,7 +41,7 @@ final class BeamSelector implements CourseSelector {
 				Interruption interruption = new Interruption(slot.slot(), "NO_VERIFIED_MATCH");
 				return choose(beam, request.seed()).selection(interruption);
 			}
-			beam = next.stream().sorted(ORDER).limit(WIDTH).toList();
+			beam = prune(next);
 		}
 		return choose(beam, request.seed()).selection(null);
 	}
@@ -42,11 +49,11 @@ final class BeamSelector implements CourseSelector {
 	private List<Path> expand(List<Path> beam, CourseSlot slot, CandidatePool pool, Request request) {
 		LegCandidates firstLeg = pool.forLeg(slot, 0, V2RecommendationSelector.RADIUS_METERS, 0);
 		LegCandidates betweenStops = request.walk().betweenStops(pool, slot);
+		Set<Long> excludedHere = request.excludedAt(slot.position());
 		List<Path> next = new ArrayList<>();
 		for (Path path : beam) {
 			LegCandidates leg = path.picks().isEmpty() ? firstLeg : betweenStops;
-			Set<Long> excluded = path.excludedIds(request.excludeIds());
-			List<Ranked> nearby = leg.near(path.origin(), path.earlierStops(), excluded);
+			List<Ranked> nearby = leg.near(path.origin(), path.earlierStops(), path.excludedIds(excludedHere));
 			addCandidatePaths(next, path, slot, nearby);
 			if (slot.requirement().skipWhenMissing()) {
 				String reason = nearby.isEmpty() ? "NO_VERIFIED_MATCH" : "SKIPPED_FOR_ROUTE";
@@ -66,7 +73,28 @@ final class BeamSelector implements CourseSelector {
 		}
 	}
 
+	/**
+	 * 건너뛴 자리 조합마다 {@link #WIDTH} 개씩 남긴다. 건너뛴 경로는 정류장이 적어 늘 뒤로 밀리므로 한꺼번에
+	 * 자르면, 선택 자리에 후보가 많을 때 건너뛰는 경로가 전부 사라져 뒤의 필수 자리를 채울 길이 끊긴다.
+	 *
+	 * @return {@link #ORDER} 로 정렬한 경로
+	 */
+	private static List<Path> prune(List<Path> paths) {
+		return paths.stream()
+			.collect(Collectors.groupingBy(Path::skippedPositions, LinkedHashMap::new, Collectors.toList()))
+			.values().stream()
+			.flatMap(group -> group.stream().sorted(ORDER).limit(WIDTH))
+			.sorted(ORDER)
+			.toList();
+	}
+
+	/** 정류장이 가장 많고 점수 합이 1위와 가까운 경로 중, 총 거리가 짧은 쪽에서 seed 로 하나를 고른다. */
 	private Path choose(List<Path> beam, long seed) {
+		List<Path> choices = shortestAmongNearBest(beam);
+		return choices.get(new Random(seed).nextInt(choices.size()));
+	}
+
+	private List<Path> shortestAmongNearBest(List<Path> beam) {
 		Path best = beam.getFirst();
 		int stopCount = best.picks().size();
 		double minimumScore = best.score() - stopCount * BandShuffleSelector.PERCENTILE_BAND;
@@ -74,8 +102,7 @@ final class BeamSelector implements CourseSelector {
 			.filter(path -> path.picks().size() == stopCount && path.score() >= minimumScore)
 			.toList();
 		double shortest = nearBest.stream().mapToDouble(Path::distance).min().orElseThrow();
-		List<Path> choices = nearBest.stream().filter(path -> path.distance() <= shortest + EXTRA_METERS).toList();
-		return choices.get(new Random(seed).nextInt(choices.size()));
+		return nearBest.stream().filter(path -> path.distance() <= shortest + EXTRA_METERS).toList();
 	}
 
 	private record Path(GeoPoint origin, List<GeoPoint> visited, List<Pick> picks, List<Skipped> skipped,
@@ -83,6 +110,11 @@ final class BeamSelector implements CourseSelector {
 
 		static Path start(GeoPoint origin) {
 			return new Path(origin, List.of(), List.of(), List.of(), 0, 0);
+		}
+
+		/** @return 건너뛴 자리 번호. 같은 조합의 경로끼리만 비교해 자르는 기준이다 */
+		List<Integer> skippedPositions() {
+			return skipped.stream().map(Skipped::position).toList();
 		}
 
 		List<GeoPoint> earlierStops() {

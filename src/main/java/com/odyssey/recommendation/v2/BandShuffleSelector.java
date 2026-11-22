@@ -46,7 +46,7 @@ final class BandShuffleSelector implements CourseSelector {
 		Interruption interruption = null;
 		for (CourseSlot slot : request.slots()) {
 			List<Selected> ranked = pool.near(slot.slot(), slot.kinds(), origin, slot.minPercentile());
-			Pick pick = pickStageStop(ranked, excluded, request.weekday(), slot, random);
+			Pick pick = pickStageStop(ranked, unavailableAt(request, slot, excluded), request.weekday(), slot, random);
 			if (pick.stop() == null) {
 				if (slot.requirement().skipWhenMissing()) {
 					skipped.add(new Skipped(slot.slot(), slot.position(), pick.reason()));
@@ -61,6 +61,13 @@ final class BandShuffleSelector implements CourseSelector {
 			origin = new GeoPoint(place.lat(), place.lng());
 		}
 		return new Selection(picks, skipped, interruption);
+	}
+
+	/** 이미 고른 매장과 요청이 뺀 매장에, 이 자리에서만 뺄 매장을 더한다. */
+	private static Set<Long> unavailableAt(Request request, CourseSlot slot, Set<Long> alreadyExcluded) {
+		Set<Long> unavailable = new HashSet<>(alreadyExcluded);
+		unavailable.addAll(request.excludedAt(slot.position()));
+		return unavailable;
 	}
 
 	private Pick pickStageStop(List<Selected> ranked, Set<Long> excluded, Weekday weekday, CourseSlot slot,

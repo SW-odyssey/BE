@@ -1,6 +1,9 @@
 package com.odyssey.recommendation.v2;
 
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import com.odyssey.cell.GeoPoint;
@@ -14,11 +17,35 @@ import com.odyssey.recommendation.v2.V2RecommendationResponse.Item;
 interface CourseSelector {
 	Selection select(Request request, CandidatePool pool);
 
+	/**
+	 * @param excludeIds     모든 자리에서 뺄 매장
+	 * @param excludedBySlot 자리 번호(position) → 그 자리에서만 뺄 매장. 한 매장이 점심에는 닫혀도 저녁에는 열 수
+	 *                       있어서, 영업 확인에 실패한 매장은 실패한 자리에만 적용한다
+	 */
 	record Request(List<CourseSlot> slots, GeoPoint origin, Set<Long> excludeIds, Weekday weekday, long seed,
-		WalkPreference walk) {
+		WalkPreference walk, Map<Integer, Set<Long>> excludedBySlot) {
 		public Request {
 			slots = List.copyOf(slots);
 			excludeIds = Set.copyOf(excludeIds);
+			Map<Integer, Set<Long>> copy = new HashMap<>();
+			excludedBySlot.forEach((position, ids) -> copy.put(position, Set.copyOf(ids)));
+			excludedBySlot = Map.copyOf(copy);
+		}
+
+		public Request(List<CourseSlot> slots, GeoPoint origin, Set<Long> excludeIds, Weekday weekday, long seed,
+			WalkPreference walk) {
+			this(slots, origin, excludeIds, weekday, seed, walk, Map.of());
+		}
+
+		/** @return 이 자리에서 뺄 매장: 모든 자리에서 뺄 매장과 이 자리에서만 뺄 매장을 합친 것 */
+		Set<Long> excludedAt(int position) {
+			Set<Long> here = excludedBySlot.getOrDefault(position, Set.of());
+			if (here.isEmpty()) {
+				return excludeIds;
+			}
+			Set<Long> excluded = new HashSet<>(excludeIds);
+			excluded.addAll(here);
+			return excluded;
 		}
 
 		CourseSlot slotAt(int position) {
