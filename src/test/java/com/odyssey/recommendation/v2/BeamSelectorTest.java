@@ -32,7 +32,21 @@ class BeamSelectorTest {
 	}
 
 	static Request request(List<CourseSlot> slots, long seed) {
-		return new Request(slots, START, Set.of(), Weekday.FRI, seed);
+		return new Request(slots, START, Set.of(), Weekday.FRI, seed, WalkPreference.DEFAULT);
+	}
+
+	@Test
+	@DisplayName("짧게 걷기를 고르면 앞 매장에서 150m 안의 카페도 선택한다")
+	void shortWalkAcceptsNearbyCafe() {
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(
+			TimeSlot.LUNCH, List.of(store(1, StoreKind.KOREAN, 0, 99)),
+			TimeSlot.AFTERNOON, List.of(store(2, StoreKind.CAFE, 50, 99))));
+		List<CourseSlot> slots = SLOTS.subList(0, 2);
+		Request shortWalk = new Request(slots, START, Set.of(), Weekday.FRI, 7, WalkPreference.SHORT);
+		BeamSelector selector = new BeamSelector();
+
+		assertThat(ids(selector.select(request(slots, 7), pool))).containsExactly(1L);
+		assertThat(ids(selector.select(shortWalk, pool))).containsExactly(1L, 2L);
 	}
 
 	static List<Long> ids(Selection selection) {

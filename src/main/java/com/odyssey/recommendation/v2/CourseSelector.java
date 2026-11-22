@@ -14,14 +14,15 @@ import com.odyssey.recommendation.v2.V2RecommendationResponse.Item;
 interface CourseSelector {
 	Selection select(Request request, CandidatePool pool);
 
-	record Request(List<CourseSlot> slots, GeoPoint origin, Set<Long> excludeIds, Weekday weekday, long seed) {
+	record Request(List<CourseSlot> slots, GeoPoint origin, Set<Long> excludeIds, Weekday weekday, long seed,
+		WalkPreference walk) {
 		public Request {
 			slots = List.copyOf(slots);
 			excludeIds = Set.copyOf(excludeIds);
 		}
 
 		Request excluding(Set<Long> ids) {
-			return new Request(slots, origin, ids, weekday, seed);
+			return new Request(slots, origin, ids, weekday, seed, walk);
 		}
 
 		CourseSlot slotAt(int position) {
