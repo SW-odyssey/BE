@@ -90,7 +90,7 @@ public class V2CourseService {
 		List<Pick> picks = new ArrayList<>();
 		Interruption interruption = null;
 		for (CourseSlot stage : stages) {
-			List<Selected> nearby = pool.near(stage.slot(), stage.kinds().iterator().next(), origin);
+			List<Selected> nearby = pool.near(stage.slot(), stage.kinds().iterator().next(), origin, stage.minPercentile());
 			Pick pick = pickStageStop(nearby, excluded, weekday, stage, random);
 			if (pick.stop() == null) {
 				interruption = new Interruption(stage.slot(), pick.reason());

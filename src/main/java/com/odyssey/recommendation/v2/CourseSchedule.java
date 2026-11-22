@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.cellslotscore.entity.TimeSlot;
 import com.odyssey.store.entity.StoreKind;
 
@@ -21,6 +22,7 @@ import com.odyssey.store.entity.StoreKind;
 final class CourseSchedule {
 
 	static final int SHOP_STAY_MINUTES = 30;
+	static final double MIN_COURSE_PERCENTILE = 60;
 	/** 목록 API 와 같은 기본 하한. */
 	static final double DEFAULT_MIN_PERCENTILE = V2RecommendationSelector.MIN_VISITOR_PERCENTILE;
 
@@ -82,6 +84,15 @@ final class CourseSchedule {
 			required(2, TimeSlot.AFTERNOON, LocalTime.of(15, 0), afternoonStay),
 			required(3, TimeSlot.DINNER, LocalTime.of(19, 0), Map.of(StoreKind.KOREAN, 60)),
 			required(4, TimeSlot.LATE_NIGHT, LocalTime.of(22, 30), Map.of(StoreKind.BAR, 70)));
+	}
+
+	static CourseSlot afternoonPlay(Weekday weekday) {
+		double minimum = switch (weekday) {
+			case SAT, SUN -> DEFAULT_MIN_PERCENTILE;
+			default -> MIN_COURSE_PERCENTILE;
+		};
+		return new CourseSlot(3, TimeSlot.AFTERNOON, LocalTime.of(15, 40),
+			Map.of(StoreKind.PLAY, 60, StoreKind.SHOP, SHOP_STAY_MINUTES), Requirement.OPTIONAL, minimum);
 	}
 
 	private static CourseSlot required(int position, TimeSlot slot, LocalTime visitTime,
