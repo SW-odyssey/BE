@@ -73,9 +73,8 @@ class V2CourseServiceTest {
 
 	@BeforeEach
 	void pool() {
-		given(loader.load(anyString(), any(), anyList())).willAnswer(call -> {
-			List<TimeSlot> slots = call.getArgument(2);
-			var context = new V2Context(call.getArgument(0), "2025-11", call.getArgument(1), slots.getFirst());
+		given(loader.load(anyString(), any(), any(), anyList())).willAnswer(call -> {
+			V2Context context = new V2Context(call.getArgument(0), "2025-11", call.getArgument(1), call.getArgument(2));
 			return new CandidatePool(context, bySlot);
 		});
 		given(reasonFacts.load(anyString(), any(), anyCollection())).willReturn(Facts.NONE);
@@ -96,7 +95,7 @@ class V2CourseServiceTest {
 	}
 
 	private V2CourseResponse recommend(TimeSlot startSlot, long seed) {
-		return service.recommend("nov", Weekday.FRI, startSlot, ORIGIN, Set.of(), seed, StoreKind.CAFE);
+		return service.recommend("nov", Weekday.FRI, startSlot, ORIGIN, Set.of(), seed, StoreKind.CAFE, true);
 	}
 
 	@Test
@@ -165,7 +164,7 @@ class V2CourseServiceTest {
 	@DisplayName("1위 점수대 안에서 영업하는 곳이 뒤에 있음 → 섞인 순서와 상관없이 찾는다")
 	void findsOpenStoreLateInBand() {
 		// given
-		var ranked = new ArrayList<Candidate>();
+		List<Candidate> ranked = new ArrayList<>();
 		for (long id = 1; id <= 7; id++) {
 			ranked.add(store(id, StoreKind.KOREAN, 99));
 		}
@@ -187,7 +186,7 @@ class V2CourseServiceTest {
 	@DisplayName("확인할 후보가 10곳보다 많고 모두 닫힘 → 10번만 확인하고 NO_VERIFIED_MATCH 로 멈춘다")
 	void capsChecksPerStage() {
 		// given: 99점 7곳, 90점 3곳, 80점 2곳
-		var ranked = new ArrayList<Candidate>();
+		List<Candidate> ranked = new ArrayList<>();
 		for (long id = 1; id <= 12; id++) {
 			ranked.add(store(id, StoreKind.KOREAN, id <= 7 ? 99 : id <= 10 ? 90 : 80));
 		}
@@ -249,8 +248,8 @@ class V2CourseServiceTest {
 	}
 
 	@ParameterizedTest(name = "{0}")
-	@CsvSource({"LUNCH, KOREAN", "AFTERNOON, CAFE", "DINNER, KOREAN", "LATE_NIGHT, BAR"})
-	@DisplayName("영업시간이 없는 음식점·카페·주점 → 받지 않고 NO_VERIFIED_MATCH 로 멈춘다")
+	@CsvSource({"LUNCH, KOREAN", "AFTERNOON, CAFE", "DINNER, KOREAN"})
+	@DisplayName("영업시간이 없는 음식점·카페 → 받지 않고 NO_VERIFIED_MATCH 로 멈춘다")
 	void nonShopWithUnknownHours(TimeSlot slot, StoreKind kind) {
 		// given
 		candidates(slot, store(1, kind, 97));
@@ -265,8 +264,8 @@ class V2CourseServiceTest {
 	}
 
 	@ParameterizedTest(name = "{0} {1} → {3} 도착 {4}분")
-	@CsvSource({"LUNCH, KOREAN, CAFE, 12:30, 50", "AFTERNOON, CAFE, CAFE, 15:00, 80",
-		"AFTERNOON, SHOP, SHOP, 15:00, 30", "DINNER, KOREAN, CAFE, 19:00, 60", "LATE_NIGHT, BAR, CAFE, 22:30, 70"})
+	@CsvSource({"LUNCH, KOREAN, CAFE, 12:00, 50", "AFTERNOON, CAFE, CAFE, 14:00, 80",
+		"AFTERNOON, SHOP, SHOP, 14:00, 30", "DINNER, KOREAN, CAFE, 18:00, 60", "LATE_NIGHT, BAR, CAFE, 22:00, 70"})
 	@DisplayName("구간마다 → 정해 둔 도착 시각과 머무는 시간을 영업 확인에 넘긴다")
 	void passesVisitTimeAndStay(TimeSlot slot, StoreKind kind, StoreKind afternoon, LocalTime visitTime,
 		int stayMinutes) {
@@ -274,7 +273,7 @@ class V2CourseServiceTest {
 		candidates(slot, store(1, kind, 99));
 
 		// when
-		V2CourseResponse course = service.recommend("nov", Weekday.FRI, slot, ORIGIN, Set.of(), 1, afternoon);
+		V2CourseResponse course = service.recommend("nov", Weekday.FRI, slot, ORIGIN, Set.of(), 1, afternoon, true);
 
 		// then
 		assertThat(checker.calls.getFirst())
@@ -286,30 +285,31 @@ class V2CourseServiceTest {
 	@DisplayName("다음 구간 후보를 모두 제외함 → 앞 구간만 담은 PARTIAL 과 ALL_EXCLUDED 다")
 	void excludedStoresGivePartialCourse() {
 		// given
-		candidates(TimeSlot.DINNER, store(1, StoreKind.KOREAN, 99));
-		candidates(TimeSlot.LATE_NIGHT, store(3, StoreKind.BAR, 99));
+		candidates(TimeSlot.AFTERNOON, store(1, StoreKind.CAFE, 99));
+		candidates(TimeSlot.DINNER, store(3, StoreKind.KOREAN, 99));
 
 		// when
-		V2CourseResponse course = service.recommend("nov", Weekday.FRI, TimeSlot.DINNER, ORIGIN, Set.of(3L, 4L),
+		V2CourseResponse course = service.recommend("nov", Weekday.FRI, TimeSlot.AFTERNOON, ORIGIN, Set.of(3L, 4L),
 			1, StoreKind.CAFE);
 
 		// then
 		assertThat(course.status()).isEqualTo("PARTIAL");
 		assertThat(course.stops()).hasSize(1);
 		assertThat(course.interruption()).isEqualTo(
-			new V2CourseResponse.Interruption(TimeSlot.LATE_NIGHT, "ALL_EXCLUDED"));
+			new V2CourseResponse.Interruption(TimeSlot.DINNER, "ALL_EXCLUDED"));
 	}
 
 	@Test
 	@DisplayName("앞 구간에서 고른 매장 → 뒤 구간 후보에 다시 나와도 고르지 않는다")
 	void pickedStoreIsNotReused() {
-		// given: 같은 매장이 저녁·심야 후보에 모두 있다
-		var both = store(1, StoreKind.KOREAN, 99);
-		candidates(TimeSlot.DINNER, both);
-		candidates(TimeSlot.LATE_NIGHT, at(1, StoreKind.BAR, 99, 37.5661, 126.9900));
+		// given: 같은 매장이 점심·저녁 후보에 모두 있다
+		Candidate both = store(1, StoreKind.KOREAN, 99);
+		candidates(TimeSlot.LUNCH, both);
+		candidates(TimeSlot.AFTERNOON, store(2, StoreKind.CAFE, 99));
+		candidates(TimeSlot.DINNER, at(1, StoreKind.KOREAN, 99, 37.5661, 126.9900));
 
 		// when
-		V2CourseResponse course = recommend(TimeSlot.DINNER, 1);
+		V2CourseResponse course = recommend(TimeSlot.LUNCH, 1);
 
 		// then
 		assertThat(course.interruption().reason()).isEqualTo("ALL_EXCLUDED");
@@ -335,7 +335,7 @@ class V2CourseServiceTest {
 	@DisplayName("오후 자리가 카페·구경이 아님 → 후보를 읽기 전에 거절한다")
 	void rejectsOtherAfternoonKinds(StoreKind afternoon) {
 		// when
-		var exception = catchThrowableOfType(IllegalArgumentException.class, () -> service.recommend("nov",
+		IllegalArgumentException exception = catchThrowableOfType(IllegalArgumentException.class, () -> service.recommend("nov",
 			Weekday.FRI, TimeSlot.AFTERNOON, ORIGIN, Set.of(), 1, afternoon));
 
 		// then
@@ -378,7 +378,7 @@ class V2CourseServiceTest {
 
 		// then
 		assertThat(course.stops().getFirst().reasons()).containsExactly(new LocalTop(3),
-			new OpenDuringStay("19:00", "20:00"), new PeakNow(), new AreaType("late_night"), new SimilarChoices(2));
+			new OpenDuringStay("18:00", "19:00"), new PeakNow(), new AreaType("late_night"), new SimilarChoices(2));
 	}
 
 	@Test
@@ -395,7 +395,7 @@ class V2CourseServiceTest {
 		// then
 		assertThat(course.status()).isEqualTo("COMPLETE");
 		assertThat(course.stops().getFirst().reasons()).containsExactly(new LocalTop(1),
-			new OpenDuringStay("22:30", "23:40"));
+			new OpenDuringStay("22:00", "23:10"));
 	}
 
 	@Test
@@ -411,7 +411,85 @@ class V2CourseServiceTest {
 		// then
 		assertThat(course.status()).isEqualTo("COMPLETE");
 		assertThat(course.stops().getFirst().reasons()).containsExactly(new LocalTop(1),
-			new OpenDuringStay("22:30", "23:40"));
+			new OpenDuringStay("22:00", "23:10"));
+	}
+
+	@Test
+	@DisplayName("놀거리 후보가 없음 → 카페에서 저녁으로 이어지고 건너뛴 두 자리만 기록한다")
+	void continuesFromCafeWhenPlayIsMissing() {
+		// given
+		candidates(TimeSlot.LUNCH, store(1, StoreKind.KOREAN, 99));
+		candidates(TimeSlot.AFTERNOON, at(2, StoreKind.CAFE, 95, 37.5660, 126.9925));
+		candidates(TimeSlot.DINNER, at(3, StoreKind.KOREAN, 95, 37.5660, 126.9955));
+		candidates(TimeSlot.LATE_NIGHT, store(4, StoreKind.BAR, 99));
+
+		// when
+		V2CourseResponse course = service.recommend("nov", Weekday.FRI, TimeSlot.LUNCH, ORIGIN, Set.of(), 7);
+
+		// then
+		assertThat(course.status()).isEqualTo("COMPLETE");
+		assertThat(course.stops()).extracting(V2CourseResponse.Stop::position).containsExactly(1, 2, 4);
+		assertThat(course.skipped()).containsExactly(
+			new V2CourseResponse.Skipped(TimeSlot.AFTERNOON, 3, "NO_NEARBY_MATCH"),
+			new V2CourseResponse.Skipped(TimeSlot.DINNER, 5, "NO_NEARBY_MATCH"));
+		assertThat(course.interruption()).isNull();
+		then(loader).should().load("nov", Weekday.FRI, TimeSlot.LUNCH,
+			List.of(TimeSlot.LUNCH, TimeSlot.AFTERNOON, TimeSlot.DINNER));
+	}
+
+	@Test
+	@DisplayName("심야를 선택하고 여섯 자리에 후보가 있음 → 선택 정류장에도 추천 이유를 붙인다")
+	void completesSixStopsWithReasons() {
+		// given
+		candidates(TimeSlot.LUNCH, store(1, StoreKind.KOREAN, 90));
+		candidates(TimeSlot.AFTERNOON, store(2, StoreKind.CAFE, 90), store(3, StoreKind.PLAY, 65));
+		candidates(TimeSlot.DINNER, store(4, StoreKind.KOREAN, 91), store(5, StoreKind.PLAY, 95));
+		candidates(TimeSlot.LATE_NIGHT, store(6, StoreKind.BAR, 90));
+		checker.results.put("place-3", Result.HOURS_UNKNOWN);
+
+		// when
+		V2CourseResponse course = recommend(TimeSlot.LUNCH, 7);
+
+		// then
+		assertThat(course.status()).isEqualTo("COMPLETE");
+		assertThat(course.skipped()).isEmpty();
+		assertThat(course.stops()).extracting(V2CourseResponse.Stop::position).containsExactly(1, 2, 3, 4, 5, 6);
+		V2CourseResponse.Stop afternoonPlay = course.stops().get(2);
+		assertThat(afternoonPlay.hoursUnknown()).isTrue();
+		assertThat(afternoonPlay.reasons()).containsExactly(new LocalTop(35));
+		assertThat(afternoonPlay.leaveTime()).isEqualTo("16:40");
+		assertThat(course.stops().get(4).reasons()).containsExactly(new LocalTop(5), new OpenDuringStay("19:30", "20:30"));
+	}
+
+	@Test
+	@DisplayName("심야 시작에 심야 선택을 생략 → 후보나 영업시간을 조회하지 않고 빈 코스를 반환한다")
+	void omitsUnrequestedLateNight() {
+		// when
+		V2CourseResponse course = service.recommend("nov", Weekday.FRI, TimeSlot.LATE_NIGHT, ORIGIN, Set.of(), 7);
+
+		// then
+		assertThat(course.context().slot()).isEqualTo(TimeSlot.LATE_NIGHT);
+		assertThat(course.status()).isEqualTo("COMPLETE");
+		assertThat(course.stops()).isEmpty();
+		assertThat(course.skipped()).isEmpty();
+		assertThat(checker.calls).isEmpty();
+		then(loader).should().load("nov", Weekday.FRI, TimeSlot.LATE_NIGHT, List.of());
+	}
+
+	@Test
+	@DisplayName("심야를 선택했지만 주점의 영업시간이 없음 → 6번 자리를 건너뛴다")
+	void skipsUnverifiedLateNight() {
+		// given
+		candidates(TimeSlot.LATE_NIGHT, store(6, StoreKind.BAR, 90));
+		checker.fallback = Result.HOURS_UNKNOWN;
+
+		// when
+		V2CourseResponse course = recommend(TimeSlot.LATE_NIGHT, 7);
+
+		// then
+		assertThat(course.skipped()).containsExactly(
+			new V2CourseResponse.Skipped(TimeSlot.LATE_NIGHT, 6, "NO_VERIFIED_MATCH"));
+		assertThat(course.interruption()).isNull();
 	}
 
 	@Test
