@@ -56,8 +56,9 @@ class GooglePlaceHours implements CourseVisitChecker {
 		} catch (HttpClientErrorException.NotFound e) {
 			return Result.NOT_OPEN;
 		} catch (HttpClientErrorException e) {
-			// 400 은 place_id 형식이 잘못된 매장 문제, 그 밖의 4xx(키·한도)는 서버 문제다
-			if (e.getStatusCode() == HttpStatus.BAD_REQUEST) {
+			// 400 은 place_id 형식이 잘못된 매장 문제, 그 밖의 4xx(키·한도)는 서버 문제다.
+			// 잘못되거나 만료된 키도 400 이라 본문의 reason 으로 나눈다
+			if (e.getStatusCode() == HttpStatus.BAD_REQUEST && !isInvalidKey(e)) {
 				return Result.NOT_OPEN;
 			}
 			log.warn("Google Place Details 조회 실패: {}", e.getStatusCode());
@@ -75,6 +76,20 @@ class GooglePlaceHours implements CourseVisitChecker {
 		var periods = periods(place.regularOpeningHours().periods());
 		return WeeklyOpeningHours.coversStay(periods, weekday, visitTime, stayMinutes)
 			? Result.OPEN : Result.NOT_OPEN;
+	}
+
+	private static boolean isInvalidKey(HttpClientErrorException e) {
+		ErrorBody body;
+		try {
+			body = e.getResponseBodyAs(ErrorBody.class);
+		} catch (RuntimeException unreadable) {
+			return false;
+		}
+		if (body == null || body.error() == null || body.error().details() == null) {
+			return false;
+		}
+		return body.error().details().stream()
+			.anyMatch(detail -> detail != null && "API_KEY_INVALID".equals(detail.reason()));
 	}
 
 	private static List<WeeklyOpeningHours.Period> periods(List<Period> periods) {
@@ -104,5 +119,18 @@ class GooglePlaceHours implements CourseVisitChecker {
 
 	@JsonIgnoreProperties(ignoreUnknown = true)
 	record Point(int day, int hour, int minute) {
+	}
+
+	/** Google 오류 본문. details 의 reason 은 google.rpc.ErrorInfo 의 값이다 */
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	record ErrorBody(ErrorStatus error) {
+	}
+
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	record ErrorStatus(List<ErrorDetail> details) {
+	}
+
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	record ErrorDetail(String reason) {
 	}
 }

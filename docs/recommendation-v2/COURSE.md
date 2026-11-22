@@ -26,7 +26,7 @@ GET /api/v2/course-recommendations?datasetId=2025-11-fb0c7971545f&weekday=fri&st
 - **FE에서 확인하지 않는 이유**: 다음 구간이 앞 매장 좌표에 의존해서, FE가 확인하면 구간마다 서버와 Google을 오가야 한다.
 - **영업시간이 없는 곳**: 영업 중으로 등록됐지만 정규 영업시간이 없으면 음식점·카페·주점은 건너뛰고, 쇼핑(`afternoon=shop`)만 받아 `hoursUnknown: true`로 표시한다. 인사동 소매 후보의 약 60%가 Google 영업시간이 없었다. 적재 단계에서 영업시간도 없고 카카오에서도 확인되지 않는 쇼핑 매장은 뺐다.
 - **확인하지 않는 것**: 공휴일·임시휴무, 그리고 **업종**. 이전 CSV는 Google 유형과 카카오 분류로 업종도 확인했지만 지금은 DB 분류(`kind`)를 그대로 믿는다. 첫 실행에서 DB 분류가 한식인 전통찻집이 점심 한식으로 선택됐다.
-- 서버용 키는 `GOOGLE_PLACES_API_KEY`다. 없거나 조회가 실패하면 다음 후보로 넘어가지 않고 `VERIFICATION_UNAVAILABLE`로 멈춘다. 매장 문제가 아니기 때문이다.
+- 서버용 키는 `GOOGLE_PLACES_API_KEY`다. 없거나 조회가 실패하면 다음 후보로 넘어가지 않고 `VERIFICATION_UNAVAILABLE`로 멈춘다. 매장 문제가 아니기 때문이다. 400은 잘못된 place_id(매장 문제, 건너뜀)와 잘못된 키(`error.details[].reason`이 `API_KEY_INVALID`, 멈춤)가 같은 상태라 본문으로 나눈다.
 
 ## 응답과 장소 교체
 
