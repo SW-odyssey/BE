@@ -16,7 +16,6 @@ import com.odyssey.recommendation.v2.V2CourseResponse.Interruption;
 import com.odyssey.recommendation.v2.V2CourseResponse.Skipped;
 import com.odyssey.recommendation.v2.V2RecommendationResponse.Item;
 import com.odyssey.recommendation.v2.V2RecommendationSelector.Selected;
-import com.odyssey.store.entity.StoreKind;
 
 /**
  * 자리마다 앞 구간에서 고른 매장 근처의 후보를 방문 백분위 점수대로 묶어 섞고, 영업하는 첫 후보를 고른다.
@@ -126,24 +125,15 @@ final class BandShuffleSelector implements CourseSelector {
 			Item item = Item.from(selected);
 			Result result = checker.check(item.googlePlaceId(), weekday, slot.visitTime(),
 				slot.stayMinutes(item.kind()));
-			if (result == Result.OPEN) {
-				return Pick.chosen(slot, candidate.index(), item, false, candidate.bandSize(),
-					selected.candidate().percentile());
-			}
-			// 작은 공방과 체험관은 정규 영업시간이 등록되지 않은 곳이 많다.
-			if (result == Result.HOURS_UNKNOWN && acceptsUnknownHours(item.kind())) {
-				return Pick.chosen(slot, candidate.index(), item, true, candidate.bandSize(),
-					selected.candidate().percentile());
+			if (result.allowsVisit(item.kind())) {
+				return Pick.chosen(slot, candidate.index(), item, result == Result.HOURS_UNKNOWN,
+					candidate.bandSize(), selected.candidate().percentile());
 			}
 			if (result == Result.UNAVAILABLE) {
 				return Pick.stopped("VERIFICATION_UNAVAILABLE");
 			}
 		}
 		return Pick.stopped("NO_VERIFIED_MATCH");
-	}
-
-	private static boolean acceptsUnknownHours(StoreKind kind) {
-		return kind == StoreKind.SHOP || kind == StoreKind.PLAY;
 	}
 
 	record BandCandidate(int index, int bandSize) {

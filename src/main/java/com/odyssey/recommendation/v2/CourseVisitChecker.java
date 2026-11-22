@@ -3,6 +3,7 @@ package com.odyssey.recommendation.v2;
 import java.time.LocalTime;
 
 import com.odyssey.cellcondition.entity.Weekday;
+import com.odyssey.store.entity.StoreKind;
 
 /** 코스에 넣을 매장이 도착부터 머무는 동안 계속 영업하는지 응답 시점에 확인한다. 결과는 저장하지 않는다. */
 interface CourseVisitChecker {
@@ -18,6 +19,10 @@ interface CourseVisitChecker {
 		/** 영업 중으로 등록돼 있지만 정규 영업시간이 없다. 코스가 종류에 따라 받을지 정한다. */
 		HOURS_UNKNOWN,
 		/** 외부 조회가 실패했다. 매장 탓이 아니므로 다음 후보로 넘어가지 않고 구간을 멈춘다. */
-		UNAVAILABLE
+		UNAVAILABLE;
+
+		boolean allowsVisit(StoreKind kind) {
+			return this == OPEN || (this == HOURS_UNKNOWN && (kind == StoreKind.SHOP || kind == StoreKind.PLAY));
+		}
 	}
 }

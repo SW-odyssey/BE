@@ -25,7 +25,7 @@ import com.odyssey.cellcondition.entity.Weekday;
  * Place Details Enterprise 요금이 붙는다. 공휴일·임시휴무는 정규 영업시간에 없어서 판정하지 못한다.
  */
 @Component
-class GooglePlaceHours implements CourseVisitChecker {
+class GooglePlaceHours implements CourseHoursLookup {
 
 	private static final Logger log = LoggerFactory.getLogger(GooglePlaceHours.class);
 	private static final String FIELDS = "businessStatus,regularOpeningHours.periods";
@@ -46,21 +46,21 @@ class GooglePlaceHours implements CourseVisitChecker {
 	}
 
 	@Override
-	public Result check(String googlePlaceId, Weekday weekday, LocalTime visitTime, int stayMinutes) {
+	public Hours load(String googlePlaceId) {
 		if (apiKey.isEmpty()) {
 			log.warn("google.places.api-key 가 없어 코스 영업 확인을 할 수 없습니다.");
-			return Result.UNAVAILABLE;
+			return Hours.fixed(Result.UNAVAILABLE);
 		}
 		try {
 			Place place = fetchPlaceHours(googlePlaceId);
-			return checkStayDuringOpeningHours(place, weekday, visitTime, stayMinutes);
+			return (weekday, visitTime, stayMinutes) -> checkStayDuringOpeningHours(place, weekday, visitTime, stayMinutes);
 		} catch (HttpClientErrorException.NotFound e) {
-			return Result.NOT_OPEN;
+			return Hours.fixed(Result.NOT_OPEN);
 		} catch (HttpClientErrorException e) {
-			return resultForClientError(e);
+			return Hours.fixed(resultForClientError(e));
 		} catch (RestClientException e) {
 			log.warn("Google Place Details 조회 실패: {}", e.getClass().getSimpleName());
-			return Result.UNAVAILABLE;
+			return Hours.fixed(Result.UNAVAILABLE);
 		}
 	}
 

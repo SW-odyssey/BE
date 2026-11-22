@@ -19,6 +19,14 @@ interface CourseSelector {
 			slots = List.copyOf(slots);
 			excludeIds = Set.copyOf(excludeIds);
 		}
+
+		Request excluding(Set<Long> ids) {
+			return new Request(slots, origin, ids, weekday, seed);
+		}
+
+		CourseSlot slotAt(int position) {
+			return slots.stream().filter(slot -> slot.position() == position).findFirst().orElseThrow();
+		}
 	}
 
 	record Selection(List<Pick> picks, List<Skipped> skipped, Interruption interruption) {

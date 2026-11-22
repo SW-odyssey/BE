@@ -1,5 +1,6 @@
 package com.odyssey.recommendation.v2;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -54,14 +55,27 @@ record CandidatePool(V2Context context, Map<TimeSlot, List<Candidate>> bySlot) {
 			this.avoidDistance = avoidDistance;
 		}
 
-		List<Selected> near(GeoPoint origin, List<GeoPoint> earlierStops, Set<Long> excluded) {
+		record Ranked(int rank, Selected selected) {
+		}
+
+		List<Ranked> near(GeoPoint origin, List<GeoPoint> earlierStops, Set<Long> excluded) {
 			List<Selected> ranked = rankedByOrigin.computeIfAbsent(origin,
 				point -> V2RecommendationSelector.rankWithin(candidates, point, minimum, radius));
-			return ranked.stream()
-				.filter(selected -> !excluded.contains(selected.candidate().place().id()))
-				.filter(selected -> avoidsEarlierStops(selected, earlierStops))
-				.limit(V2RecommendationSelector.MAX_RESULTS)
-				.toList();
+			List<Ranked> nearby = new ArrayList<>();
+			int rank = 0;
+			for (Selected selected : ranked) {
+				if (!avoidsEarlierStops(selected, earlierStops)) {
+					continue;
+				}
+				rank++;
+				if (!excluded.contains(selected.candidate().place().id())) {
+					nearby.add(new Ranked(rank, selected));
+					if (nearby.size() == V2RecommendationSelector.MAX_RESULTS) {
+						break;
+					}
+				}
+			}
+			return nearby;
 		}
 
 		private boolean avoidsEarlierStops(Selected selected, List<GeoPoint> earlierStops) {
