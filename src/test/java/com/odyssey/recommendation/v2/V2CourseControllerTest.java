@@ -16,8 +16,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import java.time.LocalTime;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.EnumMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -49,7 +52,7 @@ class V2CourseControllerTest {
 	@Autowired
 	private MockMvc mvc;
 	@MockitoBean
-	private V2RecommendationService lists;
+	private CourseCandidates loader;
 	@MockitoBean
 	private CourseVisitChecker checker;
 
@@ -63,10 +66,15 @@ class V2CourseControllerTest {
 		return new Selected(new Candidate(place, "m" + id, percentile), 10 * id);
 	}
 
+	private final Map<TimeSlot, List<Candidate>> bySlot = new EnumMap<>(TimeSlot.class);
+
+	/** 시간대의 후보를 넣는다. 출발점·종류는 실제 거르기에 맡기고 여기서는 기록만 한다. */
 	private void candidates(TimeSlot slot, GeoPoint origin, StoreKind kind, Selected... ranked) {
-		var query = new V2RecommendationQuery("nov", Weekday.FRI, slot, origin, kind.category(), kind, "");
-		given(lists.rank(query)).willReturn(new V2RecommendationService.Ranked(
-			new V2Context("nov", "2025-11", Weekday.FRI, slot), List.of(ranked)));
+		bySlot.put(slot, Arrays.stream(ranked).map(Selected::candidate).toList());
+		given(loader.load(eq("nov"), eq(Weekday.FRI), any())).willAnswer(call -> {
+			List<TimeSlot> slots = call.getArgument(2);
+			return new CandidatePool(new V2Context("nov", "2025-11", Weekday.FRI, slots.getFirst()), bySlot);
+		});
 	}
 
 	private void dinnerOnly(Selected... ranked) {
@@ -221,6 +229,6 @@ class V2CourseControllerTest {
 		mvc.perform(request().param("seed", "abc")).andExpect(status().isBadRequest());
 		mvc.perform(get("/api/v2/course-recommendations").param("datasetId", "nov").param("weekday", "fri")
 			.param("startSlot", "dinner").param("lat", "91").param("lng", "127")).andExpect(status().isBadRequest());
-		verifyNoInteractions(lists);
+		verifyNoInteractions(loader);
 	}
 }

@@ -8,8 +8,6 @@ import java.util.Random;
 import java.util.Set;
 
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Isolation;
-import org.springframework.transaction.annotation.Transactional;
 
 import com.odyssey.cell.GeoPoint;
 import com.odyssey.cellcondition.entity.Weekday;
@@ -27,7 +25,6 @@ import com.odyssey.store.entity.StoreKind;
  * <p>확인할 후보 순서는 {@link CheckOrder} 가 정한다. 뒤 구간이 끊겨도 앞에서 고른 매장을 되돌리지 않는다.
  */
 @Service
-@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 public class V2CourseService {
 
 	/**
@@ -44,11 +41,11 @@ public class V2CourseService {
 		new Stage(TimeSlot.LATE_NIGHT, StoreKind.BAR, LocalTime.of(22, 30), 70));
 	static final int SHOP_STAY_MINUTES = 30;
 
-	private final V2RecommendationService recommendations;
+	private final CourseCandidates candidates;
 	private final CourseVisitChecker checker;
 
-	V2CourseService(V2RecommendationService recommendations, CourseVisitChecker checker) {
-		this.recommendations = recommendations;
+	V2CourseService(CourseCandidates candidates, CourseVisitChecker checker) {
+		this.candidates = candidates;
 		this.checker = checker;
 	}
 
@@ -64,21 +61,18 @@ public class V2CourseService {
 		if (afternoon != StoreKind.CAFE && afternoon != StoreKind.SHOP) {
 			throw new IllegalArgumentException("afternoon: " + afternoon);
 		}
+		List<Stage> stages = STAGES.stream().dropWhile(s -> s.slot() != startSlot)
+			.map(s -> s.slot() == TimeSlot.AFTERNOON && afternoon == StoreKind.SHOP
+				? new Stage(s.slot(), afternoon, s.visitTime(), SHOP_STAY_MINUTES) : s)
+			.toList();
+		// DB 는 여기서 다 읽고 끝낸다. 아래 영업 확인은 트랜잭션 밖이다
+		CandidatePool pool = candidates.load(datasetId, weekday, stages.stream().map(Stage::slot).toList());
 		var random = new Random(seed);
 		var excluded = new HashSet<>(excludeIds);
 		List<Stop> stops = new ArrayList<>();
-		V2Context context = null;
 		Interruption interruption = null;
-		for (Stage base : STAGES.stream().dropWhile(s -> s.slot() != startSlot).toList()) {
-			Stage stage = base.slot() == TimeSlot.AFTERNOON && afternoon == StoreKind.SHOP
-				? new Stage(base.slot(), afternoon, base.visitTime(), SHOP_STAY_MINUTES) : base;
-			var query = new V2RecommendationQuery(datasetId, weekday, stage.slot(), origin,
-				stage.kind().category(), stage.kind(), "");
-			var ranked = recommendations.rank(query);
-			if (context == null) {
-				context = ranked.context();
-			}
-			Pick pick = pick(ranked.selected(), excluded, weekday, stage, random);
+		for (Stage stage : stages) {
+			Pick pick = pick(pool.near(stage.slot(), stage.kind(), origin), excluded, weekday, stage, random);
 			if (pick.stop() == null) {
 				interruption = new Interruption(stage.slot(), pick.reason());
 				break;
@@ -89,7 +83,7 @@ public class V2CourseService {
 			origin = new GeoPoint(place.lat(), place.lng());
 		}
 		String status = interruption == null ? "COMPLETE" : stops.isEmpty() ? "NO_MATCHES" : "PARTIAL";
-		return new V2CourseResponse(status, context, seed, List.copyOf(stops), interruption);
+		return new V2CourseResponse(status, pool.context(), seed, List.copyOf(stops), interruption);
 	}
 
 	private Pick pick(List<Selected> ranked, Set<Long> excluded, Weekday weekday, Stage stage, Random random) {

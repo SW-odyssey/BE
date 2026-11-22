@@ -30,20 +30,12 @@ public class V2RecommendationService {
 	 *                           DATA_UNAVAILABLE(503) 서버가 지원하지 않는 정책의 배치
 	 */
 	public V2RecommendationResponse recommend(V2RecommendationQuery query) {
-		Ranked ranked = rank(query);
-		return V2RecommendationResponse.of(ranked.context(), ranked.selected());
-	}
-
-	/** 목록 API 와 같은 순서의 후보를 방문 백분위와 함께 준다. 코스가 점수대를 나눌 때 쓴다. */
-	Ranked rank(V2RecommendationQuery query) {
 		Dataset dataset = datasets.require(query.datasetId());
 		List<Candidate> found = candidates.candidates(dataset.id(), query.weekday(), query.slot(),
 			V2RecommendationSelector.MIN_VISITOR_PERCENTILE);
 		V2Context context = new V2Context(dataset.id(), dataset.referenceMonth(), query.weekday(),
 			query.slot());
-		return new Ranked(context, V2RecommendationSelector.select(found, query));
-	}
-
-	record Ranked(V2Context context, List<Selected> selected) {
+		List<Selected> selected = V2RecommendationSelector.select(found, query);
+		return V2RecommendationResponse.of(context, selected);
 	}
 }
