@@ -44,7 +44,7 @@ class V2CourseControllerTest {
 	private static final String URL = "/api/v2/course-recommendations";
 	private static final V2Context CONTEXT = new V2Context("nov", "2025-11", Weekday.FRI, TimeSlot.DINNER);
 	private static final V2CourseResponse PARTIAL = new V2CourseResponse("PARTIAL", CONTEXT, 7,
-		List.of(new Stop(TimeSlot.DINNER, "19:00", 2,
+		List.of(new Stop(TimeSlot.DINNER, "19:00", "20:00", 1, 2,
 			new Item(12, "백부장집", "81383966", StoreKind.KOREAN, 37.5661, 126.9901, 14.2, "place-12"), false)),
 		new Interruption(TimeSlot.LATE_NIGHT, "NO_VERIFIED_MATCH"));
 
