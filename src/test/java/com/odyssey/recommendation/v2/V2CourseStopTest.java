@@ -81,7 +81,7 @@ class V2CourseStopTest {
 	@DisplayName("이유를 붙인다 → 이유만 바뀌고 시각·도보 분·장소는 그대로다")
 	void withReasonsKeepsOtherFields() {
 		// given
-		Stop stop = Stop.of(TimeSlot.LATE_NIGHT, LocalTime.of(22, 30), 70, 3, place(70), true);
+		Stop stop = Stop.of(6, TimeSlot.LATE_NIGHT, LocalTime.of(22, 30), 70, 3, place(70), true);
 
 		// when
 		Stop withReasons = stop.withReasons(List.of(new PeakNow()));
@@ -96,7 +96,7 @@ class V2CourseStopTest {
 	void reasonsAreCopied() {
 		// given
 		List<CourseReason> reasons = new ArrayList<>(List.of(new PeakNow()));
-		Stop stop = new Stop(TimeSlot.LUNCH, "12:30", "13:20", 2, 1, place(70), false, reasons);
+		Stop stop = new Stop(1, TimeSlot.LUNCH, "12:30", "13:20", 2, 1, place(70), false, reasons);
 
 		// when
 		reasons.add(new LocalTop(3));

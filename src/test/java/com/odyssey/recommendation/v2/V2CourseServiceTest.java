@@ -509,7 +509,7 @@ class V2CourseServiceTest {
 		assertThat(course.status()).isEqualTo("COMPLETE");
 		assertThat(course.stops()).hasSize(1);
 		assertThat(course.stops().getFirst().reasons()).containsExactly(new LocalTop(1),
-			new OpenDuringStay("22:30", "23:40"));
+			new OpenDuringStay("22:00", "23:10"));
 	}
 
 	@Test
