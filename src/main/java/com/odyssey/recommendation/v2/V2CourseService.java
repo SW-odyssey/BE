@@ -195,7 +195,7 @@ public class V2CourseService {
 
 	private record Pick(Stop stop, String reason) {
 		static Pick selected(Stage stage, int rank, Item item, Result result) {
-			Stop stop = new Stop(stage.slot(), stage.visitTime().toString(), rank, item, result == Result.HOURS_UNKNOWN);
+			Stop stop = Stop.of(stage.slot(), stage.visitTime(), stage.stayMinutes(), rank, item, result == Result.HOURS_UNKNOWN);
 			return new Pick(stop, null);
 		}
 
