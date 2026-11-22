@@ -6,7 +6,6 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
-
 import com.odyssey.cell.GeoPoint;
 import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.recommendation.v2.CourseSchedule.CourseSlot;
@@ -66,7 +65,7 @@ final class BandShuffleSelector implements CourseSelector {
 			Result result = checker.check(item.googlePlaceId(), weekday, slot.visitTime(),
 				slot.stayMinutes(item.kind()));
 			if (result.allowsVisit(item.kind())) {
-				return Pick.chosen(slot, i, item, result == Result.HOURS_UNKNOWN, order.bandSize(), percentiles.get(i));
+				return Pick.chosen(slot, i + 1, item, result == Result.HOURS_UNKNOWN, order.bandSize(), percentiles.get(i));
 			}
 			if (result == Result.UNAVAILABLE) {
 				return Pick.stopped("VERIFICATION_UNAVAILABLE");
@@ -84,5 +83,4 @@ final class BandShuffleSelector implements CourseSelector {
 		}
 		return skipped;
 	}
-
 }

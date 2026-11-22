@@ -21,10 +21,6 @@ interface CourseSelector {
 			excludeIds = Set.copyOf(excludeIds);
 		}
 
-		Request excluding(Set<Long> ids) {
-			return new Request(slots, origin, ids, weekday, seed, walk);
-		}
-
 		CourseSlot slotAt(int position) {
 			return slots.stream().filter(slot -> slot.position() == position).findFirst().orElseThrow();
 		}
@@ -42,10 +38,11 @@ interface CourseSelector {
 	 * @param percentile 고른 후보가 있는 칸의 방문 백분위. 멈췄으면 0
 	 */
 	record Pick(Stop stop, String reason, int bandSize, double percentile) {
-		static Pick chosen(CourseSlot slot, int index, Item item, boolean hoursUnknown, int bandSize,
+		static Pick chosen(CourseSlot slot, int rank, Item item, boolean hoursUnknown, int bandSize,
 			double percentile) {
-			return new Pick(Stop.of(slot.position(), slot.slot(), slot.visitTime(), slot.stayMinutes(item.kind()), index + 1, item,
-				hoursUnknown), null, bandSize, percentile);
+			Stop stop = Stop.of(slot.position(), slot.slot(), slot.visitTime(), slot.stayMinutes(item.kind()),
+				rank, item, hoursUnknown);
+			return new Pick(stop, null, bandSize, percentile);
 		}
 
 		static Pick stopped(String reason) {

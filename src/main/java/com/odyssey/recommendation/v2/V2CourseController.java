@@ -19,6 +19,7 @@ import com.odyssey.store.entity.StoreKind;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
@@ -50,8 +51,14 @@ public class V2CourseController {
 		선택 자리를 채우지 못하면 skipped에 slot, position, reason을 담고 마지막으로 고른 장소에서 계속합니다.
 		lateNight 생략 또는 false이면 6번 자리를 계산하지 않습니다. 필수 자리 실패는 interruption에 담습니다.
 		쇼핑·놀거리는 정규 영업시간 정보가 없어도 포함될 수 있으며 이때 hoursUnknown은 true입니다.
-		요일과 시각은 서울 기준입니다. 각 구간은 직전 장소에서 직선 300m 이내입니다.
-		방문 점수가 1위와 3점 이내인 후보 중 seed로 무작위 선택하고, 응답 시점에 Google 정규 영업시간으로 확인합니다.
+		요일과 시각은 서울 기준입니다. 첫 매장은 출발점 300m 안에서 고릅니다.
+		기본은 매장 사이 150~500m를 걷고 앞서 방문한 곳의 100m 안으로 돌아가지 않습니다.
+		walk=short는 매장 사이 300m 이내이며 최소 거리와 이전 방문지 반경 제한을 두지 않습니다.
+		빔 탐색은 매 자리에서 정류장 수, 방문 점수 합, 총 직선거리 순으로 코스 후보를 최대 300개 남깁니다.
+		마지막에는 정류장이 가장 많은 코스 중 최고 점수에서 정류장 수 × 3점 이내인 코스를 모읍니다.
+		그중 최단 거리보다 100m 이내로 더 걷는 코스까지 seed로 고릅니다.
+		방문 순서대로 영업을 확인하고 닫힌 매장은 제외한 뒤 처음부터 다시 고릅니다.
+		요청당 Google 조회는 최대 40곳입니다. 추가 조회가 필요하면 CHECK_LIMIT, 후보 소진은 NO_VERIFIED_MATCH입니다.
 		공휴일·임시휴무와 도보 경로는 보장하지 않습니다.
 		같은 seed를 보내면 같은 순서로 후보를 확인합니다. 다른 코스를 보려면 seed를 바꾸거나 빼세요.
 		한 시간대의 장소를 다시 고르려면 그 시간대 시작 좌표와 startSlot, 제외할 매장 ID를 보내세요.
@@ -59,13 +66,18 @@ public class V2CourseController {
 		reasons는 고른 이유를 정해진 순서(LOCAL_TOP, OPEN_DURING_STAY, PEAK_NOW, AREA_TYPE, SIMILAR_CHOICES)로 담고, 문장은 FE가 만듭니다.
 		LOCAL_TOP의 percent는 가게가 아니라 가게가 있는 50m 칸의 방문 상위 %입니다.
 		""")
-	public ApiResult<V2CourseResponse> recommend(@RequestParam String datasetId, @RequestParam String weekday,
-		@RequestParam String startSlot, @RequestParam double lat, @RequestParam double lng,
+	public ApiResult<V2CourseResponse> recommend(
+		@Parameter(description = V2ApiDocs.DATASET_ID, example = V2ApiDocs.DATASET_ID_EXAMPLE) @RequestParam String datasetId,
+		@Parameter(description = V2ApiDocs.WEEKDAY, example = "fri") @RequestParam String weekday,
+		@Parameter(description = "코스를 시작할 시간대", example = "dinner") @RequestParam String startSlot,
+		@Parameter(description = "출발 위도", example = "37.5655342") @RequestParam double lat,
+		@Parameter(description = "출발 경도", example = "126.9903373") @RequestParam double lng,
 		@Parameter(description = "이미 방문하거나 건너뛸 매장 ID. 쉼표로 구분") @RequestParam(required = false) List<Long> excludeIds,
 		@Parameter(description = "후보를 섞는 값. 없으면 서버가 정해 응답에 담는다") @RequestParam(required = false) Long seed,
 		@Parameter(description = "2번 자리의 종류. cafe(기본) 또는 shop(구경)") @RequestParam(required = false) String afternoon,
 		@Parameter(description = "심야 주점 포함 여부. 기본 false") @RequestParam(required = false) String lateNight,
-		@Parameter(description = "매장 사이 걷기 조건. 기본 default, 짧게 걸으려면 short")
+		@Parameter(description = "매장 사이 걷기 조건", example = "default",
+			schema = @Schema(defaultValue = "default", allowableValues = {"default", "short"}))
 		@RequestParam(required = false) String walk,
 		@Parameter(hidden = true) @RequestParam MultiValueMap<String, String> params) {
 		V2RequestParams.check(params, KEYS);

@@ -6,7 +6,7 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 class CourseSelectionConfig {
 	@Bean
-	CourseSelector courseSelector(CourseVisitChecker checker) {
-		return new BandShuffleSelector(checker);
+	CourseSelector courseSelector(CourseHoursLookup lookup) {
+		return new VerifiedCourseSelector(new BeamSelector(), lookup);
 	}
 }

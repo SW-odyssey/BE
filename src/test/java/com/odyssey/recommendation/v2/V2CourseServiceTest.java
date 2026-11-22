@@ -51,7 +51,7 @@ class V2CourseServiceTest {
 	private final CourseCandidates loader = mock(CourseCandidates.class);
 	private final FakeChecker checker = new FakeChecker();
 	private final CourseReasonFacts reasonFacts = mock(CourseReasonFacts.class);
-	private final V2CourseService service = new V2CourseService(loader, checker, reasonFacts);
+	private final V2CourseService service = new V2CourseService(loader, new BandShuffleSelector(checker), reasonFacts);
 	private final Map<TimeSlot, List<Candidate>> bySlot = new EnumMap<>(TimeSlot.class);
 
 	/** 영업 확인 호출을 기록하고, 정해 둔 결과(기본 OPEN)를 돌려준다. */
@@ -96,6 +96,25 @@ class V2CourseServiceTest {
 
 	private V2CourseResponse recommend(TimeSlot startSlot, long seed) {
 		return service.recommend("nov", Weekday.FRI, startSlot, ORIGIN, Set.of(), seed, StoreKind.CAFE, true);
+	}
+
+	@Test
+	@DisplayName("기본 서비스 구성은 코스를 재탐색하고 영업이 확인된 매장에 추천 이유를 붙인다")
+	void verifiesAndExplainsTheDefaultBeamCourse() {
+		candidates(TimeSlot.DINNER, store(1, StoreKind.KOREAN, 99), store(2, StoreKind.KOREAN, 85));
+		CourseHoursLookup lookup = id -> CourseHoursLookup.Hours.fixed(id.equals("place-1") ? Result.NOT_OPEN : Result.OPEN);
+		CourseSelector selector = new CourseSelectionConfig().courseSelector(lookup);
+		V2CourseService configured = new V2CourseService(loader, selector, reasonFacts);
+
+		V2CourseResponse course = configured.recommend("nov", Weekday.FRI, TimeSlot.DINNER, ORIGIN, Set.of(), 7);
+
+		assertThat(course.status()).isEqualTo("COMPLETE");
+		assertThat(course.stops()).singleElement().satisfies(stop -> {
+			assertThat(stop.place().id()).isEqualTo(2L);
+			assertThat(stop.candidateRank()).isEqualTo(2);
+			assertThat(stop.reasons()).anyMatch(OpenDuringStay.class::isInstance);
+		});
+		then(loader).should().load("nov", Weekday.FRI, TimeSlot.DINNER, List.of(TimeSlot.DINNER));
 	}
 
 	@Test
