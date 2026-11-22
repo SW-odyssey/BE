@@ -2,7 +2,6 @@ package com.odyssey.recommendation.v2;
 
 import java.time.LocalTime;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Random;
@@ -25,21 +24,12 @@ import com.odyssey.store.entity.StoreKind;
 /**
  * 구간마다 기존 목록 API 의 후보에서 한 곳을 골라 심야까지 잇는다.
  *
- * <p>1위와 방문 백분위 {@link #BAND} 점 이내인 후보는 같은 점수로 보고 seed 로 섞어 하나씩 영업을 확인한다.
- * 그 점수대가 모두 안 맞으면 남은 후보의 다음 점수대로 내려간다. 외부 호출 비용 때문에 구간당 확인은
- * {@link #MAX_CHECKS} 번까지다. 뒤 구간이 끊겨도 앞에서 고른 매장을 되돌리지 않는다.
+ * <p>확인할 후보 순서는 {@link CheckOrder} 가 정한다. 뒤 구간이 끊겨도 앞에서 고른 매장을 되돌리지 않는다.
  */
 @Service
 @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 public class V2CourseService {
 
-	/** 90점 이상 칸의 인접 월 백분위 변화는 중앙값 1.3점, 75%가 2.8점 이내였다(2025년 12개 배치). */
-	static final double BAND = 3.0;
-	/**
-	 * 5번일 때 을지로 토요일 심야에서 3점 범위 7곳 중 영업하는 2곳에 닿기 전에 끊겼다(2026-11-21).
-	 * 범위 하나는 대개 10곳 이하라 범위 전체를 확인할 수 있게 잡았다.
-	 */
-	static final int MAX_CHECKS = 10;
 	/**
 	 * 머무는 시간(분)은 통계청 생활시간조사 2024 원자료로 20·30대가 기타 실내 한 곳에 이동 없이 머문 구간의
 	 * 가중 중앙값이다(저자 계산, 공표 통계 아님). 식사 점심 50·저녁 60, 카페형 80, 오후 시작 쇼핑 30,
@@ -106,46 +96,32 @@ public class V2CourseService {
 		if (ranked.isEmpty()) {
 			return Pick.stopped("NO_NEARBY_MATCH");
 		}
-		List<Integer> remaining = new ArrayList<>();
+		Set<Integer> skipped = new HashSet<>();
 		for (int i = 0; i < ranked.size(); i++) {
-			if (!excluded.contains(ranked.get(i).candidate().place().id())) {
-				remaining.add(i);
+			if (excluded.contains(ranked.get(i).candidate().place().id())) {
+				skipped.add(i);
 			}
 		}
-		if (remaining.isEmpty()) {
+		if (skipped.size() == ranked.size()) {
 			return Pick.stopped("ALL_EXCLUDED");
 		}
-		int checks = 0;
-		while (!remaining.isEmpty() && checks < MAX_CHECKS) {
-			double floor = percentile(ranked, remaining.getFirst()) - BAND;
-			List<Integer> band = remaining.stream().filter(i -> percentile(ranked, i) >= floor).toList();
-			List<Integer> shuffled = new ArrayList<>(band);
-			Collections.shuffle(shuffled, random);
-			for (int i : shuffled) {
-				if (checks == MAX_CHECKS) {
-					break;
-				}
-				checks++;
-				Item item = Item.from(ranked.get(i));
-				Result result = checker.check(item.googlePlaceId(), weekday, stage.visitTime(), stage.stayMinutes());
-				if (result == Result.OPEN) {
-					return new Pick(new Stop(stage.slot(), stage.visitTime().toString(), i + 1, item, false), null);
-				}
-				// 작은 공방·갤러리는 Google 에 영업시간이 없는 곳이 많다. 쇼핑만 받고 응답에 표시한다
-				if (result == Result.HOURS_UNKNOWN && stage.kind() == StoreKind.SHOP) {
-					return new Pick(new Stop(stage.slot(), stage.visitTime().toString(), i + 1, item, true), null);
-				}
-				if (result == Result.UNAVAILABLE) {
-					return Pick.stopped("VERIFICATION_UNAVAILABLE");
-				}
+		List<Double> percentiles = ranked.stream().map(s -> s.candidate().percentile()).toList();
+		for (var order = CheckOrder.of(percentiles, skipped, random); order.hasNext(); ) {
+			int i = order.next();
+			Item item = Item.from(ranked.get(i));
+			Result result = checker.check(item.googlePlaceId(), weekday, stage.visitTime(), stage.stayMinutes());
+			if (result == Result.OPEN) {
+				return new Pick(new Stop(stage.slot(), stage.visitTime().toString(), i + 1, item, false), null);
 			}
-			remaining.removeAll(band);
+			// 작은 공방·갤러리는 Google 에 영업시간이 없는 곳이 많다. 쇼핑만 받고 응답에 표시한다
+			if (result == Result.HOURS_UNKNOWN && stage.kind() == StoreKind.SHOP) {
+				return new Pick(new Stop(stage.slot(), stage.visitTime().toString(), i + 1, item, true), null);
+			}
+			if (result == Result.UNAVAILABLE) {
+				return Pick.stopped("VERIFICATION_UNAVAILABLE");
+			}
 		}
 		return Pick.stopped("NO_VERIFIED_MATCH");
-	}
-
-	private static double percentile(List<Selected> ranked, int index) {
-		return ranked.get(index).candidate().percentile();
 	}
 
 	private record Stage(TimeSlot slot, StoreKind kind, LocalTime visitTime, int stayMinutes) {

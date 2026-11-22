@@ -135,7 +135,7 @@ class V2CourseControllerTest {
 		dinnerOnly(ranked.toArray(Selected[]::new));
 		mvc.perform(request()).andExpect(status().isOk()).andExpect(jsonPath("$.data.stops").isEmpty())
 			.andExpect(jsonPath("$.data.interruption.reason").value("NO_VERIFIED_MATCH"));
-		verify(checker, atMost(V2CourseService.MAX_CHECKS)).check(anyString(), any(), any(), anyInt());
+		verify(checker, atMost(CheckOrder.MAX_CHECKS)).check(anyString(), any(), any(), anyInt());
 		verify(checker, never()).check(eq("place-11"), any(), any(), anyInt());
 	}
 
