@@ -41,6 +41,9 @@ public class V2CourseController {
 		공휴일·임시휴무와 도보 경로는 보장하지 않습니다.
 		같은 seed를 보내면 같은 순서로 후보를 확인합니다. 다른 코스를 보려면 seed를 바꾸거나 빼세요.
 		장소를 바꾸려면 해당 구간의 출발 좌표와 startSlot, 제외할 매장 ID를 보내세요.
+		leaveTime은 도착 시각에 머무는 시간을 더한 값이고, walkMinutes는 직선거리×1.3을 분당 67m로 나눈 값입니다(최소 1분).
+		reasons는 고른 이유를 정해진 순서(LOCAL_TOP, OPEN_DURING_STAY, PEAK_NOW, AREA_TYPE, SIMILAR_CHOICES)로 담고, 문장은 FE가 만듭니다.
+		LOCAL_TOP의 percent는 가게가 아니라 가게가 있는 50m 칸의 방문 상위 %입니다.
 		""")
 	public ApiResult<V2CourseResponse> recommend(@RequestParam String datasetId, @RequestParam String weekday,
 		@RequestParam String startSlot, @RequestParam double lat, @RequestParam double lng,

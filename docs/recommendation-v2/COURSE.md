@@ -31,3 +31,22 @@ GET /api/v2/course-recommendations?datasetId=2025-11-fb0c7971545f&weekday=fri&st
 ## 응답과 장소 교체
 
 FE에서 한 장소를 바꿀 때는 그 구간의 출발 좌표와 시작 시간대, 앞서 담았거나 거절한 매장의 ID를 `excludeIds=12,34`처럼 보낸다. 새 응답으로 해당 구간 이후만 교체한다. `candidateRank`는 제외·무작위 선택 전 목록 API의 순번이다. 부분 코스와 빈 코스도 HTTP 200이다. `interruption.reason`은 후보 없음(`NO_NEARBY_MATCH`), 모두 제외됨(`ALL_EXCLUDED`), 영업 확인된 후보 없음(`NO_VERIFIED_MATCH`), 외부 조회 실패(`VERIFICATION_UNAVAILABLE`)를 구분한다.
+
+## 정류장 시각과 추천 이유
+
+`leaveTime`은 도착 시각 + 체류 시간이고 자정을 넘기면 `00:40`처럼 다시 센다. `walkMinutes`는 직전 출발 위치에서 `max(1, ceil(직선거리 × 1.3 / 67))`분이다(논문 4.7절과 같은 가정, 실제 경로 아님).
+
+`reasons`는 코드와 숫자만 보내고 문장은 FE가 언어별로 만든다. 1차 대상이 외국인이라 서버에 문장을 두지 않았다. 순서는 아래 표 순서로 고정이고 개수는 자르지 않는다(FE가 앞의 둘만 보인다).
+
+| 코드 | 붙는 조건 | 값 |
+|---|---|---|
+| `LOCAL_TOP` | 항상 | `percent = max(1, round(100 - 칸 방문 백분위))` |
+| `OPEN_DURING_STAY` | `hoursUnknown`이 false | `from`(도착), `to`(나오는 시각) |
+| `PEAK_NOW` | 그 칸·요일의 가장 붐비는 시간대(막대 100)가 방문 시간대 | 없음 |
+| `AREA_TYPE` | 칸에 동네 시간 유형이 있음 | `type`: `late_night`·`weekend_day`·`weekday_day`·`mixed` |
+| `SIMILAR_CHOICES` | 1위와 3점 이내 점수대 후보가 2곳 이상 | `count`: 그 점수대 후보 수(고른 곳 포함, 제외한 곳 빼고) |
+
+- **칸 기준**: `LOCAL_TOP`·`PEAK_NOW`·`AREA_TYPE`은 가게가 아니라 **가게가 있는 50m 칸**의 값이다. 같은 칸의 가게는 같은 값을 받는다. "이 가게가 상위 3%"로 쓰면 틀린다.
+- **동네 시간 유형**: `cell_area_type`은 분석 배치와 무관하다. 2025년 1~12월 150m 창 NMF로 한 번 정한 값이고 적재 SQL은 analysis 저장소에 있다. 직장·외국인 이름표는 기각했고(논문 4.4절) 직장 비중은 이유에 쓰지 않는다(`visit75-no-worker`).
+- **조회 시점**: 붐비는 시간대와 동네 유형은 코스를 다 고른 뒤 고른 칸들로 짧은 읽기 트랜잭션에서 한 번 읽는다. 고를 칸은 Google 확인이 끝나야 정해지고, 확인 중에 DB 커넥션을 잡지 않기 위해서다. 공개 배치는 불변이라 후보 조회와 트랜잭션이 달라도 값이 섞이지 않는다.
+- **조회 실패·빈 표**: 이유 때문에 코스가 실패하지 않는다. 조회가 실패하거나 표가 비면 `PEAK_NOW`·`AREA_TYPE`만 빠진다.
