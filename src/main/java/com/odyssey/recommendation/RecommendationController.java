@@ -143,6 +143,9 @@ public class RecommendationController {
 		// "all" 이나 생략 → null (전체). 모르는 값이면 ApiEnums 가 INVALID_INPUT 을 던진다
 		Category findCategory = ApiEnums.parse(Category.class, "category", category, "all")
 			.orElse(null);
+		if (findCategory == Category.SHOP) { // v1 계약은 food · cafe 뿐이다
+			throw new BusinessException(CommonErrorCode.INVALID_INPUT, "category 는 food, cafe, all 중 하나입니다");
+		}
 
 		// foodType · since 는 음식점일 때만 의미가 있다 (#30).
 		// 카페나 전체를 골랐는데 foodType=korean 이 같이 오면 무시한다

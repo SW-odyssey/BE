@@ -292,6 +292,16 @@ class RecommendationControllerTest {
 	}
 
 	@Test
+	@DisplayName("v1 은 쇼핑 카테고리를 받지 않는다")
+	void shopCategory() throws Exception {
+		// when
+		ResultActions result = mockMvc.perform(get(URL).param("category", "shop"));
+
+		// then
+		expectInvalidInput(result);
+	}
+
+	@Test
 	@DisplayName("응답은 #30 의 필드 이름을 쓰고 enum 은 소문자로 나간다")
 	void responseShape() throws Exception {
 		// given: 서비스가 공식 배지를 가진 가게 한 곳을 준다
