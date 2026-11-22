@@ -16,8 +16,6 @@ import com.odyssey.store.entity.StoreKind;
  * <p>머무는 시간(분)은 통계청 생활시간조사 2024 원자료로 20·30대가 기타 실내 한 곳에 이동 없이 머문 구간의
  * 가중 중앙값이다(저자 계산, 공표 통계 아님). 식사 점심 50·저녁 60, 카페형 80, 오후 시작 쇼핑 30,
  * 21시 이후 시작 유흥 70. 자정을 넘긴 구간은 빼고 셌으므로 심야 값은 짧은 쪽으로 치우친다.
- * 심야를 23:30 도착으로 두면 그때 연 주점 40%가 00:40 전에 닫아 Google 표본 30곳 완주가 29→25로
- * 떨어졌다. U+ 심야(22~01시) 안인 22:30 도착이면 29/30 그대로다(2026-11-21).
  */
 final class CourseSchedule {
 
@@ -76,18 +74,25 @@ final class CourseSchedule {
 	private CourseSchedule() {
 	}
 
-	/**
-	 * @param afternoon 오후 자리의 종류. 카페(CAFE) 또는 구경(SHOP)
-	 * @return 일정 순서의 모든 자리
-	 */
-	static List<CourseSlot> slots(StoreKind afternoon) {
-		Map<StoreKind, Integer> afternoonStay = afternoon == StoreKind.SHOP
-			? Map.of(StoreKind.SHOP, SHOP_STAY_MINUTES) : Map.of(StoreKind.CAFE, 80);
-		return List.of(
-			required(1, TimeSlot.LUNCH, LocalTime.of(12, 30), Map.of(StoreKind.KOREAN, 50)),
-			required(2, TimeSlot.AFTERNOON, LocalTime.of(15, 0), afternoonStay),
-			required(3, TimeSlot.DINNER, LocalTime.of(19, 0), Map.of(StoreKind.KOREAN, 60)),
-			required(4, TimeSlot.LATE_NIGHT, LocalTime.of(22, 30), Map.of(StoreKind.BAR, 70)));
+	static List<CourseSlot> slots(Weekday weekday, StoreKind afternoon, TimeSlot startSlot, boolean lateNight) {
+		Map<StoreKind, Integer> afternoonStay = switch (afternoon) {
+			case CAFE -> Map.of(StoreKind.CAFE, 80);
+			case SHOP -> Map.of(StoreKind.SHOP, SHOP_STAY_MINUTES);
+			default -> throw new IllegalArgumentException("afternoon: " + afternoon);
+		};
+		List<CourseSlot> schedule = List.of(
+			required(1, TimeSlot.LUNCH, LocalTime.NOON, Map.of(StoreKind.KOREAN, 50)),
+			required(2, TimeSlot.AFTERNOON, LocalTime.of(14, 0), afternoonStay),
+			afternoonPlay(weekday),
+			required(4, TimeSlot.DINNER, LocalTime.of(18, 0), Map.of(StoreKind.KOREAN, 60)),
+			new CourseSlot(5, TimeSlot.DINNER, LocalTime.of(19, 30), Map.of(StoreKind.PLAY, 60),
+				Requirement.OPTIONAL, DEFAULT_MIN_PERCENTILE),
+			new CourseSlot(6, TimeSlot.LATE_NIGHT, LocalTime.of(22, 0), Map.of(StoreKind.BAR, 70),
+				Requirement.OPT_IN, DEFAULT_MIN_PERCENTILE));
+		return schedule.stream()
+			.dropWhile(slot -> slot.slot() != startSlot)
+			.filter(slot -> lateNight || slot.requirement() != Requirement.OPT_IN)
+			.toList();
 	}
 
 	static CourseSlot afternoonPlay(Weekday weekday) {
