@@ -105,11 +105,11 @@ public class V2CourseService {
 			Item item = Item.from(ranked.get(i));
 			Result result = checker.check(item.googlePlaceId(), weekday, stage.visitTime(), stage.stayMinutes());
 			if (result == Result.OPEN) {
-				return new Pick(Stop.of(stage.slot(), stage.visitTime(), stage.stayMinutes(), i + 1, item, false), null);
+				return Pick.chosen(stage, i, item, false, order.bandSize(), percentiles.get(i));
 			}
 			// 작은 공방·갤러리는 Google 에 영업시간이 없는 곳이 많다. 쇼핑만 받고 응답에 표시한다
 			if (result == Result.HOURS_UNKNOWN && stage.kind() == StoreKind.SHOP) {
-				return new Pick(Stop.of(stage.slot(), stage.visitTime(), stage.stayMinutes(), i + 1, item, true), null);
+				return Pick.chosen(stage, i, item, true, order.bandSize(), percentiles.get(i));
 			}
 			if (result == Result.UNAVAILABLE) {
 				return Pick.stopped("VERIFICATION_UNAVAILABLE");
@@ -121,9 +121,19 @@ public class V2CourseService {
 	private record Stage(TimeSlot slot, StoreKind kind, LocalTime visitTime, int stayMinutes) {
 	}
 
-	private record Pick(Stop stop, String reason) {
+	/**
+	 * @param bandSize   고른 후보가 속한 점수대(1위와 3점 이내)의 후보 수. 멈췄으면 0
+	 * @param percentile 고른 후보가 있는 칸의 방문 백분위. 멈췄으면 0
+	 */
+	private record Pick(Stop stop, String reason, int bandSize, double percentile) {
+		static Pick chosen(Stage stage, int index, Item item, boolean hoursUnknown, int bandSize,
+			double percentile) {
+			return new Pick(Stop.of(stage.slot(), stage.visitTime(), stage.stayMinutes(), index + 1, item,
+				hoursUnknown), null, bandSize, percentile);
+		}
+
 		static Pick stopped(String reason) {
-			return new Pick(null, reason);
+			return new Pick(null, reason, 0, 0);
 		}
 	}
 }

@@ -138,4 +138,61 @@ class CheckOrderTest {
 		// then
 		assertThat(random.nextLong()).isEqualTo(reference.nextLong());
 	}
+
+	@Test
+	@DisplayName("1위 점수대 3곳 중 하나를 꺼냄 → 점수대 후보 수는 3이다")
+	void bandSizeOfFirstBand() {
+		// given
+		var order = CheckOrder.of(List.of(99.0, 97.5, 96.2, 90.0), Set.of(), new Random(1));
+
+		// when
+		order.next();
+
+		// then
+		assertThat(order.bandSize()).isEqualTo(3);
+	}
+
+	@Test
+	@DisplayName("점수대 안의 제외 후보 → 점수대 후보 수에서 빠진다")
+	void bandSizeSkipsExcluded() {
+		// given
+		var order = CheckOrder.of(List.of(99.0, 97.5, 96.2, 90.0), Set.of(1), new Random(1));
+
+		// when
+		order.next();
+
+		// then
+		assertThat(order.bandSize()).isEqualTo(2);
+	}
+
+	@Test
+	@DisplayName("첫 점수대를 다 꺼내고 다음 점수대로 내려감 → 다음 점수대의 후보 수다")
+	void bandSizeOfNextBand() {
+		// given
+		var order = CheckOrder.of(List.of(99.0, 98.0, 90.0), Set.of(), new Random(1));
+		order.next();
+		order.next();
+
+		// when
+		int index = order.next();
+
+		// then
+		assertThat(index).isEqualTo(2);
+		assertThat(order.bandSize()).isEqualTo(1);
+	}
+
+	@Test
+	@DisplayName("점수대의 마지막 후보를 꺼낸 뒤 hasNext 를 부름 → 꺼낸 후보의 점수대 후보 수를 그대로 둔다")
+	void bandSizeStableAfterHasNext() {
+		// given
+		var order = CheckOrder.of(List.of(99.0, 98.0, 90.0), Set.of(), new Random(1));
+		order.next();
+		order.next();
+
+		// when
+		order.hasNext();
+
+		// then
+		assertThat(order.bandSize()).isEqualTo(2);
+	}
 }

@@ -34,6 +34,8 @@ final class CheckOrder implements Iterator<Integer> {
 	private final Deque<Integer> band = new ArrayDeque<>();
 	private final Random random;
 	private int given;
+	private int filledBandSize;
+	private int lastBandSize;
 
 	private CheckOrder(List<Double> percentiles, Set<Integer> excluded, Random random) {
 		this.percentiles = percentiles;
@@ -66,6 +68,7 @@ final class CheckOrder implements Iterator<Integer> {
 			List<Integer> shuffled = new ArrayList<>(next);
 			Collections.shuffle(shuffled, random);
 			band.addAll(shuffled);
+			filledBandSize = next.size();
 			remaining.removeAll(next);
 		}
 		return !band.isEmpty();
@@ -77,6 +80,15 @@ final class CheckOrder implements Iterator<Integer> {
 			throw new NoSuchElementException();
 		}
 		given++;
+		lastBandSize = filledBandSize;
 		return band.removeFirst();
+	}
+
+	/**
+	 * @return 마지막으로 내준 후보가 속한 점수대의 후보 수. 제외한 후보는 세지 않고, 확인 상한에 걸려 내주지 못한
+	 *     후보는 센다. 아직 내준 후보가 없으면 0
+	 */
+	int bandSize() {
+		return lastBandSize;
 	}
 }
