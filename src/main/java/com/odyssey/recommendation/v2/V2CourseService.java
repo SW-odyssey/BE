@@ -105,11 +105,11 @@ public class V2CourseService {
 			Item item = Item.from(ranked.get(i));
 			Result result = checker.check(item.googlePlaceId(), weekday, stage.visitTime(), stage.stayMinutes());
 			if (result == Result.OPEN) {
-				return new Pick(new Stop(stage.slot(), stage.visitTime().toString(), i + 1, item, false), null);
+				return new Pick(Stop.of(stage.slot(), stage.visitTime(), stage.stayMinutes(), i + 1, item, false), null);
 			}
 			// 작은 공방·갤러리는 Google 에 영업시간이 없는 곳이 많다. 쇼핑만 받고 응답에 표시한다
 			if (result == Result.HOURS_UNKNOWN && stage.kind() == StoreKind.SHOP) {
-				return new Pick(new Stop(stage.slot(), stage.visitTime().toString(), i + 1, item, true), null);
+				return new Pick(Stop.of(stage.slot(), stage.visitTime(), stage.stayMinutes(), i + 1, item, true), null);
 			}
 			if (result == Result.UNAVAILABLE) {
 				return Pick.stopped("VERIFICATION_UNAVAILABLE");
