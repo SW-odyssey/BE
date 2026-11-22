@@ -22,6 +22,8 @@ import com.odyssey.recommendation.v2.CourseHoursLookup.Hours;
 import com.odyssey.recommendation.v2.CourseSelector.Request;
 import com.odyssey.recommendation.v2.CourseSelector.Selection;
 import com.odyssey.recommendation.v2.CourseVisitChecker.Result;
+import com.odyssey.recommendation.v2.V2CourseResponse.Interruption;
+import com.odyssey.recommendation.v2.V2CourseResponse.Skipped;
 import com.odyssey.store.entity.StoreKind;
 import com.odyssey.store.repository.StorePlaceRepository.Place;
 
@@ -116,5 +118,125 @@ class VerifiedCourseSelectorTest {
 		assertThat(ids(result)).containsExactly(1L);
 		assertThat(result.interruption().reason()).isEqualTo("NO_VERIFIED_MATCH");
 		assertThat(calls).containsExactly("p1");
+	}
+
+	@Test
+	@DisplayName("점심엔 열고 저녁엔 닫는 매장 → 닫힌 저녁 자리에서만 빼고 그 매장을 점심에 다시 쓴다")
+	void closedPlaceIsExcludedOnlyAtTheClosedSlot() {
+		// given: 1번은 늘 열고 2번은 저녁(17시 이후)에 닫는다. 처음 계획은 점심 1·저녁 2 다.
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(
+			TimeSlot.LUNCH, List.of(store(1, StoreKind.KOREAN, 0, 99), store(2, StoreKind.KOREAN, 200, 98)),
+			TimeSlot.DINNER, List.of(store(1, StoreKind.KOREAN, 0, 98), store(2, StoreKind.KOREAN, 200, 99))));
+		List<String> calls = new ArrayList<>();
+		CourseSelector selector = new VerifiedCourseSelector(new BeamSelector(), id -> {
+			calls.add(id);
+			return (weekday, arrival, minutes) -> id.equals("p2") && arrival.getHour() >= 17
+				? Result.NOT_OPEN : Result.OPEN;
+		});
+
+		// when
+		Selection result = selector.select(request(List.of(SLOTS.get(0), SLOTS.get(3)), 7), pool);
+
+		// then
+		assertThat(ids(result)).containsExactly(2L, 1L);
+		assertThat(result.interruption()).isNull();
+		assertThat(calls).containsExactly("p1", "p2");
+	}
+
+	@Test
+	@DisplayName("Google 장소 ID 가 없는 매장 → 조회하지 않고 모든 자리에서 빼 다른 후보를 고른다")
+	void placeWithoutGoogleIdIsExcludedEverywhere() {
+		// given
+		Place original = store(1, StoreKind.KOREAN, 0, 99).place();
+		Candidate withoutId = new Candidate(new Place(original.id(), original.name(), original.cellId(),
+			original.kind(), original.lat(), original.lng(), null, null), "m1", 99);
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(
+			TimeSlot.LUNCH, List.of(withoutId, store(2, StoreKind.KOREAN, 0, 98))));
+		List<String> calls = new ArrayList<>();
+		CourseSelector selector = new VerifiedCourseSelector(new BeamSelector(), id -> {
+			calls.add(id);
+			return Hours.fixed(Result.OPEN);
+		});
+
+		// when
+		Selection result = selector.select(request(SLOTS.subList(0, 1), 7), pool);
+
+		// then
+		assertThat(ids(result)).containsExactly(2L);
+		assertThat(calls).containsExactly("p2");
+	}
+
+	@Test
+	@DisplayName("필수 자리에서 외부 조회가 실패함 → 앞 정류장은 남기고 VERIFICATION_UNAVAILABLE 로 멈춘다")
+	void stopsAtRequiredSlotWhenLookupFails() {
+		// given
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(
+			TimeSlot.LUNCH, List.of(store(1, StoreKind.KOREAN, 0, 99)),
+			TimeSlot.AFTERNOON, List.of(store(2, StoreKind.CAFE, 200, 99))));
+		CourseSelector selector = new VerifiedCourseSelector(new BeamSelector(),
+			id -> Hours.fixed(id.equals("p2") ? Result.UNAVAILABLE : Result.OPEN));
+
+		// when
+		Selection result = selector.select(request(SLOTS.subList(0, 2), 7), pool);
+
+		// then
+		assertThat(ids(result)).containsExactly(1L);
+		assertThat(result.interruption()).isEqualTo(new Interruption(TimeSlot.AFTERNOON, "VERIFICATION_UNAVAILABLE"));
+	}
+
+	@Test
+	@DisplayName("영업시간이 없는 놀거리 → hoursUnknown 으로 받고, 영업시간이 없는 한식당은 받지 않는다")
+	void acceptsUnknownHoursOnlyForPlayAndShop() {
+		// given
+		CourseSelector selector = new VerifiedCourseSelector(new BeamSelector(), id -> Hours.fixed(Result.HOURS_UNKNOWN));
+		CandidatePool play = new CandidatePool(CONTEXT, Map.of(
+			TimeSlot.AFTERNOON, List.of(store(1, StoreKind.PLAY, 0, 99))));
+		CandidatePool restaurant = new CandidatePool(CONTEXT, Map.of(
+			TimeSlot.LUNCH, List.of(store(1, StoreKind.KOREAN, 0, 99))));
+
+		// when
+		Selection playResult = selector.select(request(List.of(SLOTS.get(2)), 7), play);
+		Selection restaurantResult = selector.select(request(SLOTS.subList(0, 1), 7), restaurant);
+
+		// then
+		assertThat(playResult.picks()).singleElement().satisfies(pick -> {
+			assertThat(pick.stop().hoursUnknown()).isTrue();
+		});
+		assertThat(restaurantResult.picks()).isEmpty();
+		assertThat(restaurantResult.interruption()).isEqualTo(new Interruption(TimeSlot.LUNCH, "NO_VERIFIED_MATCH"));
+	}
+
+	@Test
+	@DisplayName("5번 선택 자리의 조회가 실패함 → 4번 저녁은 남기고 5번을 VERIFICATION_UNAVAILABLE 로 건너뛴다")
+	void skipsUnavailableDinnerPlay() {
+		// given
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(TimeSlot.DINNER, List.of(
+			store(1, StoreKind.KOREAN, 0, 99), store(2, StoreKind.PLAY, 200, 99))));
+		CourseSelector selector = new VerifiedCourseSelector(new BeamSelector(),
+			id -> Hours.fixed(id.equals("p2") ? Result.UNAVAILABLE : Result.OPEN));
+
+		// when
+		Selection result = selector.select(request(SLOTS.subList(3, 5), 7), pool);
+
+		// then
+		assertThat(ids(result)).containsExactly(1L);
+		assertThat(result.skipped()).containsExactly(new Skipped(TimeSlot.DINNER, 5, "VERIFICATION_UNAVAILABLE"));
+		assertThat(result.interruption()).isNull();
+	}
+
+	@Test
+	@DisplayName("일정이 비어 있는데 계획이 중단을 담아 옴 → 자리 번호를 찾다 실패하지 않고 그대로 돌려준다")
+	void keepsPlannerInterruptionForEmptySchedule() {
+		// given
+		Interruption interruption = new Interruption(TimeSlot.LUNCH, "NO_VERIFIED_MATCH");
+		CourseSelector planner = (request, pool) -> new Selection(List.of(), List.of(), interruption);
+		CourseSelector selector = new VerifiedCourseSelector(planner, id -> Hours.fixed(Result.OPEN));
+
+		// when
+		Selection result = selector.select(request(List.of(), 7), new CandidatePool(CONTEXT, Map.of()));
+
+		// then
+		assertThat(result.picks()).isEmpty();
+		assertThat(result.interruption()).isEqualTo(interruption);
 	}
 }

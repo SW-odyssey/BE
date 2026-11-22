@@ -2,6 +2,7 @@ package com.odyssey.recommendation.v2;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -149,5 +150,65 @@ class CandidatePoolTest {
 
 		// then
 		assertThat(near).isEmpty();
+	}
+
+	@Test
+	@DisplayName("제외한 매장 → 후보에서 빠지지만 뒤 후보의 순번(rank)은 목록 API 기준 그대로다")
+	void excludedCandidateKeepsLaterRanks() {
+		// given
+		CourseSchedule.CourseSlot slot = CourseSchedule.afternoonPlay(Weekday.FRI);
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(slot.slot(), List.of(
+			candidate(1, StoreKind.PLAY, WEST.lat() + 0.0005, WEST.lng(), 99),
+			candidate(2, StoreKind.PLAY, WEST.lat() + 0.0006, WEST.lng(), 98),
+			candidate(3, StoreKind.PLAY, WEST.lat() + 0.0007, WEST.lng(), 97))));
+		CandidatePool.LegCandidates leg = pool.forLeg(slot, 0, 500, 0);
+
+		// when
+		List<CandidatePool.LegCandidates.Ranked> nearby = leg.near(WEST, List.of(), Set.of(2L));
+
+		// then
+		assertThat(nearby).extracting(row -> row.selected().candidate().place().id()).containsExactly(1L, 3L);
+		assertThat(nearby).extracting(CandidatePool.LegCandidates.Ranked::rank).containsExactly(1, 3);
+	}
+
+	@Test
+	@DisplayName("이전 방문지 100m 안의 후보 → 순번도 차지하지 않고 빠진다")
+	void avoidedCandidateDoesNotTakeARank() {
+		// given
+		CourseSchedule.CourseSlot slot = CourseSchedule.afternoonPlay(Weekday.FRI);
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(slot.slot(), List.of(
+			candidate(1, StoreKind.PLAY, WEST.lat() + 0.0010, WEST.lng(), 99),
+			candidate(2, StoreKind.PLAY, WEST.lat() + 0.0030, WEST.lng(), 98),
+			candidate(3, StoreKind.PLAY, WEST.lat() + 0.0040, WEST.lng(), 97))));
+		CandidatePool.LegCandidates leg = pool.forLeg(slot, 0, 500, 100);
+		GeoPoint earlierStop = new GeoPoint(WEST.lat() + 0.0010, WEST.lng());
+
+		// when
+		List<CandidatePool.LegCandidates.Ranked> nearby = leg.near(WEST, List.of(earlierStop), Set.of());
+
+		// then
+		assertThat(nearby).extracting(row -> row.selected().candidate().place().id()).containsExactly(2L, 3L);
+		assertThat(nearby).extracting(CandidatePool.LegCandidates.Ranked::rank).containsExactly(1, 2);
+	}
+
+	@Test
+	@DisplayName("후보가 35곳이고 앞의 5곳을 제외함 → 30곳을 주고 순번은 6번부터 35번까지다")
+	void limitsToThirtyAfterExclusions() {
+		// given
+		CourseSchedule.CourseSlot slot = CourseSchedule.afternoonPlay(Weekday.FRI);
+		List<Candidate> candidates = new ArrayList<>();
+		for (int id = 1; id <= 35; id++) {
+			candidates.add(candidate(id, StoreKind.PLAY, WEST.lat() + 0.0005, WEST.lng(), 99.9 - id * 0.1));
+		}
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(slot.slot(), candidates));
+		CandidatePool.LegCandidates leg = pool.forLeg(slot, 0, 500, 0);
+
+		// when
+		List<CandidatePool.LegCandidates.Ranked> nearby = leg.near(WEST, List.of(), Set.of(1L, 2L, 3L, 4L, 5L));
+
+		// then
+		assertThat(nearby).hasSize(30);
+		assertThat(nearby.getFirst().rank()).isEqualTo(6);
+		assertThat(nearby.getLast().rank()).isEqualTo(35);
 	}
 }
