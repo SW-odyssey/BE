@@ -48,7 +48,7 @@ class CourseCandidates {
 		Map<TimeSlot, List<Candidate>> bySlot = new EnumMap<>(TimeSlot.class);
 		for (TimeSlot slot : slots) {
 			List<Candidate> found = candidates.candidates(datasetId, weekday, slot,
-				V2RecommendationSelector.MIN_VISITOR_PERCENTILE);
+				CourseSchedule.MIN_COURSE_PERCENTILE);
 			bySlot.put(slot, found);
 		}
 		return bySlot;
