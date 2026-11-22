@@ -34,13 +34,27 @@ public class V2CourseController {
 	}
 
 	@GetMapping("/api/v2/course-recommendations")
-	@Operation(summary = "현재 위치에서 심야까지 이어지는 추천 코스", description = """
-		점심 한식(12:30), 오후 카페 또는 구경(15:00, afternoon), 저녁 한식(19:00), 심야 주점(22:30) 중 시작 시간대부터 계산합니다.
+	@Operation(summary = "현재 위치에서 시작하는 최대 여섯 곳의 추천 코스", description = """
+		startSlot에 해당하는 첫 자리부터 계산합니다. 같은 시간대의 자리는 position으로 구분합니다.
+
+		| position | 시간대 | 도착 | 종류와 체류 시간(분) | 포함 조건 |
+		|---|---|---|---|---|
+		| 1 | lunch | 12:00 | 한식 50 | 필수 |
+		| 2 | afternoon | 14:00 | 카페 80 또는 쇼핑 30 | 필수 |
+		| 3 | afternoon | 15:40 | 놀거리 60 또는 쇼핑 30 | 선택 |
+		| 4 | dinner | 18:00 | 한식 60 | 필수 |
+		| 5 | dinner | 19:30 | 놀거리 60 | 선택 |
+		| 6 | late_night | 22:00 | 주점 70 | lateNight=true |
+
+		평일 3번 자리의 칸 방문 백분위 하한은 60, 다른 자리는 75입니다.
+		선택 자리를 채우지 못하면 skipped에 slot, position, reason을 담고 마지막으로 고른 장소에서 계속합니다.
+		lateNight 생략 또는 false이면 6번 자리를 계산하지 않습니다. 필수 자리 실패는 interruption에 담습니다.
+		쇼핑·놀거리는 정규 영업시간 정보가 없어도 포함될 수 있으며 이때 hoursUnknown은 true입니다.
 		요일과 시각은 서울 기준입니다. 각 구간은 직전 장소에서 직선 300m 이내입니다.
 		방문 점수가 1위와 3점 이내인 후보 중 seed로 무작위 선택하고, 응답 시점에 Google 정규 영업시간으로 확인합니다.
 		공휴일·임시휴무와 도보 경로는 보장하지 않습니다.
 		같은 seed를 보내면 같은 순서로 후보를 확인합니다. 다른 코스를 보려면 seed를 바꾸거나 빼세요.
-		장소를 바꾸려면 해당 구간의 출발 좌표와 startSlot, 제외할 매장 ID를 보내세요.
+		한 시간대의 장소를 다시 고르려면 그 시간대 시작 좌표와 startSlot, 제외할 매장 ID를 보내세요.
 		leaveTime은 도착 시각에 머무는 시간을 더한 값이고, walkMinutes는 직선거리(m)×1.3을 분당 67m로 나눠 올림한 값입니다(최소 1분).
 		reasons는 고른 이유를 정해진 순서(LOCAL_TOP, OPEN_DURING_STAY, PEAK_NOW, AREA_TYPE, SIMILAR_CHOICES)로 담고, 문장은 FE가 만듭니다.
 		LOCAL_TOP의 percent는 가게가 아니라 가게가 있는 50m 칸의 방문 상위 %입니다.
@@ -49,7 +63,7 @@ public class V2CourseController {
 		@RequestParam String startSlot, @RequestParam double lat, @RequestParam double lng,
 		@Parameter(description = "이미 방문하거나 건너뛸 매장 ID. 쉼표로 구분") @RequestParam(required = false) List<Long> excludeIds,
 		@Parameter(description = "후보를 섞는 값. 없으면 서버가 정해 응답에 담는다") @RequestParam(required = false) Long seed,
-		@Parameter(description = "오후 자리. cafe(기본) 또는 shop(구경)") @RequestParam(required = false) String afternoon,
+		@Parameter(description = "2번 자리의 종류. cafe(기본) 또는 shop(구경)") @RequestParam(required = false) String afternoon,
 		@Parameter(description = "심야 주점 포함 여부. 기본 false") @RequestParam(required = false) String lateNight,
 		@Parameter(hidden = true) @RequestParam MultiValueMap<String, String> params) {
 		V2RequestParams.check(params, KEYS);

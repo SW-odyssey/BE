@@ -28,7 +28,9 @@ import com.odyssey.recommendation.v2.V2RecommendationSelector.Selected;
 import com.odyssey.store.entity.StoreKind;
 
 /**
+ * 요청한 일정의 각 자리에서 다음에 방문할 매장을 고른다.
  * 뒤 구간이 끊겨도 앞에서 고른 매장은 코스에 남긴다.
+ * 코스를 다 고른 뒤 고른 칸들의 이유 재료를 한 번 읽어 정류장마다 이유를 붙인다.
  */
 @Service
 public class V2CourseService {
