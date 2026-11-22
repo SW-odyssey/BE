@@ -19,12 +19,14 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
+import com.odyssey.recommendation.v2.V2CourseService.BandCandidate;
+
 /** {@link V2CourseService} 가 점수대를 나눠 섞고 상한까지 내주는지 확인한다. */
 class CheckOrderTest {
 
-	private static List<Integer> all(Iterator<Integer> order) {
+	private static List<Integer> all(Iterator<BandCandidate> order) {
 		List<Integer> result = new ArrayList<>();
-		order.forEachRemaining(result::add);
+		order.forEachRemaining(candidate -> result.add(candidate.index()));
 		return result;
 	}
 
@@ -48,7 +50,7 @@ class CheckOrderTest {
 		// when
 		Set<Integer> firsts = new HashSet<>();
 		for (long seed = 1; seed <= 40; seed++) {
-			firsts.add(candidateCheckOrder(percentiles, Set.of(), new Random(seed)).next());
+			firsts.add(candidateCheckOrder(percentiles, Set.of(), new Random(seed)).next().index());
 		}
 
 		// then
@@ -111,7 +113,7 @@ class CheckOrderTest {
 		};
 
 		// when
-		int firstCandidate = candidateCheckOrder(percentiles, Set.of(0), swapPair).next();
+		int firstCandidate = candidateCheckOrder(percentiles, Set.of(0), swapPair).next().index();
 
 		// then
 		assertThat(firstCandidate).isEqualTo(2);
@@ -121,7 +123,7 @@ class CheckOrderTest {
 	@DisplayName("모든 후보를 제외 → 내줄 후보가 없다")
 	void allExcluded() {
 		// when
-		Iterator<Integer> order = candidateCheckOrder(List.of(99.0, 98.0), Set.of(0, 1), new Random(1));
+		Iterator<BandCandidate> order = candidateCheckOrder(List.of(99.0, 98.0), Set.of(0, 1), new Random(1));
 
 		// then
 		assertThat(order.hasNext()).isFalse();
@@ -158,5 +160,72 @@ class CheckOrderTest {
 
 		// then
 		assertThat(random.nextLong()).isEqualTo(reference.nextLong());
+	}
+
+	@Test
+	@DisplayName("1위 점수대 3곳 중 하나를 꺼냄 → 점수대 후보 수는 3이다")
+	void bandSizeOfFirstBand() {
+		// given
+		Iterator<BandCandidate> order = candidateCheckOrder(List.of(99.0, 97.5, 96.2, 90.0), Set.of(), new Random(1));
+
+		// when
+		BandCandidate candidate = order.next();
+
+		// then
+		assertThat(candidate.bandSize()).isEqualTo(3);
+	}
+
+	@Test
+	@DisplayName("점수대 안의 제외 후보 → 점수대 후보 수에서 빠진다")
+	void bandSizeSkipsExcluded() {
+		// given
+		Iterator<BandCandidate> order = candidateCheckOrder(List.of(99.0, 97.5, 96.2, 90.0), Set.of(1), new Random(1));
+
+		// when
+		BandCandidate candidate = order.next();
+
+		// then
+		assertThat(candidate.bandSize()).isEqualTo(2);
+	}
+
+	@Test
+	@DisplayName("첫 점수대를 다 꺼내고 다음 점수대로 내려감 → 다음 점수대의 후보 수다")
+	void bandSizeOfNextBand() {
+		// given
+		Iterator<BandCandidate> order = candidateCheckOrder(List.of(99.0, 98.0, 90.0), Set.of(), new Random(1));
+		order.next();
+		order.next();
+
+		// when
+		BandCandidate candidate = order.next();
+
+		// then
+		assertThat(candidate.index()).isEqualTo(2);
+		assertThat(candidate.bandSize()).isEqualTo(1);
+	}
+
+	@Test
+	@DisplayName("점수대의 마지막 후보를 꺼낸 뒤 hasNext 를 부름 → 꺼낸 후보의 점수대 후보 수를 그대로 둔다")
+	void bandSizeStableAfterHasNext() {
+		// given
+		Iterator<BandCandidate> order = candidateCheckOrder(List.of(99.0, 98.0, 90.0), Set.of(), new Random(1));
+		order.next();
+		BandCandidate candidate = order.next();
+
+		// when
+		order.hasNext();
+
+		// then
+		assertThat(candidate.bandSize()).isEqualTo(2);
+	}
+
+	@Test
+	@DisplayName("?? ???? 12?? ?? ? 10?? ???? ??? ??? 12?")
+	void countsWholeBandBeyondCheckLimit() {
+		Iterator<BandCandidate> order = candidateCheckOrder(Collections.nCopies(12, 99.0), Set.of(), new Random(1));
+		List<BandCandidate> candidates = new ArrayList<>();
+		order.forEachRemaining(candidates::add);
+
+		assertThat(candidates).hasSize(10).extracting(BandCandidate::bandSize).containsOnly(12);
 	}
 }
