@@ -26,7 +26,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class V2CourseController {
 
 	private static final Set<String> KEYS =
-		Set.of("datasetId", "weekday", "startSlot", "lat", "lng", "excludeIds", "seed", "afternoon", "lateNight");
+		Set.of("datasetId", "weekday", "startSlot", "lat", "lng", "excludeIds", "seed", "afternoon", "lateNight", "walk");
 	private final V2CourseService service;
 
 	public V2CourseController(V2CourseService service) {
@@ -65,6 +65,8 @@ public class V2CourseController {
 		@Parameter(description = "후보를 섞는 값. 없으면 서버가 정해 응답에 담는다") @RequestParam(required = false) Long seed,
 		@Parameter(description = "2번 자리의 종류. cafe(기본) 또는 shop(구경)") @RequestParam(required = false) String afternoon,
 		@Parameter(description = "심야 주점 포함 여부. 기본 false") @RequestParam(required = false) String lateNight,
+		@Parameter(description = "매장 사이 걷기 조건. 기본 default, 짧게 걸으려면 short")
+		@RequestParam(required = false) String walk,
 		@Parameter(hidden = true) @RequestParam MultiValueMap<String, String> params) {
 		V2RequestParams.check(params, KEYS);
 		Set<Long> excluded = parseExcludedStoreIds(excludeIds);
@@ -73,8 +75,18 @@ public class V2CourseController {
 		TimeSlot firstSlot = V2RequestParams.required(TimeSlot.class, "startSlot", startSlot);
 		GeoPoint origin = new GeoPoint(lat, lng);
 		V2CourseResponse course = service.recommend(dataset, visitDay, firstSlot, origin, excluded,
-			seedOrRandom(seed), parseAfternoonKind(afternoon), includeLateNight(lateNight));
+			seedOrRandom(seed), parseAfternoonKind(afternoon), includeLateNight(lateNight), walkPreference(walk));
 		return ApiResult.ok(course);
+	}
+
+	private static WalkPreference walkPreference(String value) {
+		if (value == null || value.equals("default")) {
+			return WalkPreference.DEFAULT;
+		}
+		if (value.equals("short")) {
+			return WalkPreference.SHORT;
+		}
+		throw new BusinessException(CommonErrorCode.INVALID_INPUT, "walk 는 default 또는 short 입니다.");
 	}
 
 	private static boolean includeLateNight(String value) {

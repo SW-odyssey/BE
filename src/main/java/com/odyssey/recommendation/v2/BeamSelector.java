@@ -29,7 +29,7 @@ final class BeamSelector implements CourseSelector {
 	public Selection select(Request request, CandidatePool pool) {
 		List<Path> beam = List.of(Path.start(request.origin()));
 		for (CourseSlot slot : request.slots()) {
-			List<Path> next = expand(beam, slot, pool, request.excludeIds());
+			List<Path> next = expand(beam, slot, pool, request);
 			if (next.isEmpty()) {
 				Interruption interruption = new Interruption(slot.slot(), "NO_VERIFIED_MATCH");
 				return choose(beam, request.seed()).selection(interruption);
@@ -39,13 +39,14 @@ final class BeamSelector implements CourseSelector {
 		return choose(beam, request.seed()).selection(null);
 	}
 
-	private List<Path> expand(List<Path> beam, CourseSlot slot, CandidatePool pool, Set<Long> excluded) {
+	private List<Path> expand(List<Path> beam, CourseSlot slot, CandidatePool pool, Request request) {
 		LegCandidates firstLeg = pool.forLeg(slot, 0, V2RecommendationSelector.RADIUS_METERS, 0);
-		LegCandidates betweenStops = pool.forLeg(slot, 150, 500, 100);
+		LegCandidates betweenStops = request.walk().betweenStops(pool, slot);
 		List<Path> next = new ArrayList<>();
 		for (Path path : beam) {
 			LegCandidates leg = path.picks().isEmpty() ? firstLeg : betweenStops;
-			List<Ranked> nearby = leg.near(path.origin(), path.earlierStops(), path.excludedIds(excluded));
+			Set<Long> excluded = path.excludedIds(request.excludeIds());
+			List<Ranked> nearby = leg.near(path.origin(), path.earlierStops(), excluded);
 			addCandidatePaths(next, path, slot, nearby);
 			if (slot.requirement().skipWhenMissing()) {
 				String reason = nearby.isEmpty() ? "NO_VERIFIED_MATCH" : "SKIPPED_FOR_ROUTE";

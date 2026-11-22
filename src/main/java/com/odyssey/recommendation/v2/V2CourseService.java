@@ -61,10 +61,16 @@ public class V2CourseService {
 
 	public V2CourseResponse recommend(String datasetId, Weekday weekday, TimeSlot startSlot,
 		GeoPoint origin, Set<Long> excludeIds, long seed, StoreKind afternoon, boolean lateNight) {
+		return recommend(datasetId, weekday, startSlot, origin, excludeIds, seed, afternoon, lateNight,
+			WalkPreference.DEFAULT);
+	}
+
+	public V2CourseResponse recommend(String datasetId, Weekday weekday, TimeSlot startSlot, GeoPoint origin,
+		Set<Long> excludeIds, long seed, StoreKind afternoon, boolean lateNight, WalkPreference walk) {
 		List<CourseSlot> slots = CourseSchedule.slots(weekday, afternoon, startSlot, lateNight);
 		List<TimeSlot> timeSlots = slots.stream().map(CourseSlot::slot).distinct().toList();
 		CandidatePool pool = candidates.load(datasetId, weekday, startSlot, timeSlots);
-		Request request = new Request(slots, origin, excludeIds, weekday, seed);
+		Request request = new Request(slots, origin, excludeIds, weekday, seed, walk);
 		Selection selection = selector.select(request, pool);
 		return response(pool.context(), seed, selection);
 	}
