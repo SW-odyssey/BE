@@ -29,7 +29,7 @@ class V2CourseStopTest {
 	@DisplayName("22:30 에 70분 머문다 → 나오는 시각은 23:40 이다")
 	void leaveTime() {
 		// when
-		Stop stop = Stop.of(TimeSlot.LATE_NIGHT, LocalTime.of(22, 30), 70, 1, place(70), false);
+		Stop stop = Stop.of(6, TimeSlot.LATE_NIGHT, LocalTime.of(22, 30), 70, 1, place(70), false);
 
 		// then
 		assertThat(stop.visitTime()).isEqualTo("22:30");
@@ -40,7 +40,7 @@ class V2CourseStopTest {
 	@DisplayName("자정을 넘겨 머문다 → 나오는 시각은 00:00 부터 다시 센다")
 	void leaveTimeWrapsAtMidnight() {
 		// when
-		Stop stop = Stop.of(TimeSlot.LATE_NIGHT, LocalTime.of(23, 30), 70, 1, place(70), false);
+		Stop stop = Stop.of(6, TimeSlot.LATE_NIGHT, LocalTime.of(23, 30), 70, 1, place(70), false);
 
 		// then
 		assertThat(stop.leaveTime()).isEqualTo("00:40");
@@ -50,7 +50,7 @@ class V2CourseStopTest {
 	@DisplayName("직선 70m → 도보 2분이다")
 	void walkMinutes() {
 		// when
-		Stop stop = Stop.of(TimeSlot.LATE_NIGHT, LocalTime.of(22, 30), 70, 1, place(70), false);
+		Stop stop = Stop.of(6, TimeSlot.LATE_NIGHT, LocalTime.of(22, 30), 70, 1, place(70), false);
 
 		// then
 		assertThat(stop.walkMinutes()).isEqualTo(2);

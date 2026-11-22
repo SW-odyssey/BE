@@ -2,6 +2,7 @@ package com.odyssey.recommendation.v2;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import com.odyssey.cell.GeoPoint;
 import com.odyssey.cellcondition.repository.CellConditionRepository.Candidate;
@@ -23,12 +24,11 @@ record CandidatePool(V2Context context, Map<TimeSlot, List<Candidate>> bySlot) {
 	}
 
 	/** @return 목록 API 와 같은 순서·같은 반경의 후보. 읽지 않은 시간대면 빈 목록 */
-	List<Selected> near(TimeSlot slot, StoreKind kind, GeoPoint origin, double minPercentile) {
-		V2RecommendationQuery query = new V2RecommendationQuery(context.datasetId(), context.weekday(), slot, origin,
-			kind.category(), kind, "");
+	List<Selected> near(TimeSlot slot, Set<StoreKind> kinds, GeoPoint origin, double minPercentile) {
 		List<Candidate> eligible = bySlot.getOrDefault(slot, List.of()).stream()
+			.filter(candidate -> kinds.contains(candidate.place().kind()))
 			.filter(candidate -> candidate.percentile() >= minPercentile)
 			.toList();
-		return V2RecommendationSelector.select(eligible, query);
+		return V2RecommendationSelector.rankNearby(eligible, origin);
 	}
 }

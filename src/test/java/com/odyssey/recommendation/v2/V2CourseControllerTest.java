@@ -49,11 +49,11 @@ class V2CourseControllerTest {
 	private static final String URL = "/api/v2/course-recommendations";
 	private static final V2Context CONTEXT = new V2Context("nov", "2025-11", Weekday.FRI, TimeSlot.DINNER);
 	private static final V2CourseResponse PARTIAL = new V2CourseResponse("PARTIAL", CONTEXT, 7,
-		List.of(new Stop(TimeSlot.DINNER, "19:00", "20:00", 1, 2,
+		List.of(new Stop(3, TimeSlot.DINNER, "19:00", "20:00", 1, 2,
 			new Item(12, "백부장집", "81383966", StoreKind.KOREAN, 37.5661, 126.9901, 14.2, "place-12"), false,
 			List.of(new LocalTop(3), new OpenDuringStay("19:00", "20:00"), new PeakNow(), new AreaType("mixed"),
 				new SimilarChoices(2)))),
-		new Interruption(TimeSlot.LATE_NIGHT, "NO_VERIFIED_MATCH"));
+		List.of(), new Interruption(TimeSlot.LATE_NIGHT, "NO_VERIFIED_MATCH"));
 
 	@Autowired
 	private MockMvc mvc;
@@ -151,6 +151,8 @@ class V2CourseControllerTest {
 			.andExpect(jsonPath("$.data.context.datasetId").value("nov"))
 			.andExpect(jsonPath("$.data.context.weekday").value("fri"))
 			.andExpect(jsonPath("$.data.context.slot").value("dinner"))
+			.andExpect(jsonPath("$.data.stops[0].position").value(3))
+			.andExpect(jsonPath("$.data.skipped").isArray())
 			.andExpect(jsonPath("$.data.stops[0].slot").value("dinner"))
 			.andExpect(jsonPath("$.data.stops[0].visitTime").value("19:00"))
 			.andExpect(jsonPath("$.data.stops[0].candidateRank").value(2))

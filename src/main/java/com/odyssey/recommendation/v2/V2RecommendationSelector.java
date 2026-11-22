@@ -51,9 +51,15 @@ final class V2RecommendationSelector {
 	 * 입력 목록은 바꾸지 않는다.
 	 */
 	static List<Selected> select(List<Candidate> candidates, V2RecommendationQuery query) {
-		Stream<Selected> nearby = candidates.stream()
+		List<Candidate> matching = candidates.stream()
 			.filter(candidate -> matches(candidate.place(), query))
-			.map(candidate -> Selected.from(candidate, query.origin()))
+			.toList();
+		return rankNearby(matching, query.origin());
+	}
+
+	static List<Selected> rankNearby(List<Candidate> candidates, GeoPoint origin) {
+		Stream<Selected> nearby = candidates.stream()
+			.map(candidate -> Selected.from(candidate, origin))
 			.filter(selected -> selected.distanceMeters() <= RADIUS_METERS);
 		return nearby
 			.sorted(ORDER)

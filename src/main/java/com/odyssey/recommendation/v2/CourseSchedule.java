@@ -33,7 +33,11 @@ final class CourseSchedule {
 		/** 못 찾으면 건너뛰고 다음 자리로 간다. */
 		OPTIONAL,
 		/** 요청이 원할 때만 넣고, 못 찾으면 건너뛴다. */
-		OPT_IN
+		OPT_IN;
+
+		boolean skipWhenMissing() {
+			return this != REQUIRED;
+		}
 	}
 
 	/**
