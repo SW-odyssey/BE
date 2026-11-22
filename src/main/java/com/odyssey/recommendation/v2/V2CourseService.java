@@ -9,11 +9,17 @@ import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.TransactionException;
 
 import com.odyssey.cell.GeoPoint;
 import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.cellslotscore.entity.TimeSlot;
+import com.odyssey.recommendation.v2.CourseReasonFacts.Facts;
+import com.odyssey.recommendation.v2.CourseReasons.StopFacts;
 import com.odyssey.recommendation.v2.CourseVisitChecker.Result;
 import com.odyssey.recommendation.v2.V2CourseResponse.Interruption;
 import com.odyssey.recommendation.v2.V2CourseResponse.Stop;
@@ -26,6 +32,8 @@ import com.odyssey.store.entity.StoreKind;
  */
 @Service
 public class V2CourseService {
+
+	private static final Logger log = LoggerFactory.getLogger(V2CourseService.class);
 
 	/**
 	 * 머무는 시간(분)은 통계청 생활시간조사 2024 원자료로 20·30대가 기타 실내 한 곳에 이동 없이 머문 구간의
@@ -51,10 +59,12 @@ public class V2CourseService {
 
 	private final CourseCandidates candidates;
 	private final CourseVisitChecker checker;
+	private final CourseReasonFacts reasonFacts;
 
-	V2CourseService(CourseCandidates candidates, CourseVisitChecker checker) {
+	V2CourseService(CourseCandidates candidates, CourseVisitChecker checker, CourseReasonFacts reasonFacts) {
 		this.candidates = candidates;
 		this.checker = checker;
+		this.reasonFacts = reasonFacts;
 	}
 
 	/** 같은 seed·배치·조건이면 같은 순서로 후보를 확인한다. 결과는 영업 확인 시점에 따라 달라질 수 있다. */
@@ -96,20 +106,52 @@ public class V2CourseService {
 		GeoPoint origin, Set<Long> excludeIds, long seed) {
 		Random random = new Random(seed);
 		Set<Long> excluded = new HashSet<>(excludeIds);
-		List<Stop> stops = new ArrayList<>();
+		List<Pick> picks = new ArrayList<>();
+		Interruption interruption = null;
 		for (Stage stage : stages) {
 			List<Selected> nearby = pool.near(stage.slot(), stage.kind(), origin);
 			Pick pick = pickStageStop(nearby, excluded, weekday, stage, random);
 			if (pick.stop() == null) {
-				Interruption interruption = new Interruption(stage.slot(), pick.reason());
-				return V2CourseResponse.interrupted(pool.context(), seed, stops, interruption);
+				interruption = new Interruption(stage.slot(), pick.reason());
+				break;
 			}
-			stops.add(pick.stop());
+			picks.add(pick);
 			Item place = pick.stop().place();
 			excluded.add(place.id());
 			origin = new GeoPoint(place.lat(), place.lng());
 		}
-		return V2CourseResponse.complete(pool.context(), seed, stops);
+		// 영업 확인이 다 끝난 뒤라 이 조회는 Google 호출 중에 커넥션을 잡지 않는다
+		Facts facts = facts(pool.context().datasetId(), weekday, picks);
+		List<Stop> stops = picks.stream().map(pick -> withReasons(pick, facts)).toList();
+		return interruption == null
+			? V2CourseResponse.complete(pool.context(), seed, stops)
+			: V2CourseResponse.interrupted(pool.context(), seed, stops, interruption);
+	}
+
+	/** 이유 때문에 코스가 실패하지 않게, 조회가 실패하면 그 재료로 붙는 이유(PEAK_NOW, AREA_TYPE)만 뺀다. */
+	private Facts facts(String datasetId, Weekday weekday, List<Pick> picks) {
+		if (picks.isEmpty()) {
+			return Facts.NONE;
+		}
+		List<Long> cellIds = picks.stream().map(pick -> cellId(pick.stop())).distinct().toList();
+		try {
+			return reasonFacts.load(datasetId, weekday, cellIds);
+		} catch (DataAccessException | TransactionException e) {
+			log.warn("코스 이유 재료 조회 실패. 붐비는 시간대·동네 유형 이유를 뺀다: {}", e.getMessage());
+			return Facts.NONE;
+		}
+	}
+
+	private static Stop withReasons(Pick pick, Facts facts) {
+		Stop stop = pick.stop();
+		long cellId = cellId(stop);
+		return stop.withReasons(CourseReasons.of(new StopFacts(pick.percentile(), stop.slot(),
+			facts.peakSlot(cellId), facts.areaType(cellId), stop.visitTime(), stop.leaveTime(), pick.bandSize(),
+			stop.hoursUnknown())));
+	}
+
+	private static long cellId(Stop stop) {
+		return Long.parseLong(stop.place().cellId());
 	}
 
 	private Pick pickStageStop(List<Selected> ranked, Set<Long> excluded, Weekday weekday, Stage stage, Random random) {
@@ -121,7 +163,7 @@ public class V2CourseService {
 			return Pick.stopped("ALL_EXCLUDED");
 		}
 		List<Double> percentiles = ranked.stream().map(s -> s.candidate().percentile()).toList();
-		Iterator<Integer> order = candidateCheckOrder(percentiles, skipped, random);
+		Iterator<BandCandidate> order = candidateCheckOrder(percentiles, skipped, random);
 		return findFirstVisitableStop(ranked, weekday, stage, order);
 	}
 
@@ -136,11 +178,11 @@ public class V2CourseService {
 	}
 
 	/** 앞 구간에서 쓰고 남은 난수를 다음 구간이 이어 쓰므로 실제 확인할 점수대만 섞는다. */
-	static Iterator<Integer> candidateCheckOrder(List<Double> percentiles, Set<Integer> excluded, Random random) {
+	static Iterator<BandCandidate> candidateCheckOrder(List<Double> percentiles, Set<Integer> excluded, Random random) {
 		return groupByPercentileBand(percentiles, excluded).stream()
 			.flatMap(band -> {
 				Collections.shuffle(band, random);
-				return band.stream();
+				return band.stream().map(index -> new BandCandidate(index, band.size()));
 			})
 			.limit(MAX_CHECKS)
 			.iterator();
@@ -164,13 +206,14 @@ public class V2CourseService {
 		return bands;
 	}
 
-	private Pick findFirstVisitableStop(List<Selected> ranked, Weekday weekday, Stage stage, Iterator<Integer> order) {
+	private Pick findFirstVisitableStop(List<Selected> ranked, Weekday weekday, Stage stage, Iterator<BandCandidate> order) {
 		while (order.hasNext()) {
-			int index = order.next();
-			Item item = Item.from(ranked.get(index));
+			BandCandidate candidate = order.next();
+			Selected selected = ranked.get(candidate.index());
+			Item item = Item.from(selected);
 			Result result = checker.check(item.googlePlaceId(), weekday, stage.visitTime(), stage.stayMinutes());
 			if (stage.allowsVisit(result)) {
-				return Pick.selected(stage, index + 1, item, result);
+				return Pick.selected(stage, candidate, item, result, selected.candidate().percentile());
 			}
 			if (result == Result.UNAVAILABLE) {
 				return Pick.stopped("VERIFICATION_UNAVAILABLE");
@@ -193,14 +236,18 @@ public class V2CourseService {
 		}
 	}
 
-	private record Pick(Stop stop, String reason) {
-		static Pick selected(Stage stage, int rank, Item item, Result result) {
-			Stop stop = new Stop(stage.slot(), stage.visitTime().toString(), rank, item, result == Result.HOURS_UNKNOWN);
-			return new Pick(stop, null);
+	record BandCandidate(int index, int bandSize) {
+	}
+
+	private record Pick(Stop stop, String reason, int bandSize, double percentile) {
+		static Pick selected(Stage stage, BandCandidate candidate, Item item, Result result, double percentile) {
+			Stop stop = Stop.of(stage.slot(), stage.visitTime(), stage.stayMinutes(), candidate.index() + 1, item,
+				result == Result.HOURS_UNKNOWN);
+			return new Pick(stop, null, candidate.bandSize(), percentile);
 		}
 
 		static Pick stopped(String reason) {
-			return new Pick(null, reason);
+			return new Pick(null, reason, 0, 0);
 		}
 	}
 }

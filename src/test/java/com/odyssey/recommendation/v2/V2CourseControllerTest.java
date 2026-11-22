@@ -32,6 +32,11 @@ import com.odyssey.cell.GeoPoint;
 import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.cellslotscore.entity.TimeSlot;
 import com.odyssey.global.exception.BusinessException;
+import com.odyssey.recommendation.v2.CourseReason.AreaType;
+import com.odyssey.recommendation.v2.CourseReason.LocalTop;
+import com.odyssey.recommendation.v2.CourseReason.OpenDuringStay;
+import com.odyssey.recommendation.v2.CourseReason.PeakNow;
+import com.odyssey.recommendation.v2.CourseReason.SimilarChoices;
 import com.odyssey.recommendation.v2.V2CourseResponse.Interruption;
 import com.odyssey.recommendation.v2.V2CourseResponse.Stop;
 import com.odyssey.recommendation.v2.V2RecommendationResponse.Item;
@@ -44,8 +49,10 @@ class V2CourseControllerTest {
 	private static final String URL = "/api/v2/course-recommendations";
 	private static final V2Context CONTEXT = new V2Context("nov", "2025-11", Weekday.FRI, TimeSlot.DINNER);
 	private static final V2CourseResponse PARTIAL = new V2CourseResponse("PARTIAL", CONTEXT, 7,
-		List.of(new Stop(TimeSlot.DINNER, "19:00", 2,
-			new Item(12, "백부장집", "81383966", StoreKind.KOREAN, 37.5661, 126.9901, 14.2, "place-12"), false)),
+		List.of(new Stop(TimeSlot.DINNER, "19:00", "20:00", 1, 2,
+			new Item(12, "백부장집", "81383966", StoreKind.KOREAN, 37.5661, 126.9901, 14.2, "place-12"), false,
+			List.of(new LocalTop(3), new OpenDuringStay("19:00", "20:00"), new PeakNow(), new AreaType("mixed"),
+				new SimilarChoices(2)))),
 		new Interruption(TimeSlot.LATE_NIGHT, "NO_VERIFIED_MATCH"));
 
 	@Autowired
@@ -152,6 +159,28 @@ class V2CourseControllerTest {
 			.andExpect(jsonPath("$.data.stops[0].place.kind").value("korean"))
 			.andExpect(jsonPath("$.data.interruption.slot").value("late_night"))
 			.andExpect(jsonPath("$.data.interruption.reason").value("NO_VERIFIED_MATCH"));
+	}
+
+	@Test
+	@DisplayName("정류장을 받음 → 나오는 시각·도보 분과 code 를 단 이유 목록을 내보낸다")
+	void stopTimesAndReasons() throws Exception {
+		// when
+		ResultActions result = mvc.perform(valid());
+
+		// then
+		result.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.stops[0].leaveTime").value("20:00"))
+			.andExpect(jsonPath("$.data.stops[0].walkMinutes").value(1))
+			.andExpect(jsonPath("$.data.stops[0].reasons[0].code").value("LOCAL_TOP"))
+			.andExpect(jsonPath("$.data.stops[0].reasons[0].percent").value(3))
+			.andExpect(jsonPath("$.data.stops[0].reasons[1].code").value("OPEN_DURING_STAY"))
+			.andExpect(jsonPath("$.data.stops[0].reasons[1].from").value("19:00"))
+			.andExpect(jsonPath("$.data.stops[0].reasons[1].to").value("20:00"))
+			.andExpect(jsonPath("$.data.stops[0].reasons[2].code").value("PEAK_NOW"))
+			.andExpect(jsonPath("$.data.stops[0].reasons[3].code").value("AREA_TYPE"))
+			.andExpect(jsonPath("$.data.stops[0].reasons[3].type").value("mixed"))
+			.andExpect(jsonPath("$.data.stops[0].reasons[4].code").value("SIMILAR_CHOICES"))
+			.andExpect(jsonPath("$.data.stops[0].reasons[4].count").value(2));
 	}
 
 	@ParameterizedTest(name = "excludeIds={0}")
