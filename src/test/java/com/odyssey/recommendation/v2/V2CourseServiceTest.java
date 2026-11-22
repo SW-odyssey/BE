@@ -28,6 +28,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.springframework.dao.QueryTimeoutException;
+import org.springframework.transaction.CannotCreateTransactionException;
 
 import com.odyssey.cell.GeoPoint;
 import com.odyssey.cellcondition.entity.Weekday;
@@ -411,6 +412,24 @@ class V2CourseServiceTest {
 
 		// then
 		assertThat(course.status()).isEqualTo("COMPLETE");
+		assertThat(course.stops().getFirst().reasons()).containsExactly(new LocalTop(1),
+			new OpenDuringStay("22:30", "23:40"));
+	}
+
+	@Test
+	@DisplayName("이유 재료 조회의 트랜잭션을 못 엶(연결 확보 실패) → 코스와 정류장은 그대로고 그 재료의 이유만 빠진다")
+	void failedTransactionDoesNotFailCourse() {
+		// given
+		candidates(TimeSlot.LATE_NIGHT, store(1, StoreKind.BAR, 99));
+		given(reasonFacts.load(anyString(), any(), anyCollection()))
+			.willThrow(new CannotCreateTransactionException("no connection"));
+
+		// when
+		V2CourseResponse course = recommend(TimeSlot.LATE_NIGHT, 1);
+
+		// then
+		assertThat(course.status()).isEqualTo("COMPLETE");
+		assertThat(course.stops()).hasSize(1);
 		assertThat(course.stops().getFirst().reasons()).containsExactly(new LocalTop(1),
 			new OpenDuringStay("22:30", "23:40"));
 	}

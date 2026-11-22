@@ -13,6 +13,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.TransactionException;
 
 import com.odyssey.cell.GeoPoint;
 import com.odyssey.cellcondition.entity.Weekday;
@@ -135,7 +136,7 @@ public class V2CourseService {
 		List<Long> cellIds = picks.stream().map(pick -> cellId(pick.stop())).distinct().toList();
 		try {
 			return reasonFacts.load(datasetId, weekday, cellIds);
-		} catch (DataAccessException e) {
+		} catch (DataAccessException | TransactionException e) {
 			log.warn("코스 이유 재료 조회 실패. 붐비는 시간대·동네 유형 이유를 뺀다: {}", e.getMessage());
 			return Facts.NONE;
 		}
