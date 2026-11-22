@@ -121,7 +121,7 @@ public class V2CourseService {
 			return Pick.stopped("ALL_EXCLUDED");
 		}
 		List<Double> percentiles = ranked.stream().map(s -> s.candidate().percentile()).toList();
-		Iterator<Integer> order = candidateCheckOrder(percentiles, skipped, random);
+		Iterator<BandCandidate> order = candidateCheckOrder(percentiles, skipped, random);
 		return findFirstVisitableStop(ranked, weekday, stage, order);
 	}
 
@@ -136,11 +136,11 @@ public class V2CourseService {
 	}
 
 	/** 앞 구간에서 쓰고 남은 난수를 다음 구간이 이어 쓰므로 실제 확인할 점수대만 섞는다. */
-	static Iterator<Integer> candidateCheckOrder(List<Double> percentiles, Set<Integer> excluded, Random random) {
+	static Iterator<BandCandidate> candidateCheckOrder(List<Double> percentiles, Set<Integer> excluded, Random random) {
 		return groupByPercentileBand(percentiles, excluded).stream()
 			.flatMap(band -> {
 				Collections.shuffle(band, random);
-				return band.stream();
+				return band.stream().map(index -> new BandCandidate(index, band.size()));
 			})
 			.limit(MAX_CHECKS)
 			.iterator();
@@ -164,13 +164,14 @@ public class V2CourseService {
 		return bands;
 	}
 
-	private Pick findFirstVisitableStop(List<Selected> ranked, Weekday weekday, Stage stage, Iterator<Integer> order) {
+	private Pick findFirstVisitableStop(List<Selected> ranked, Weekday weekday, Stage stage, Iterator<BandCandidate> order) {
 		while (order.hasNext()) {
-			int index = order.next();
-			Item item = Item.from(ranked.get(index));
+			BandCandidate candidate = order.next();
+			Selected selected = ranked.get(candidate.index());
+			Item item = Item.from(selected);
 			Result result = checker.check(item.googlePlaceId(), weekday, stage.visitTime(), stage.stayMinutes());
 			if (stage.allowsVisit(result)) {
-				return Pick.selected(stage, index + 1, item, result);
+				return Pick.selected(stage, candidate, item, result, selected.candidate().percentile());
 			}
 			if (result == Result.UNAVAILABLE) {
 				return Pick.stopped("VERIFICATION_UNAVAILABLE");
@@ -193,14 +194,18 @@ public class V2CourseService {
 		}
 	}
 
-	private record Pick(Stop stop, String reason) {
-		static Pick selected(Stage stage, int rank, Item item, Result result) {
-			Stop stop = Stop.of(stage.slot(), stage.visitTime(), stage.stayMinutes(), rank, item, result == Result.HOURS_UNKNOWN);
-			return new Pick(stop, null);
+	record BandCandidate(int index, int bandSize) {
+	}
+
+	private record Pick(Stop stop, String reason, int bandSize, double percentile) {
+		static Pick selected(Stage stage, BandCandidate candidate, Item item, Result result, double percentile) {
+			Stop stop = Stop.of(stage.slot(), stage.visitTime(), stage.stayMinutes(), candidate.index() + 1, item,
+				result == Result.HOURS_UNKNOWN);
+			return new Pick(stop, null, candidate.bandSize(), percentile);
 		}
 
 		static Pick stopped(String reason) {
-			return new Pick(null, reason);
+			return new Pick(null, reason, 0, 0);
 		}
 	}
 }
