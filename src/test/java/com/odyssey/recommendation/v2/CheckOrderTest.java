@@ -41,7 +41,7 @@ class CheckOrderTest {
 	@DisplayName("1위와 3점 이내 후보가 여럿 → 그 안에서만 seed 에 따라 첫 후보가 달라진다")
 	void firstPickStaysWithinBand() {
 		// given
-		var percentiles = List.of(99.0, 97.5, 96.2, 95.9);
+		List<Double> percentiles = List.of(99.0, 97.5, 96.2, 95.9);
 
 		// when
 		Set<Integer> firsts = new HashSet<>();
@@ -58,7 +58,7 @@ class CheckOrderTest {
 	@DisplayName("같은 seed → 같은 순서다")
 	void sameSeedSameOrder(long seed) {
 		// given
-		var percentiles = List.of(99.0, 98.0, 97.0, 90.0, 89.0);
+		List<Double> percentiles = List.of(99.0, 98.0, 97.0, 90.0, 89.0);
 
 		// when
 		List<Integer> first = all(CheckOrder.of(percentiles, Set.of(), new Random(seed)));
@@ -73,8 +73,8 @@ class CheckOrderTest {
 	@DisplayName("한 점수대를 다 내줌 → 남은 후보의 1위 기준으로 다음 점수대를 섞어 내준다")
 	void nextBandAfterFirst(String values, String firstBand, String secondBand) {
 		// given
-		var first = indices(firstBand);
-		var second = indices(secondBand);
+		Set<Integer> first = indices(firstBand);
+		Set<Integer> second = indices(secondBand);
 
 		// when
 		List<Integer> order = all(CheckOrder.of(percentiles(values), Set.of(), new Random(3)));
@@ -100,7 +100,7 @@ class CheckOrderTest {
 	@DisplayName("모든 후보를 제외 → 내줄 후보가 없다")
 	void allExcluded() {
 		// when
-		var order = CheckOrder.of(List.of(99.0, 98.0), Set.of(0, 1), new Random(1));
+		CheckOrder order = CheckOrder.of(List.of(99.0, 98.0), Set.of(0, 1), new Random(1));
 
 		// then
 		assertThat(order.hasNext()).isFalse();
@@ -111,7 +111,7 @@ class CheckOrderTest {
 	@DisplayName("후보가 10곳보다 많음 → 10곳까지만 내주고 점수가 낮은 후보는 남는다")
 	void capsAtMaxChecks(long seed) {
 		// given: 99점 7곳, 90점 3곳, 80점 2곳
-		var percentiles = new ArrayList<Double>();
+		List<Double> percentiles = new ArrayList<>();
 		percentiles.addAll(Collections.nCopies(7, 99.0));
 		percentiles.addAll(Collections.nCopies(3, 90.0));
 		percentiles.addAll(Collections.nCopies(2, 80.0));
@@ -127,9 +127,9 @@ class CheckOrderTest {
 	@DisplayName("첫 후보만 꺼냄 → 다음 점수대는 섞지 않아 같은 난수를 뒤 구간이 이어 쓴다")
 	void shufflesNextBandOnlyWhenAsked() {
 		// given
-		var percentiles = List.of(99.0, 98.0, 90.0, 89.0);
-		var random = new Random(5);
-		var reference = new Random(5);
+		List<Double> percentiles = List.of(99.0, 98.0, 90.0, 89.0);
+		Random random = new Random(5);
+		Random reference = new Random(5);
 		Collections.shuffle(new ArrayList<>(List.of(0, 1)), reference);
 
 		// when

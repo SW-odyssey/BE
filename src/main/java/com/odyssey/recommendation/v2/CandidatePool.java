@@ -23,7 +23,7 @@ record CandidatePool(V2Context context, Map<TimeSlot, List<Candidate>> bySlot) {
 	}
 
 	List<Selected> near(TimeSlot slot, StoreKind kind, GeoPoint origin) {
-		var query = new V2RecommendationQuery(context.datasetId(), context.weekday(), slot, origin,
+		V2RecommendationQuery query = new V2RecommendationQuery(context.datasetId(), context.weekday(), slot, origin,
 			kind.category(), kind, "");
 		List<Candidate> slotCandidates = bySlot.getOrDefault(slot, List.of());
 		return V2RecommendationSelector.select(slotCandidates, query);

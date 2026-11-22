@@ -84,14 +84,14 @@ public class V2CourseService {
 
 	private V2CourseResponse buildCourse(List<Stage> stages, CandidatePool pool, Weekday weekday,
 		GeoPoint origin, Set<Long> excludeIds, long seed) {
-		var random = new Random(seed);
-		var excluded = new HashSet<>(excludeIds);
+		Random random = new Random(seed);
+		Set<Long> excluded = new HashSet<>(excludeIds);
 		List<Stop> stops = new ArrayList<>();
 		for (Stage stage : stages) {
 			List<Selected> nearby = pool.near(stage.slot(), stage.kind(), origin);
 			Pick pick = pickStageStop(nearby, excluded, weekday, stage, random);
 			if (pick.stop() == null) {
-				var interruption = new Interruption(stage.slot(), pick.reason());
+				Interruption interruption = new Interruption(stage.slot(), pick.reason());
 				return V2CourseResponse.interrupted(pool.context(), seed, stops, interruption);
 			}
 			stops.add(pick.stop());
@@ -156,7 +156,7 @@ public class V2CourseService {
 
 	private record Pick(Stop stop, String reason) {
 		static Pick selected(Stage stage, int rank, Item item, Result result) {
-			var stop = new Stop(stage.slot(), stage.visitTime().toString(), rank, item, result == Result.HOURS_UNKNOWN);
+			Stop stop = new Stop(stage.slot(), stage.visitTime().toString(), rank, item, result == Result.HOURS_UNKNOWN);
 			return new Pick(stop, null);
 		}
 

@@ -3,6 +3,7 @@ package com.odyssey.recommendation.v2;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Stream;
 
 import com.odyssey.cell.GeoPoint;
 import com.odyssey.cellcondition.repository.CellConditionRepository.Candidate;
@@ -37,7 +38,7 @@ final class V2RecommendationSelector {
 	record Selected(Candidate candidate, double distanceMeters) {
 		static Selected from(Candidate candidate, GeoPoint origin) {
 			Place place = candidate.place();
-			var location = new GeoPoint(place.lat(), place.lng());
+			GeoPoint location = new GeoPoint(place.lat(), place.lng());
 			return new Selected(candidate, origin.distanceTo(location));
 		}
 	}
@@ -50,7 +51,7 @@ final class V2RecommendationSelector {
 	 * 입력 목록은 바꾸지 않는다.
 	 */
 	static List<Selected> select(List<Candidate> candidates, V2RecommendationQuery query) {
-		var nearby = candidates.stream()
+		Stream<Selected> nearby = candidates.stream()
 			.filter(candidate -> matches(candidate.place(), query))
 			.map(candidate -> Selected.from(candidate, query.origin()))
 			.filter(selected -> selected.distanceMeters() <= RADIUS_METERS);

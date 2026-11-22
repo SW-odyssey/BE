@@ -39,8 +39,8 @@ class CourseCandidates {
 	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 	public CandidatePool load(String datasetId, Weekday weekday, List<TimeSlot> slots) {
 		Dataset dataset = datasets.require(datasetId);
-		var bySlot = loadBySlot(dataset.id(), weekday, slots);
-		var context = new V2Context(dataset.id(), dataset.referenceMonth(), weekday, slots.getFirst());
+		Map<TimeSlot, List<Candidate>> bySlot = loadBySlot(dataset.id(), weekday, slots);
+		V2Context context = new V2Context(dataset.id(), dataset.referenceMonth(), weekday, slots.getFirst());
 		return new CandidatePool(context, bySlot);
 	}
 

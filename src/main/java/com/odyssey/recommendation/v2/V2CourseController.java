@@ -53,8 +53,8 @@ public class V2CourseController {
 		String dataset = V2RequestParams.requireDatasetId(datasetId);
 		Weekday visitDay = V2RequestParams.required(Weekday.class, "weekday", weekday);
 		TimeSlot firstSlot = V2RequestParams.required(TimeSlot.class, "startSlot", startSlot);
-		var origin = new GeoPoint(lat, lng);
-		var course = service.recommend(dataset, visitDay, firstSlot, origin, excluded,
+		GeoPoint origin = new GeoPoint(lat, lng);
+		V2CourseResponse course = service.recommend(dataset, visitDay, firstSlot, origin, excluded,
 			seedOrRandom(seed), parseAfternoonKind(afternoon));
 		return ApiResult.ok(course);
 	}

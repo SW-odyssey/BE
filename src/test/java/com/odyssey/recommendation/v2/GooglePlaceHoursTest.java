@@ -60,7 +60,7 @@ class GooglePlaceHoursTest {
 	private Result check(int responseStatus, String responseBody, LocalTime visitTime, int stayMinutes) {
 		status = responseStatus;
 		body = responseBody;
-		var hours = new GooglePlaceHours("key", "http://127.0.0.1:" + server.getAddress().getPort());
+		GooglePlaceHours hours = new GooglePlaceHours("key", "http://127.0.0.1:" + server.getAddress().getPort());
 		return hours.check("place", Weekday.FRI, visitTime, stayMinutes);
 	}
 
@@ -139,7 +139,7 @@ class GooglePlaceHoursTest {
 	@DisplayName("API 키가 없음 → 외부를 부르지 않고 확인 불가다")
 	void noApiKey() {
 		// given
-		var hours = new GooglePlaceHours("", "http://127.0.0.1:9");
+		GooglePlaceHours hours = new GooglePlaceHours("", "http://127.0.0.1:9");
 
 		// when
 		Result result = hours.check("place", Weekday.FRI, LocalTime.NOON, 60);

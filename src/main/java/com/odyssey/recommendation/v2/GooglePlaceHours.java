@@ -35,8 +35,8 @@ class GooglePlaceHours implements CourseVisitChecker {
 
 	GooglePlaceHours(@Value("${google.places.api-key:}") String apiKey,
 		@Value("${google.places.base-url:https://places.googleapis.com}") String baseUrl) {
-		var http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
-		var factory = new JdkClientHttpRequestFactory(http);
+		HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
+		JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(http);
 		factory.setReadTimeout(Duration.ofSeconds(3));
 		this.client = RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
 		this.apiKey = apiKey == null ? "" : apiKey.trim();
@@ -84,7 +84,7 @@ class GooglePlaceHours implements CourseVisitChecker {
 		if (place.regularOpeningHours() == null) {
 			return Result.HOURS_UNKNOWN;
 		}
-		var periods = periods(place.regularOpeningHours().periods());
+		List<WeeklyOpeningHours.Period> periods = periods(place.regularOpeningHours().periods());
 		return WeeklyOpeningHours.coversStay(periods, weekday, visitTime, stayMinutes)
 			? Result.OPEN : Result.NOT_OPEN;
 	}

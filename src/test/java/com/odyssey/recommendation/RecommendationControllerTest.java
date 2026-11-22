@@ -255,7 +255,7 @@ class RecommendationControllerTest {
 	void pageParameter(int page) throws Exception {
 		// given
 		// when
-		var result = mockMvc.perform(get(URL).param("page", Integer.toString(page)));
+		ResultActions result = mockMvc.perform(get(URL).param("page", Integer.toString(page)));
 
 		// then
 		result.andExpect(status().isOk());
@@ -339,7 +339,7 @@ class RecommendationControllerTest {
 	@DisplayName("유효하지 않은 위도는 400이다")
 	void invalidLatitude(String lat) throws Exception {
 		// given / when
-		var result = mockMvc.perform(get(URL).param("lat", lat).param("lng", "127"));
+		ResultActions result = mockMvc.perform(get(URL).param("lat", lat).param("lng", "127"));
 		// then
 		expectInvalidInput(result);
 	}
@@ -348,7 +348,7 @@ class RecommendationControllerTest {
 	@DisplayName("위치 한쪽만 보내면 400이다")
 	void incompleteLocation() throws Exception {
 		// given / when
-		var result = mockMvc.perform(get(URL).param("lng", "127"));
+		ResultActions result = mockMvc.perform(get(URL).param("lng", "127"));
 		// then
 		expectInvalidInput(result);
 	}
@@ -360,7 +360,7 @@ class RecommendationControllerTest {
 		mockMvc.perform(get(URL).param("lat", "37.57").param("lng", "126.98"))
 			.andExpect(status().isOk());
 		// then
-		var query = capturedQuery();
+		RecommendationQuery query = capturedQuery();
 		assertThat(query.lat()).isEqualTo(37.57);
 		assertThat(query.lng()).isEqualTo(126.98);
 	}

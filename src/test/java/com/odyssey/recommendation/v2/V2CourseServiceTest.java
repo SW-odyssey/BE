@@ -64,7 +64,7 @@ class V2CourseServiceTest {
 	void pool() {
 		given(loader.load(anyString(), any(), anyList())).willAnswer(call -> {
 			List<TimeSlot> slots = call.getArgument(2);
-			var context = new V2Context(call.getArgument(0), "2025-11", call.getArgument(1), slots.getFirst());
+			V2Context context = new V2Context(call.getArgument(0), "2025-11", call.getArgument(1), slots.getFirst());
 			return new CandidatePool(context, bySlot);
 		});
 	}
@@ -153,7 +153,7 @@ class V2CourseServiceTest {
 	@DisplayName("1위 점수대 안에서 영업하는 곳이 뒤에 있음 → 섞인 순서와 상관없이 찾는다")
 	void findsOpenStoreLateInBand() {
 		// given
-		var ranked = new ArrayList<Candidate>();
+		List<Candidate> ranked = new ArrayList<>();
 		for (long id = 1; id <= 7; id++) {
 			ranked.add(store(id, StoreKind.KOREAN, 99));
 		}
@@ -175,7 +175,7 @@ class V2CourseServiceTest {
 	@DisplayName("확인할 후보가 10곳보다 많고 모두 닫힘 → 10번만 확인하고 NO_VERIFIED_MATCH 로 멈춘다")
 	void capsChecksPerStage() {
 		// given: 99점 7곳, 90점 3곳, 80점 2곳
-		var ranked = new ArrayList<Candidate>();
+		List<Candidate> ranked = new ArrayList<>();
 		for (long id = 1; id <= 12; id++) {
 			ranked.add(store(id, StoreKind.KOREAN, id <= 7 ? 99 : id <= 10 ? 90 : 80));
 		}
@@ -292,7 +292,7 @@ class V2CourseServiceTest {
 	@DisplayName("앞 구간에서 고른 매장 → 뒤 구간 후보에 다시 나와도 고르지 않는다")
 	void pickedStoreIsNotReused() {
 		// given: 같은 매장이 저녁·심야 후보에 모두 있다
-		var both = store(1, StoreKind.KOREAN, 99);
+		Candidate both = store(1, StoreKind.KOREAN, 99);
 		candidates(TimeSlot.DINNER, both);
 		candidates(TimeSlot.LATE_NIGHT, at(1, StoreKind.BAR, 99, 37.5661, 126.9900));
 
@@ -323,7 +323,7 @@ class V2CourseServiceTest {
 	@DisplayName("오후 자리가 카페·구경이 아님 → 후보를 읽기 전에 거절한다")
 	void rejectsOtherAfternoonKinds(StoreKind afternoon) {
 		// when
-		var exception = catchThrowableOfType(IllegalArgumentException.class, () -> service.recommend("nov",
+		IllegalArgumentException exception = catchThrowableOfType(IllegalArgumentException.class, () -> service.recommend("nov",
 			Weekday.FRI, TimeSlot.AFTERNOON, ORIGIN, Set.of(), 1, afternoon));
 
 		// then

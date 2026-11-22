@@ -207,7 +207,7 @@ class StoreQueryRepositoryTest {
 		// given
 		jdbc.sql("insert into store_badge values (5, 'ORAE_GAGE'), (5, 'CENTURY_STORE')").update();
 		// when
-		var rows = storeQueryRepository.findCards(List.of(CELL_B), null, null,
+		List<StoreCardRow> rows = storeQueryRepository.findCards(List.of(CELL_B), null, null,
 			LocalDate.of(1996, 1, 1), null);
 		// then: 배지 두 개가 있어도 가게는 한 번만 반환한다.
 		assertThat(rows).extracting(StoreCardRow::id).containsExactly(5L);

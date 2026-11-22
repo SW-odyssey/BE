@@ -80,7 +80,7 @@ class WeeklyOpeningHoursTest {
 	@DisplayName("마감이 없는 구간 → 24시간 영업이다")
 	void noCloseMeansAlwaysOpen(Weekday weekday, LocalTime arrival) {
 		// given
-		var always = List.of(new Period(new Point(SUN, 0, 0), null));
+		List<Period> always = List.of(new Period(new Point(SUN, 0, 0), null));
 
 		// when
 		boolean open = WeeklyOpeningHours.coversStay(always, weekday, arrival, 70);

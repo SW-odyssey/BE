@@ -60,7 +60,7 @@ class V2CourseControllerTest {
 
 	/** 필수 값 다섯 개를 채운 요청에서 key 의 값만 value 로 바꾼다. */
 	private static MockHttpServletRequestBuilder validWith(String key, String value) {
-		var params = new LinkedMultiValueMap<String, String>();
+		LinkedMultiValueMap<String, String> params = new LinkedMultiValueMap<>();
 		params.set("datasetId", "nov");
 		params.set("weekday", "fri");
 		params.set("startSlot", "dinner");
@@ -89,7 +89,7 @@ class V2CourseControllerTest {
 	@DisplayName("모든 값을 보냄 → 바꾼 값 그대로 서비스에 넘긴다")
 	void passesParsedValues() throws Exception {
 		// given
-		var request = valid().param("excludeIds", "3,4").param("seed", "7").param("afternoon", "shop");
+		MockHttpServletRequestBuilder request = valid().param("excludeIds", "3,4").param("seed", "7").param("afternoon", "shop");
 
 		// when
 		mvc.perform(request).andExpect(status().isOk());
@@ -104,7 +104,7 @@ class V2CourseControllerTest {
 	@DisplayName("afternoon → cafe·shop 을 종류로 바꾸고 비어 있으면 카페다")
 	void afternoonKind(String value, StoreKind expected) throws Exception {
 		// given
-		var request = validWith("afternoon", value);
+		MockHttpServletRequestBuilder request = validWith("afternoon", value);
 
 		// when
 		mvc.perform(request).andExpect(status().isOk());
@@ -117,7 +117,7 @@ class V2CourseControllerTest {
 	@DisplayName("선택 값을 모두 뺌 → 제외 없음·카페이고 seed 는 서버가 정한다")
 	void optionalDefaults() throws Exception {
 		// given
-		var request = valid();
+		MockHttpServletRequestBuilder request = valid();
 
 		// when
 		mvc.perform(request).andExpect(status().isOk());
@@ -242,7 +242,7 @@ class V2CourseControllerTest {
 	@DisplayName("필수 값 lat 을 뺌 → 400 INVALID_INPUT")
 	void missingLat() throws Exception {
 		// given
-		var request = get(URL).param("datasetId", "nov").param("weekday", "fri").param("startSlot", "dinner")
+		MockHttpServletRequestBuilder request = get(URL).param("datasetId", "nov").param("weekday", "fri").param("startSlot", "dinner")
 			.param("lng", "126.9903373");
 
 		// when
