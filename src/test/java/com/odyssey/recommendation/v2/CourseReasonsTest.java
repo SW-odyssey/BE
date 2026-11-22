@@ -1,12 +1,15 @@
 package com.odyssey.recommendation.v2;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import com.odyssey.cellslotscore.entity.TimeSlot;
 import com.odyssey.recommendation.v2.CourseReason.AreaType;
@@ -136,5 +139,55 @@ class CourseReasonsTest {
 
 	/** 응답처럼 목록의 원소 타입이 {@link CourseReason} 인 자리. */
 	record CourseReasonList(List<CourseReason> reasons) {
+	}
+
+	@ParameterizedTest
+	@CsvSource({"100, 1", "99.5, 1", "98.5, 2", "50, 50", "0, 100"})
+	@DisplayName("칸 백분위가 경계값이다 → 100 - 백분위를 반올림하되 1 아래로 내려가지 않는다")
+	void topPercentBoundaries(double percentile, int expected) {
+		// when
+		int percent = CourseReasons.topPercent(percentile);
+
+		// then
+		assertThat(percent).isEqualTo(expected);
+	}
+
+	@Test
+	@DisplayName("범위 후보가 정확히 2곳이다 → SIMILAR_CHOICES 를 붙인다")
+	void similarChoicesFromTwo() {
+		// when
+		List<CourseReason> reasons = CourseReasons.of(
+			with(97, Optional.empty(), Optional.empty(), 2, true));
+
+		// then
+		assertThat(reasons).containsExactly(new LocalTop(3), new SimilarChoices(2));
+	}
+
+	@Test
+	@DisplayName("자정을 넘겨 머문다 → OPEN_DURING_STAY 는 도착·나오는 시각을 그대로 담는다")
+	void openDuringStayKeepsTimesAcrossMidnight() {
+		// given
+		StopFacts facts = new StopFacts(97, TimeSlot.LATE_NIGHT, Optional.empty(), Optional.empty(),
+			"23:30", "00:40", 1, false);
+
+		// when
+		List<CourseReason> reasons = CourseReasons.of(facts);
+
+		// then
+		assertThat(reasons).containsExactly(new LocalTop(3), new OpenDuringStay("23:30", "00:40"));
+	}
+
+	@Test
+	@DisplayName("붐비는 시간대나 동네 유형을 null 로 넘긴다 → 비어 있음(Optional.empty)으로 표현하라고 거절한다")
+	void nullOptionalsRejected() {
+		// when
+		Throwable peakNull = catchThrowable(() -> new StopFacts(97, TimeSlot.LUNCH, null, Optional.empty(),
+			"12:30", "13:20", 3, false));
+		Throwable areaNull = catchThrowable(() -> new StopFacts(97, TimeSlot.LUNCH, Optional.empty(), null,
+			"12:30", "13:20", 3, false));
+
+		// then
+		assertThat(peakNull).isInstanceOf(NullPointerException.class).hasMessage("peakSlot");
+		assertThat(areaNull).isInstanceOf(NullPointerException.class).hasMessage("areaType");
 	}
 }
