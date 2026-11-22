@@ -11,12 +11,7 @@ import java.util.Random;
 import java.util.Set;
 
 /**
- * 한 구간에서 영업을 확인할 후보 순서. 외부 호출을 모르는 순수한 계산이다.
- *
- * <p>남은 후보 중 1위와 방문 백분위 {@link #BAND} 점 이내를 한 점수대로 보고 seed 로 섞어 내준다. 그 점수대를
- * 다 내주면 남은 후보의 다음 점수대로 내려간다. 모두 합쳐 {@link #MAX_CHECKS} 곳까지다.
- *
- * <p>점수대는 다음 후보를 달라고 할 때 섞는다. 미리 다 섞으면 {@link Random} 을 더 쓰게 되어, 같은 seed 로
+ * 점수대는 다음 후보를 달라고 할 때 섞는다. 미리 다 섞으면 {@link Random} 을 더 쓰게 되어, 같은 seed 로
  * 이어지는 뒤 구간의 순서가 바뀐다.
  */
 final class CheckOrder implements Iterator<Integer> {
@@ -61,14 +56,22 @@ final class CheckOrder implements Iterator<Integer> {
 			return false;
 		}
 		if (band.isEmpty() && !remaining.isEmpty()) {
-			double floor = percentiles.get(remaining.getFirst()) - BAND;
-			List<Integer> next = remaining.stream().filter(i -> percentiles.get(i) >= floor).toList();
-			List<Integer> shuffled = new ArrayList<>(next);
-			Collections.shuffle(shuffled, random);
-			band.addAll(shuffled);
-			remaining.removeAll(next);
+			shuffleNextBand();
 		}
 		return !band.isEmpty();
+	}
+
+	private void shuffleNextBand() {
+		double floor = percentiles.get(remaining.getFirst()) - BAND;
+		List<Integer> nextBand = new ArrayList<>();
+		for (int index : remaining) {
+			if (percentiles.get(index) >= floor) {
+				nextBand.add(index);
+			}
+		}
+		remaining.removeAll(nextBand);
+		Collections.shuffle(nextBand, random);
+		band.addAll(nextBand);
 	}
 
 	@Override

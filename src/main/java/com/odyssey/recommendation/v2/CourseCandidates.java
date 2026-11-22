@@ -39,12 +39,18 @@ class CourseCandidates {
 	@Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
 	public CandidatePool load(String datasetId, Weekday weekday, List<TimeSlot> slots) {
 		Dataset dataset = datasets.require(datasetId);
-		Map<TimeSlot, List<Candidate>> bySlot = new EnumMap<>(TimeSlot.class);
-		for (TimeSlot slot : slots) {
-			bySlot.put(slot, candidates.candidates(dataset.id(), weekday, slot,
-				V2RecommendationSelector.MIN_VISITOR_PERCENTILE));
-		}
+		var bySlot = loadBySlot(dataset.id(), weekday, slots);
 		var context = new V2Context(dataset.id(), dataset.referenceMonth(), weekday, slots.getFirst());
 		return new CandidatePool(context, bySlot);
+	}
+
+	private Map<TimeSlot, List<Candidate>> loadBySlot(String datasetId, Weekday weekday, List<TimeSlot> slots) {
+		Map<TimeSlot, List<Candidate>> bySlot = new EnumMap<>(TimeSlot.class);
+		for (TimeSlot slot : slots) {
+			List<Candidate> found = candidates.candidates(datasetId, weekday, slot,
+				V2RecommendationSelector.MIN_VISITOR_PERCENTILE);
+			bySlot.put(slot, found);
+		}
+		return bySlot;
 	}
 }

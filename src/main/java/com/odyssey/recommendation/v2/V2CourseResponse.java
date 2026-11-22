@@ -13,6 +13,15 @@ import com.odyssey.recommendation.v2.V2RecommendationResponse.Item;
 public record V2CourseResponse(String status, V2Context context, long seed,
 	List<Stop> stops, Interruption interruption) {
 
+	static V2CourseResponse complete(V2Context context, long seed, List<Stop> stops) {
+		return new V2CourseResponse("COMPLETE", context, seed, List.copyOf(stops), null);
+	}
+
+	static V2CourseResponse interrupted(V2Context context, long seed, List<Stop> stops, Interruption interruption) {
+		String status = stops.isEmpty() ? "NO_MATCHES" : "PARTIAL";
+		return new V2CourseResponse(status, context, seed, List.copyOf(stops), interruption);
+	}
+
 	/**
 	 * @param candidateRank 제외·무작위 선택 전 목록 API 의 순번
 	 * @param hoursUnknown  영업 중으로 등록돼 있지만 정규 영업시간이 없다. 쇼핑에서만 true 가 될 수 있다

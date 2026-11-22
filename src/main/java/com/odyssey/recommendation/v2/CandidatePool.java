@@ -10,9 +10,7 @@ import com.odyssey.recommendation.v2.V2RecommendationSelector.Selected;
 import com.odyssey.store.entity.StoreKind;
 
 /**
- * 한 코스에 쓸 시간대별 후보. DB 를 모르는 순수한 값이고, 출발점마다 목록 API 와 같은 규칙으로 거른다.
- *
- * <p>후보 조회는 시간대 기준이라 출발점과 무관하다. 그래서 코스에 필요한 시간대를 미리 한 번에 읽어 두고,
+ * 후보 조회는 시간대 기준이라 출발점과 무관하다. 그래서 코스에 필요한 시간대를 미리 한 번에 읽어 두고,
  * 앞 구간에서 고른 매장 좌표가 정해질 때마다 여기서 거리만 다시 거른다.
  *
  * @param context 시작 시간대 기준의 응답 context
@@ -24,10 +22,10 @@ record CandidatePool(V2Context context, Map<TimeSlot, List<Candidate>> bySlot) {
 		bySlot = Map.copyOf(bySlot);
 	}
 
-	/** @return 목록 API 와 같은 순서·같은 반경의 후보. 읽지 않은 시간대면 빈 목록 */
 	List<Selected> near(TimeSlot slot, StoreKind kind, GeoPoint origin) {
 		var query = new V2RecommendationQuery(context.datasetId(), context.weekday(), slot, origin,
 			kind.category(), kind, "");
-		return V2RecommendationSelector.select(bySlot.getOrDefault(slot, List.of()), query);
+		List<Candidate> slotCandidates = bySlot.getOrDefault(slot, List.of());
+		return V2RecommendationSelector.select(slotCandidates, query);
 	}
 }

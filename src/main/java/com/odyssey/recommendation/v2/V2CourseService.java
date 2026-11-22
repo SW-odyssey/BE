@@ -20,9 +20,7 @@ import com.odyssey.recommendation.v2.V2RecommendationSelector.Selected;
 import com.odyssey.store.entity.StoreKind;
 
 /**
- * 구간마다 기존 목록 API 의 후보에서 한 곳을 골라 심야까지 잇는다.
- *
- * <p>확인할 후보 순서는 {@link CheckOrder} 가 정한다. 뒤 구간이 끊겨도 앞에서 고른 매장을 되돌리지 않는다.
+ * 뒤 구간이 끊겨도 앞에서 고른 매장은 코스에 남긴다.
  */
 @Service
 public class V2CourseService {
@@ -58,58 +56,82 @@ public class V2CourseService {
 	/** @param afternoon 오후 자리의 종류. 카페(CAFE) 또는 구경(SHOP) */
 	public V2CourseResponse recommend(String datasetId, Weekday weekday, TimeSlot startSlot,
 		GeoPoint origin, Set<Long> excludeIds, long seed, StoreKind afternoon) {
+		validateAfternoonKind(afternoon);
+		List<Stage> stages = planStagesFrom(startSlot, afternoon);
+		CandidatePool pool = loadCandidates(datasetId, weekday, stages);
+		return buildCourse(stages, pool, weekday, origin, excludeIds, seed);
+	}
+
+	private static void validateAfternoonKind(StoreKind afternoon) {
 		if (afternoon != StoreKind.CAFE && afternoon != StoreKind.SHOP) {
 			throw new IllegalArgumentException("afternoon: " + afternoon);
 		}
-		List<Stage> stages = STAGES.stream().dropWhile(s -> s.slot() != startSlot)
-			.map(s -> s.slot() == TimeSlot.AFTERNOON && afternoon == StoreKind.SHOP
-				? new Stage(s.slot(), afternoon, s.visitTime(), SHOP_STAY_MINUTES) : s)
+	}
+
+	private static List<Stage> planStagesFrom(TimeSlot startSlot, StoreKind afternoon) {
+		List<Stage> remainingStages = STAGES.stream()
+			.dropWhile(stage -> stage.slot() != startSlot)
 			.toList();
-		// DB 는 여기서 다 읽고 끝낸다. 아래 영업 확인은 트랜잭션 밖이다
-		CandidatePool pool = candidates.load(datasetId, weekday, stages.stream().map(Stage::slot).toList());
+		return remainingStages.stream()
+			.map(stage -> stage.withAfternoonKind(afternoon))
+			.toList();
+	}
+
+	private CandidatePool loadCandidates(String datasetId, Weekday weekday, List<Stage> stages) {
+		List<TimeSlot> slots = stages.stream().map(Stage::slot).toList();
+		return candidates.load(datasetId, weekday, slots);
+	}
+
+	private V2CourseResponse buildCourse(List<Stage> stages, CandidatePool pool, Weekday weekday,
+		GeoPoint origin, Set<Long> excludeIds, long seed) {
 		var random = new Random(seed);
 		var excluded = new HashSet<>(excludeIds);
 		List<Stop> stops = new ArrayList<>();
-		Interruption interruption = null;
 		for (Stage stage : stages) {
-			Pick pick = pick(pool.near(stage.slot(), stage.kind(), origin), excluded, weekday, stage, random);
+			List<Selected> nearby = pool.near(stage.slot(), stage.kind(), origin);
+			Pick pick = pickStageStop(nearby, excluded, weekday, stage, random);
 			if (pick.stop() == null) {
-				interruption = new Interruption(stage.slot(), pick.reason());
-				break;
+				var interruption = new Interruption(stage.slot(), pick.reason());
+				return V2CourseResponse.interrupted(pool.context(), seed, stops, interruption);
 			}
 			stops.add(pick.stop());
 			Item place = pick.stop().place();
 			excluded.add(place.id());
 			origin = new GeoPoint(place.lat(), place.lng());
 		}
-		String status = interruption == null ? "COMPLETE" : stops.isEmpty() ? "NO_MATCHES" : "PARTIAL";
-		return new V2CourseResponse(status, pool.context(), seed, List.copyOf(stops), interruption);
+		return V2CourseResponse.complete(pool.context(), seed, stops);
 	}
 
-	private Pick pick(List<Selected> ranked, Set<Long> excluded, Weekday weekday, Stage stage, Random random) {
+	private Pick pickStageStop(List<Selected> ranked, Set<Long> excluded, Weekday weekday, Stage stage, Random random) {
 		if (ranked.isEmpty()) {
 			return Pick.stopped("NO_NEARBY_MATCH");
 		}
+		Set<Integer> skipped = excludedIndices(ranked, excluded);
+		if (skipped.size() == ranked.size()) {
+			return Pick.stopped("ALL_EXCLUDED");
+		}
+		List<Double> percentiles = ranked.stream().map(s -> s.candidate().percentile()).toList();
+		CheckOrder order = CheckOrder.of(percentiles, skipped, random);
+		return findFirstVisitableStop(ranked, weekday, stage, order);
+	}
+
+	private static Set<Integer> excludedIndices(List<Selected> ranked, Set<Long> excluded) {
 		Set<Integer> skipped = new HashSet<>();
 		for (int i = 0; i < ranked.size(); i++) {
 			if (excluded.contains(ranked.get(i).candidate().place().id())) {
 				skipped.add(i);
 			}
 		}
-		if (skipped.size() == ranked.size()) {
-			return Pick.stopped("ALL_EXCLUDED");
-		}
-		List<Double> percentiles = ranked.stream().map(s -> s.candidate().percentile()).toList();
-		for (var order = CheckOrder.of(percentiles, skipped, random); order.hasNext(); ) {
-			int i = order.next();
-			Item item = Item.from(ranked.get(i));
+		return skipped;
+	}
+
+	private Pick findFirstVisitableStop(List<Selected> ranked, Weekday weekday, Stage stage, CheckOrder order) {
+		while (order.hasNext()) {
+			int index = order.next();
+			Item item = Item.from(ranked.get(index));
 			Result result = checker.check(item.googlePlaceId(), weekday, stage.visitTime(), stage.stayMinutes());
-			if (result == Result.OPEN) {
-				return new Pick(new Stop(stage.slot(), stage.visitTime().toString(), i + 1, item, false), null);
-			}
-			// 작은 공방·갤러리는 Google 에 영업시간이 없는 곳이 많다. 쇼핑만 받고 응답에 표시한다
-			if (result == Result.HOURS_UNKNOWN && stage.kind() == StoreKind.SHOP) {
-				return new Pick(new Stop(stage.slot(), stage.visitTime().toString(), i + 1, item, true), null);
+			if (stage.allowsVisit(result)) {
+				return Pick.selected(stage, index + 1, item, result);
 			}
 			if (result == Result.UNAVAILABLE) {
 				return Pick.stopped("VERIFICATION_UNAVAILABLE");
@@ -119,9 +141,25 @@ public class V2CourseService {
 	}
 
 	private record Stage(TimeSlot slot, StoreKind kind, LocalTime visitTime, int stayMinutes) {
+		boolean allowsVisit(Result result) {
+			// 작은 공방·갤러리는 Google에 영업시간이 없는 곳이 많아 쇼핑 구간에서만 허용한다.
+			return result == Result.OPEN || (kind == StoreKind.SHOP && result == Result.HOURS_UNKNOWN);
+		}
+
+		Stage withAfternoonKind(StoreKind afternoon) {
+			if (slot == TimeSlot.AFTERNOON && afternoon == StoreKind.SHOP) {
+				return new Stage(slot, StoreKind.SHOP, visitTime, SHOP_STAY_MINUTES);
+			}
+			return this;
+		}
 	}
 
 	private record Pick(Stop stop, String reason) {
+		static Pick selected(Stage stage, int rank, Item item, Result result) {
+			var stop = new Stop(stage.slot(), stage.visitTime().toString(), rank, item, result == Result.HOURS_UNKNOWN);
+			return new Pick(stop, null);
+		}
+
 		static Pick stopped(String reason) {
 			return new Pick(null, reason);
 		}

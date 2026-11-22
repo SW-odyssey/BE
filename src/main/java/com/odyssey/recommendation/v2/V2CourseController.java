@@ -49,18 +49,31 @@ public class V2CourseController {
 		@Parameter(description = "오후 자리. cafe(기본) 또는 shop(구경)") @RequestParam(required = false) String afternoon,
 		@Parameter(hidden = true) @RequestParam MultiValueMap<String, String> params) {
 		V2RequestParams.check(params, KEYS);
-		if (excludeIds != null && excludeIds.stream().anyMatch(id -> id == null || id <= 0)) {
-			throw new BusinessException(CommonErrorCode.INVALID_INPUT, "excludeIds에는 양의 매장 ID가 필요합니다.");
-		}
-		return ApiResult.ok(service.recommend(V2RequestParams.requireDatasetId(datasetId),
-			V2RequestParams.required(Weekday.class, "weekday", weekday),
-			V2RequestParams.required(TimeSlot.class, "startSlot", startSlot), new GeoPoint(lat, lng),
-			excludeIds == null ? Set.of() : Set.copyOf(excludeIds),
-			seed == null ? ThreadLocalRandom.current().nextLong(1, 1L << 53) : seed,
-			afternoonKind(afternoon)));
+		Set<Long> excluded = parseExcludedStoreIds(excludeIds);
+		String dataset = V2RequestParams.requireDatasetId(datasetId);
+		Weekday visitDay = V2RequestParams.required(Weekday.class, "weekday", weekday);
+		TimeSlot firstSlot = V2RequestParams.required(TimeSlot.class, "startSlot", startSlot);
+		var origin = new GeoPoint(lat, lng);
+		var course = service.recommend(dataset, visitDay, firstSlot, origin, excluded,
+			seedOrRandom(seed), parseAfternoonKind(afternoon));
+		return ApiResult.ok(course);
 	}
 
-	private static StoreKind afternoonKind(String value) {
+	private static Set<Long> parseExcludedStoreIds(List<Long> excludeIds) {
+		if (excludeIds == null) {
+			return Set.of();
+		}
+		if (excludeIds.stream().anyMatch(id -> id == null || id <= 0)) {
+			throw new BusinessException(CommonErrorCode.INVALID_INPUT, "excludeIds에는 양의 매장 ID가 필요합니다.");
+		}
+		return Set.copyOf(excludeIds);
+	}
+
+	private static long seedOrRandom(Long seed) {
+		return seed == null ? ThreadLocalRandom.current().nextLong(1, 1L << 53) : seed;
+	}
+
+	private static StoreKind parseAfternoonKind(String value) {
 		if (value == null || value.isBlank() || value.equals("cafe")) {
 			return StoreKind.CAFE;
 		}

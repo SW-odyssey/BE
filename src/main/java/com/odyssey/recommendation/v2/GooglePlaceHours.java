@@ -48,25 +48,36 @@ class GooglePlaceHours implements CourseVisitChecker {
 			log.warn("google.places.api-key 가 없어 코스 영업 확인을 할 수 없습니다.");
 			return Result.UNAVAILABLE;
 		}
-		Place place;
 		try {
-			place = client.get().uri("/v1/places/{id}", googlePlaceId)
-				.header("X-Goog-Api-Key", apiKey).header("X-Goog-FieldMask", FIELDS)
-				.retrieve().body(Place.class);
+			Place place = fetchPlaceHours(googlePlaceId);
+			return checkStayDuringOpeningHours(place, weekday, visitTime, stayMinutes);
 		} catch (HttpClientErrorException.NotFound e) {
 			return Result.NOT_OPEN;
 		} catch (HttpClientErrorException e) {
-			// 400 은 place_id 형식이 잘못된 매장 문제, 그 밖의 4xx(키·한도)는 서버 문제다.
-			// 잘못되거나 만료된 키도 400 이라 본문의 reason 으로 나눈다
-			if (e.getStatusCode() == HttpStatus.BAD_REQUEST && !isInvalidKey(e)) {
-				return Result.NOT_OPEN;
-			}
-			log.warn("Google Place Details 조회 실패: {}", e.getStatusCode());
-			return Result.UNAVAILABLE;
+			return resultForClientError(e);
 		} catch (RestClientException e) {
 			log.warn("Google Place Details 조회 실패: {}", e.getClass().getSimpleName());
 			return Result.UNAVAILABLE;
 		}
+	}
+
+	private Place fetchPlaceHours(String googlePlaceId) {
+		return client.get().uri("/v1/places/{id}", googlePlaceId)
+			.header("X-Goog-Api-Key", apiKey)
+			.header("X-Goog-FieldMask", FIELDS)
+			.retrieve().body(Place.class);
+	}
+
+	private static Result resultForClientError(HttpClientErrorException e) {
+		// Google은 매장 ID 형식 오류와 만료된 API 키에 모두 400을 반환한다.
+		if (e.getStatusCode() == HttpStatus.BAD_REQUEST && !isInvalidKey(e)) {
+			return Result.NOT_OPEN;
+		}
+		log.warn("Google Place Details 조회 실패: {}", e.getStatusCode());
+		return Result.UNAVAILABLE;
+	}
+
+	private static Result checkStayDuringOpeningHours(Place place, Weekday weekday, LocalTime visitTime, int stayMinutes) {
 		if (place == null || !"OPERATIONAL".equals(place.businessStatus())) {
 			return Result.NOT_OPEN;
 		}
@@ -97,8 +108,12 @@ class GooglePlaceHours implements CourseVisitChecker {
 			return null;
 		}
 		return periods.stream()
-			.map(p -> p == null ? null : new WeeklyOpeningHours.Period(point(p.open()), point(p.close())))
+			.map(GooglePlaceHours::toWeeklyPeriod)
 			.toList();
+	}
+
+	private static WeeklyOpeningHours.Period toWeeklyPeriod(Period period) {
+		return period == null ? null : new WeeklyOpeningHours.Period(point(period.open()), point(period.close()));
 	}
 
 	private static WeeklyOpeningHours.Point point(Point point) {

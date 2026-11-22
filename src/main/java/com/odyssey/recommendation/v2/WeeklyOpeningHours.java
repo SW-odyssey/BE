@@ -6,9 +6,7 @@ import java.util.List;
 import com.odyssey.cellcondition.entity.Weekday;
 
 /**
- * 주 단위 정규 영업시간으로 도착부터 머무는 동안 계속 영업하는지 계산한다. 외부 호출을 모르는 순수한 계산이다.
- *
- * <p>요일은 Google 과 같이 0(일)~6(토)으로 받는다. 자정이나 토→일을 넘는 구간도 있다.
+ * Google 영업시간은 일요일을 0으로 세며 한 영업 구간이 토요일에서 일요일까지 이어질 수 있다.
  */
 final class WeeklyOpeningHours {
 
@@ -17,6 +15,25 @@ final class WeeklyOpeningHours {
 
 	/** @param close 없으면 24시간 영업이다 */
 	record Period(Point open, Point close) {
+		boolean coversStay(int arrivalMinute, int stayMinutes) {
+			if (open == null) {
+				return false;
+			}
+			if (close == null) {
+				return true;
+			}
+			int openingMinute = minuteOfWeek(open);
+			int closingMinute = minuteOfWeek(close);
+			if (closingMinute <= openingMinute) {
+				closingMinute += MINUTES_PER_WEEK;
+			}
+			return stayFitsBetween(openingMinute, closingMinute, arrivalMinute, stayMinutes)
+				|| stayFitsBetween(openingMinute, closingMinute, arrivalMinute + MINUTES_PER_WEEK, stayMinutes);
+		}
+
+		private static boolean stayFitsBetween(int open, int close, int arrival, int stayMinutes) {
+			return open <= arrival && arrival < close && arrival + stayMinutes <= close;
+		}
 	}
 
 	/** @param day 0(일)~6(토) */
@@ -37,26 +54,9 @@ final class WeeklyOpeningHours {
 		if (periods == null) {
 			return false;
 		}
-		int at = minuteOfWeek((weekday.ordinal() + 1) % 7, arrival.getHour(), arrival.getMinute());
-		for (Period period : periods) {
-			if (period == null || period.open() == null) {
-				continue;
-			}
-			if (period.close() == null) {
-				return true;
-			}
-			int open = minuteOfWeek(period.open());
-			int close = minuteOfWeek(period.close());
-			if (close <= open) {
-				close += MINUTES_PER_WEEK;
-			}
-			for (int arrive : new int[] {at, at + MINUTES_PER_WEEK}) {
-				if (open <= arrive && arrive < close && arrive + stayMinutes <= close) {
-					return true;
-				}
-			}
-		}
-		return false;
+		int googleDay = (weekday.ordinal() + 1) % 7;
+		int arrivalMinute = minuteOfWeek(googleDay, arrival.getHour(), arrival.getMinute());
+		return periods.stream().anyMatch(period -> period != null && period.coversStay(arrivalMinute, stayMinutes));
 	}
 
 	private static int minuteOfWeek(Point point) {
