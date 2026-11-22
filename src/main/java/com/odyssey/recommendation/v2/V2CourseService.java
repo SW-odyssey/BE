@@ -61,12 +61,13 @@ public class V2CourseService {
 			.dropWhile(s -> s.slot() != startSlot).toList();
 		// DB 는 여기서 다 읽고 끝낸다. 아래 영업 확인은 트랜잭션 밖이다
 		CandidatePool pool = candidates.load(datasetId, weekday, slots.stream().map(CourseSlot::slot).distinct().toList());
-		var random = new Random(seed);
-		var excluded = new HashSet<>(excludeIds);
+		Random random = new Random(seed);
+		Set<Long> excluded = new HashSet<>(excludeIds);
 		List<Pick> picks = new ArrayList<>();
 		Interruption interruption = null;
 		for (CourseSlot slot : slots) {
-			Pick pick = pick(pool.near(slot.slot(), onlyKind(slot), origin), excluded, weekday, slot, random);
+			List<Selected> ranked = pool.near(slot.slot(), onlyKind(slot), origin, slot.minPercentile());
+			Pick pick = pick(ranked, excluded, weekday, slot, random);
 			if (pick.stop() == null) {
 				interruption = new Interruption(slot.slot(), pick.reason());
 				break;
@@ -123,7 +124,7 @@ public class V2CourseService {
 			return Pick.stopped("ALL_EXCLUDED");
 		}
 		List<Double> percentiles = ranked.stream().map(s -> s.candidate().percentile()).toList();
-		for (var order = CheckOrder.of(percentiles, skipped, random); order.hasNext(); ) {
+		for (CheckOrder order = CheckOrder.of(percentiles, skipped, random); order.hasNext(); ) {
 			int i = order.next();
 			Item item = Item.from(ranked.get(i));
 			Result result = checker.check(item.googlePlaceId(), weekday, slot.visitTime(),

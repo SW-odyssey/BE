@@ -25,9 +25,12 @@ record CandidatePool(V2Context context, Map<TimeSlot, List<Candidate>> bySlot) {
 	}
 
 	/** @return 목록 API 와 같은 순서·같은 반경의 후보. 읽지 않은 시간대면 빈 목록 */
-	List<Selected> near(TimeSlot slot, StoreKind kind, GeoPoint origin) {
-		var query = new V2RecommendationQuery(context.datasetId(), context.weekday(), slot, origin,
+	List<Selected> near(TimeSlot slot, StoreKind kind, GeoPoint origin, double minPercentile) {
+		V2RecommendationQuery query = new V2RecommendationQuery(context.datasetId(), context.weekday(), slot, origin,
 			kind.category(), kind, "");
-		return V2RecommendationSelector.select(bySlot.getOrDefault(slot, List.of()), query);
+		List<Candidate> eligible = bySlot.getOrDefault(slot, List.of()).stream()
+			.filter(candidate -> candidate.percentile() >= minPercentile)
+			.toList();
+		return V2RecommendationSelector.select(eligible, query);
 	}
 }

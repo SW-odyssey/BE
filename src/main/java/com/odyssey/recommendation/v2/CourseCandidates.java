@@ -42,9 +42,9 @@ class CourseCandidates {
 		Map<TimeSlot, List<Candidate>> bySlot = new EnumMap<>(TimeSlot.class);
 		for (TimeSlot slot : slots) {
 			bySlot.put(slot, candidates.candidates(dataset.id(), weekday, slot,
-				V2RecommendationSelector.MIN_VISITOR_PERCENTILE));
+				CourseSchedule.MIN_COURSE_PERCENTILE));
 		}
-		var context = new V2Context(dataset.id(), dataset.referenceMonth(), weekday, slots.getFirst());
+		V2Context context = new V2Context(dataset.id(), dataset.referenceMonth(), weekday, slots.getFirst());
 		return new CandidatePool(context, bySlot);
 	}
 }
