@@ -21,6 +21,7 @@ import com.odyssey.recommendation.v2.CourseReasons.StopFacts;
 import com.odyssey.recommendation.v2.CourseSchedule.CourseSlot;
 import com.odyssey.recommendation.v2.CourseVisitChecker.Result;
 import com.odyssey.recommendation.v2.V2CourseResponse.Interruption;
+import com.odyssey.recommendation.v2.V2CourseResponse.Skipped;
 import com.odyssey.recommendation.v2.V2CourseResponse.Stop;
 import com.odyssey.recommendation.v2.V2RecommendationResponse.Item;
 import com.odyssey.recommendation.v2.V2RecommendationSelector.Selected;
@@ -61,38 +62,35 @@ public class V2CourseService {
 	/** @param afternoon 오후 자리의 종류. 카페(CAFE) 또는 구경(SHOP) */
 	public V2CourseResponse recommend(String datasetId, Weekday weekday, TimeSlot startSlot,
 		GeoPoint origin, Set<Long> excludeIds, long seed, StoreKind afternoon) {
-		validateAfternoonKind(afternoon);
-		List<CourseSlot> stages = planStagesFrom(startSlot, afternoon);
-		CandidatePool pool = loadCandidates(datasetId, weekday, stages);
-		return buildCourse(stages, pool, weekday, origin, excludeIds, seed);
-	}
-
-	private static void validateAfternoonKind(StoreKind afternoon) {
-		if (afternoon != StoreKind.CAFE && afternoon != StoreKind.SHOP) {
+				if (afternoon != StoreKind.CAFE && afternoon != StoreKind.SHOP) {
 			throw new IllegalArgumentException("afternoon: " + afternoon);
 		}
+		List<CourseSlot> slots = CourseSchedule.slots(afternoon).stream()
+			.dropWhile(s -> s.slot() != startSlot).toList();
+		// DB 는 여기서 다 읽고 끝낸다. 아래 영업 확인은 트랜잭션 밖이다
+		CandidatePool pool = candidates.load(datasetId, weekday, slots.stream().map(CourseSlot::slot).distinct().toList());
+		Selection selection = selectStops(pool, slots, origin, excludeIds, weekday, new Random(seed));
+		return response(pool.context(), seed, selection);
 	}
 
-	private static List<CourseSlot> planStagesFrom(TimeSlot startSlot, StoreKind afternoon) {
-		return CourseSchedule.slots(afternoon).stream().dropWhile(slot -> slot.slot() != startSlot).toList();
+	private record Selection(List<Pick> picks, List<Skipped> skipped, Interruption interruption) {
 	}
 
-	private CandidatePool loadCandidates(String datasetId, Weekday weekday, List<CourseSlot> stages) {
-		List<TimeSlot> slots = stages.stream().map(CourseSlot::slot).toList();
-		return candidates.load(datasetId, weekday, slots);
-	}
-
-	private V2CourseResponse buildCourse(List<CourseSlot> stages, CandidatePool pool, Weekday weekday,
-		GeoPoint origin, Set<Long> excludeIds, long seed) {
-		Random random = new Random(seed);
+	private Selection selectStops(CandidatePool pool, List<CourseSlot> slots, GeoPoint origin, Set<Long> excludeIds,
+		Weekday weekday, Random random) {
 		Set<Long> excluded = new HashSet<>(excludeIds);
 		List<Pick> picks = new ArrayList<>();
+		List<Skipped> skipped = new ArrayList<>();
 		Interruption interruption = null;
-		for (CourseSlot stage : stages) {
-			List<Selected> nearby = pool.near(stage.slot(), stage.kinds().iterator().next(), origin, stage.minPercentile());
-			Pick pick = pickStageStop(nearby, excluded, weekday, stage, random);
+		for (CourseSlot slot : slots) {
+			List<Selected> ranked = pool.near(slot.slot(), slot.kinds(), origin, slot.minPercentile());
+			Pick pick = pickStageStop(ranked, excluded, weekday, slot, random);
 			if (pick.stop() == null) {
-				interruption = new Interruption(stage.slot(), pick.reason());
+				if (slot.requirement().skipWhenMissing()) {
+					skipped.add(new Skipped(slot.slot(), slot.position(), pick.reason()));
+					continue;
+				}
+				interruption = new Interruption(slot.slot(), pick.reason());
 				break;
 			}
 			picks.add(pick);
@@ -100,12 +98,16 @@ public class V2CourseService {
 			excluded.add(place.id());
 			origin = new GeoPoint(place.lat(), place.lng());
 		}
-		// 영업 확인이 다 끝난 뒤라 이 조회는 Google 호출 중에 커넥션을 잡지 않는다
-		Facts facts = facts(pool.context().datasetId(), weekday, picks);
+		return new Selection(picks, skipped, interruption);
+	}
+
+	private V2CourseResponse response(V2Context context, long seed, Selection selection) {
+		List<Pick> picks = selection.picks();
+		Facts facts = facts(context.datasetId(), context.weekday(), picks);
 		List<Stop> stops = picks.stream().map(pick -> withReasons(pick, facts)).toList();
-		return interruption == null
-			? V2CourseResponse.complete(pool.context(), seed, stops)
-			: V2CourseResponse.interrupted(pool.context(), seed, stops, interruption);
+		return selection.interruption() == null
+			? V2CourseResponse.complete(context, seed, stops, selection.skipped())
+			: V2CourseResponse.interrupted(context, seed, stops, selection.skipped(), selection.interruption());
 	}
 
 	/** 이유 때문에 코스가 실패하지 않게, 조회가 실패하면 그 재료로 붙는 이유(PEAK_NOW, AREA_TYPE)만 뺀다. */
@@ -192,7 +194,7 @@ public class V2CourseService {
 			Selected selected = ranked.get(candidate.index());
 			Item item = Item.from(selected);
 			Result result = checker.check(item.googlePlaceId(), weekday, stage.visitTime(), stage.stayMinutes(item.kind()));
-			if (result == Result.OPEN || (item.kind() == StoreKind.SHOP && result == Result.HOURS_UNKNOWN)) {
+			if (result == Result.OPEN || (result == Result.HOURS_UNKNOWN && (item.kind() == StoreKind.SHOP || item.kind() == StoreKind.PLAY))) {
 				return Pick.selected(stage, candidate, item, result, selected.candidate().percentile());
 			}
 			if (result == Result.UNAVAILABLE) {
@@ -207,7 +209,7 @@ public class V2CourseService {
 
 	private record Pick(Stop stop, String reason, int bandSize, double percentile) {
 		static Pick selected(CourseSlot stage, BandCandidate candidate, Item item, Result result, double percentile) {
-			Stop stop = Stop.of(stage.slot(), stage.visitTime(), stage.stayMinutes(item.kind()), candidate.index() + 1, item,
+			Stop stop = Stop.of(stage.position(), stage.slot(), stage.visitTime(), stage.stayMinutes(item.kind()), candidate.index() + 1, item,
 				result == Result.HOURS_UNKNOWN);
 			return new Pick(stop, null, candidate.bandSize(), percentile);
 		}
