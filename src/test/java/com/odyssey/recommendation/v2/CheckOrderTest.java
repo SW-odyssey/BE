@@ -88,7 +88,7 @@ class CheckOrderTest {
 
 	@ParameterizedTest(name = "[{0}] 제외 {1} → {2}")
 	@CsvSource({"99 98 95, 0, 1 2", "99 98 95, 1, 0 2", "99 98 95, 0 1, 2", "99 98 95, '', 0 1 2"})
-	@DisplayName("제외한 후보 → 내주지 않고, 남은 후보로 점수대를 잡는다")
+	@DisplayName("일부 후보 제외 → 남은 후보만 한 번씩 내준다")
 	void skipsExcluded(String values, String excluded, String expected) {
 		// when
 		List<Integer> order = all(candidateCheckOrder(percentiles(values), indices(excluded), new Random(1)));
@@ -96,6 +96,25 @@ class CheckOrderTest {
 		// then
 		assertThat(order).hasSize(indices(expected).size());
 		assertThat(new HashSet<>(order)).isEqualTo(indices(expected));
+	}
+
+	@Test
+	@DisplayName("1위를 제외하면 → 남은 1위와 정확히 3점 낮은 후보도 첫 후보가 될 수 있다")
+	void recalculatesFirstBandAfterExcludingLeader() {
+		// given
+		List<Double> percentiles = List.of(99.0, 98.0, 95.0);
+		Random swapPair = new Random() {
+			@Override
+			public int nextInt(int bound) {
+				return 0;
+			}
+		};
+
+		// when
+		int firstCandidate = candidateCheckOrder(percentiles, Set.of(0), swapPair).next();
+
+		// then
+		assertThat(firstCandidate).isEqualTo(2);
 	}
 
 	@Test
