@@ -2,6 +2,8 @@ package com.odyssey.cellvisitprofile.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -170,5 +172,59 @@ class CellVisitProfileRepositoryTest {
 		// then
 		assertThat(profile).isEmpty();
 		assertThat(find("ds-other", Weekday.MON, 101)).isPresent();
+	}
+
+	private void available(long cellId, String weekday, int lunch, int afternoon, int dinner, int lateNight) {
+		db.profile(DS, cellId, weekday, "AVAILABLE");
+		db.bar(DS, cellId, weekday, "lunch", lunch);
+		db.bar(DS, cellId, weekday, "afternoon", afternoon);
+		db.bar(DS, cellId, weekday, "dinner", dinner);
+		db.bar(DS, cellId, weekday, "late_night", lateNight);
+	}
+
+	@Test
+	@DisplayName("그래프가 있는 칸 둘과 없는 칸 하나 → 그래프가 있는 칸의 가장 붐비는 시간대만 돌려준다")
+	void peakSlots() {
+		// given
+		available(101, MON, 100, 10, 20, 30);
+		available(102, MON, 10, 20, 30, 100);
+		db.cell(103);
+		db.profile(DS, 103, MON, "NO_DISTINCT_PEAK");
+
+		// when
+		Map<Long, TimeSlot> peaks = repository.findPeakSlots(DS, Weekday.MON, List.of(101L, 102L, 103L, 999L));
+
+		// then
+		assertThat(peaks).containsExactlyInAnyOrderEntriesOf(
+			Map.of(101L, TimeSlot.LUNCH, 102L, TimeSlot.LATE_NIGHT));
+	}
+
+	@Test
+	@DisplayName("같은 칸의 다른 요일·다른 배치 그래프 → 요청한 배치·요일의 것만 본다")
+	void peakSlotsScoped() {
+		// given
+		available(101, "tue", 100, 10, 20, 30);
+		db.profile("ds-other", 101, MON, "AVAILABLE");
+		db.bar("ds-other", 101, MON, "lunch", 100);
+		db.bar("ds-other", 101, MON, "afternoon", 10);
+		db.bar("ds-other", 101, MON, "dinner", 20);
+		db.bar("ds-other", 101, MON, "late_night", 30);
+		available(101, MON, 10, 20, 100, 30);
+
+		// when
+		Map<Long, TimeSlot> peaks = repository.findPeakSlots(DS, Weekday.MON, List.of(101L));
+
+		// then
+		assertThat(peaks).containsExactlyEntriesOf(Map.of(101L, TimeSlot.DINNER));
+	}
+
+	@Test
+	@DisplayName("칸 목록이 비었다 → 빈 결과다")
+	void peakSlotsEmpty() {
+		// when
+		Map<Long, TimeSlot> peaks = repository.findPeakSlots(DS, Weekday.MON, List.of());
+
+		// then
+		assertThat(peaks).isEmpty();
 	}
 }
