@@ -299,6 +299,7 @@ class RecommendationControllerTest {
 
 		// then
 		expectInvalidInput(result);
+		result.andExpect(jsonPath("$.error.message").value("category 는 food, cafe, all 중 하나입니다"));
 	}
 
 	@Test
