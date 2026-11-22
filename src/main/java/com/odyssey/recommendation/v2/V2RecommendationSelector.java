@@ -35,6 +35,9 @@ final class V2RecommendationSelector {
 	 * @param distanceMeters 사용자 위치에서 매장까지의 직선거리. 반올림하지 않은 값이다
 	 */
 	record Selected(Candidate candidate, double distanceMeters) {
+		GeoPoint location() {
+			return new GeoPoint(candidate.place().lat(), candidate.place().lng());
+		}
 	}
 
 	private V2RecommendationSelector() {
@@ -52,11 +55,15 @@ final class V2RecommendationSelector {
 	}
 
 	static List<Selected> rankNearby(List<Candidate> candidates, GeoPoint origin) {
+		return rankWithin(candidates, origin, 0, RADIUS_METERS).stream().limit(MAX_RESULTS).toList();
+	}
+
+	static List<Selected> rankWithin(List<Candidate> candidates, GeoPoint origin, double minimum, double radius) {
 		List<Selected> nearby = candidates.stream()
 			.map(candidate -> measure(candidate, origin))
-			.filter(selected -> selected.distanceMeters() <= RADIUS_METERS)
+			.filter(selected -> selected.distanceMeters() >= minimum && selected.distanceMeters() <= radius)
 			.toList();
-		return nearby.stream().sorted(ORDER).limit(MAX_RESULTS).toList();
+		return nearby.stream().sorted(ORDER).toList();
 	}
 
 	private static Selected measure(Candidate candidate, GeoPoint origin) {
