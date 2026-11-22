@@ -143,7 +143,7 @@ public class RecommendationController {
 		// "all" 이나 생략 → null (전체). 모르는 값이면 ApiEnums 가 INVALID_INPUT 을 던진다
 		Category findCategory = ApiEnums.parse(Category.class, "category", category, "all")
 			.orElse(null);
-		if (findCategory == Category.SHOP) { // v1 계약은 food · cafe 뿐이다
+		if (findCategory != null && findCategory != Category.FOOD && findCategory != Category.CAFE) { // v1 계약은 food · cafe 뿐이다
 			throw new BusinessException(CommonErrorCode.INVALID_INPUT, "category 는 food, cafe, all 중 하나입니다");
 		}
 

@@ -7,7 +7,8 @@ public enum StoreKind {
 	BAR(Category.FOOD),
 	OTHER(Category.FOOD),
 	/** 상가정보 소매 업종에서 고른 구경할 만한 가게. 인허가 관리번호 대신 SG-상가업소번호를 쓴다. */
-	SHOP(Category.SHOP);
+	SHOP(Category.SHOP),
+	PLAY(Category.PLAY);
 
 	private final Category category;
 

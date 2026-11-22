@@ -22,6 +22,19 @@ class StoreKindTest {
 		assertThat(category).isEqualTo(Category.CAFE);
 	}
 
+	@Test
+	@DisplayName("놀거리 종류 → 놀거리 대분류에 속한다")
+	void playBelongsToPlay() {
+		// given
+		StoreKind kind = StoreKind.PLAY;
+
+		// when
+		Category category = kind.category();
+
+		// then
+		assertThat(category).isEqualTo(Category.PLAY);
+	}
+
 	@ParameterizedTest
 	@EnumSource(value = StoreKind.class, names = {"KOREAN", "BAR", "OTHER"})
 	@DisplayName("카페가 아닌 분류 → 음식점 대분류에 속한다")

@@ -85,10 +85,11 @@ class StoreQueryRepositoryTest {
 	}
 
 	@Test
-	@DisplayName("쇼핑 매장은 v1 의 전체·음식점 목록에 나오지 않는다")
-	void shopIsNotFood() {
+	@DisplayName("쇼핑·놀거리 매장 → v1 전체·음식점 목록에서 제외된다")
+	void excludesShopAndPlay() {
 		// given
 		store(6, CELL_A, "인사동 공예점", "SHOP", "SHOP", "2010-01-01", false, true);
+		store(7, CELL_A, "체험관", "PLAY", "PLAY", "2010-01-01", false, true);
 		List<Long> cellIds = List.of(CELL_A);
 
 		// when
