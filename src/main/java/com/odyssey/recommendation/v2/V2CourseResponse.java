@@ -19,9 +19,14 @@ public record V2CourseResponse(String status, V2Context context, long seed,
 	 * @param walkMinutes   직전 출발 위치에서 걸어오는 분. 직선거리를 그대로 쓰므로 실제 경로와 다를 수 있다
 	 * @param candidateRank 제외·무작위 선택 전 목록 API 의 순번
 	 * @param hoursUnknown  영업 중으로 등록돼 있지만 정규 영업시간이 없다. 쇼핑에서만 true 가 될 수 있다
+	 * @param reasons       고른 이유. 순서는 {@link CourseReasons} 가 정하고 문장은 FE 가 만든다
 	 */
 	public record Stop(TimeSlot slot, String visitTime, String leaveTime, int walkMinutes, int candidateRank,
-		Item place, boolean hoursUnknown) {
+		Item place, boolean hoursUnknown, List<CourseReason> reasons) {
+
+		public Stop {
+			reasons = List.copyOf(reasons);
+		}
 
 		/** 도보 거리는 직선거리의 1.3배로 본다. 논문 4.7절과 같은 가정이다. */
 		static final double DETOUR = 1.3;
@@ -31,7 +36,11 @@ public record V2CourseResponse(String status, V2Context context, long seed,
 		static Stop of(TimeSlot slot, LocalTime visitTime, int stayMinutes, int candidateRank, Item place,
 			boolean hoursUnknown) {
 			return new Stop(slot, visitTime.toString(), visitTime.plusMinutes(stayMinutes).toString(),
-				walkMinutes(place.distanceMeters()), candidateRank, place, hoursUnknown);
+				walkMinutes(place.distanceMeters()), candidateRank, place, hoursUnknown, List.of());
+		}
+
+		Stop withReasons(List<CourseReason> reasons) {
+			return new Stop(slot, visitTime, leaveTime, walkMinutes, candidateRank, place, hoursUnknown, reasons);
 		}
 
 		/** 0m 여도 1분으로 보여 준다. */
