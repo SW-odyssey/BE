@@ -120,6 +120,23 @@ class CandidatePoolTest {
 	}
 
 	@Test
+	@DisplayName("구간 거리의 하한·상한과 이전 방문지 반경을 각각 적용한다")
+	void walkingDistances() {
+		CourseSchedule.CourseSlot slot = CourseSchedule.afternoonPlay(Weekday.FRI);
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(slot.slot(), List.of(
+			candidate(1, StoreKind.PLAY, WEST.lat() + 0.001, WEST.lng(), 99),
+			candidate(2, StoreKind.PLAY, WEST.lat() + 0.002, WEST.lng(), 98),
+			candidate(3, StoreKind.PLAY, WEST.lat() + 0.004, WEST.lng(), 97),
+			candidate(4, StoreKind.PLAY, WEST.lat() + 0.005, WEST.lng(), 96))));
+		CandidatePool.LegCandidates leg = pool.forLeg(slot, 150, 500, 100);
+
+		assertThat(ids(leg.near(WEST, List.of(), Set.of()))).containsExactly(2L, 3L);
+		GeoPoint earlier = new GeoPoint(WEST.lat() + 0.0022, WEST.lng());
+		assertThat(ids(leg.near(WEST, List.of(earlier), Set.of()))).containsExactly(3L);
+		assertThat(ids(leg.near(WEST, List.of(earlier), Set.of(3L)))).isEmpty();
+	}
+
+	@Test
 	@DisplayName("읽지 않은 시간대 → 빈 목록이다")
 	void unreadSlot() {
 		// given
