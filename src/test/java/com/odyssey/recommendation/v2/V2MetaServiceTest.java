@@ -80,22 +80,22 @@ class V2MetaServiceTest {
 	}
 
 	@Test
-	@DisplayName("대분류 선택지 → 음식점, 카페, 전체 순서다")
+	@DisplayName("대분류 선택지 → 음식점, 카페, 쇼핑, 놀거리, 전체 순서다")
 	void categories() {
 		// when
 		V2MetaResponse meta = service.meta();
 
 		// then
-		assertThat(meta.categories()).containsExactly("food", "cafe", "shop", "all");
+		assertThat(meta.categories()).containsExactly("food", "cafe", "shop", "play", "all");
 	}
 
 	@Test
-	@DisplayName("가게 분류 선택지 → enum 선언 순서가 아니라 화면 순서(한식, 술집, 기타, 카페, 전체)다")
+	@DisplayName("가게 분류 선택지 → enum 선언 순서가 아니라 화면 순서(한식, 술집, 기타, 카페, 쇼핑, 놀거리, 전체)다")
 	void kinds() {
 		// when
 		V2MetaResponse meta = service.meta();
 
 		// then
-		assertThat(meta.kinds()).containsExactly("korean", "bar", "other", "cafe", "shop", "all");
+		assertThat(meta.kinds()).containsExactly("korean", "bar", "other", "cafe", "shop", "play", "all");
 	}
 }
