@@ -19,7 +19,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.odyssey.cellcondition.entity.Weekday;
 
 /**
- * Google Place Details(New)로 영업 상태와 정규 영업시간을 확인한다. 시각 계산은 {@link WeeklyOpeningHours} 가 한다.
+ * Google Place Details(New)로 영업 상태와 정규 영업시간을 확인한다.
  *
  * <p>정책상 Google 에서 받은 값은 저장하지 않고 이 요청의 판정에만 쓴다. 영업시간 필드 때문에 호출마다
  * Place Details Enterprise 요금이 붙는다. 공휴일·임시휴무는 정규 영업시간에 없어서 판정하지 못한다.
@@ -29,6 +29,9 @@ class GooglePlaceHours implements CourseVisitChecker {
 
 	private static final Logger log = LoggerFactory.getLogger(GooglePlaceHours.class);
 	private static final String FIELDS = "businessStatus,regularOpeningHours.periods";
+
+	private static final int MINUTES_PER_DAY = 24 * 60;
+	private static final int MINUTES_PER_WEEK = 7 * MINUTES_PER_DAY;
 
 	private final RestClient client;
 	private final String apiKey;
@@ -84,8 +87,7 @@ class GooglePlaceHours implements CourseVisitChecker {
 		if (place.regularOpeningHours() == null) {
 			return Result.HOURS_UNKNOWN;
 		}
-		List<WeeklyOpeningHours.Period> periods = periods(place.regularOpeningHours().periods());
-		return WeeklyOpeningHours.coversStay(periods, weekday, visitTime, stayMinutes)
+		return coversStay(place.regularOpeningHours().periods(), weekday, visitTime, stayMinutes)
 			? Result.OPEN : Result.NOT_OPEN;
 	}
 
@@ -103,21 +105,29 @@ class GooglePlaceHours implements CourseVisitChecker {
 			.anyMatch(detail -> detail != null && "API_KEY_INVALID".equals(detail.reason()));
 	}
 
-	private static List<WeeklyOpeningHours.Period> periods(List<Period> periods) {
+	/**
+	 * 도착 시각이 한 영업 구간 안이고 머무는 시간이 끝날 때까지 그 구간이 이어지는지 본다. 마감 정각
+	 * 도착은 영업시간 밖이고, 마감 정각에 나오는 것은 허용한다. 맞붙은 두 구간(예: 15시 마감·15시 재개)을
+	 * 이어 보지는 않는다.
+	 *
+	 * @param periods 영업 구간. null 이면 영업하지 않는 것으로 본다
+	 */
+	static boolean coversStay(List<Period> periods, Weekday weekday, LocalTime arrival, int stayMinutes) {
 		if (periods == null) {
-			return null;
+			return false;
 		}
-		return periods.stream()
-			.map(GooglePlaceHours::toWeeklyPeriod)
-			.toList();
+		// Google의 요일 번호는 일요일이 0이다.
+		int googleDay = (weekday.ordinal() + 1) % 7;
+		int arrivalMinute = minuteOfWeek(googleDay, arrival.getHour(), arrival.getMinute());
+		return periods.stream().anyMatch(period -> period != null && period.coversStay(arrivalMinute, stayMinutes));
 	}
 
-	private static WeeklyOpeningHours.Period toWeeklyPeriod(Period period) {
-		return period == null ? null : new WeeklyOpeningHours.Period(point(period.open()), point(period.close()));
+	private static int minuteOfWeek(Point point) {
+		return minuteOfWeek(point.day(), point.hour(), point.minute());
 	}
 
-	private static WeeklyOpeningHours.Point point(Point point) {
-		return point == null ? null : new WeeklyOpeningHours.Point(point.day(), point.hour(), point.minute());
+	private static int minuteOfWeek(int day, int hour, int minute) {
+		return day * MINUTES_PER_DAY + hour * 60 + minute;
 	}
 
 	@JsonIgnoreProperties(ignoreUnknown = true)
@@ -130,6 +140,25 @@ class GooglePlaceHours implements CourseVisitChecker {
 
 	@JsonIgnoreProperties(ignoreUnknown = true)
 	record Period(Point open, Point close) {
+		boolean coversStay(int arrivalMinute, int stayMinutes) {
+			if (open == null) {
+				return false;
+			}
+			if (close == null) {
+				return true;
+			}
+			int openingMinute = minuteOfWeek(open);
+			int closingMinute = minuteOfWeek(close);
+			if (closingMinute <= openingMinute) {
+				closingMinute += MINUTES_PER_WEEK;
+			}
+			return stayFitsBetween(openingMinute, closingMinute, arrivalMinute, stayMinutes)
+				|| stayFitsBetween(openingMinute, closingMinute, arrivalMinute + MINUTES_PER_WEEK, stayMinutes);
+		}
+
+		private static boolean stayFitsBetween(int open, int close, int arrival, int stayMinutes) {
+			return open <= arrival && arrival < close && arrival + stayMinutes <= close;
+		}
 	}
 
 	@JsonIgnoreProperties(ignoreUnknown = true)

@@ -1,11 +1,13 @@
 package com.odyssey.recommendation.v2;
 
+import static com.odyssey.recommendation.v2.V2CourseService.candidateCheckOrder;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Random;
 import java.util.Set;
@@ -17,10 +19,10 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-/** {@link CheckOrder} 가 점수대를 나눠 섞고 상한까지 내주는지 확인한다. */
+/** {@link V2CourseService} 가 점수대를 나눠 섞고 상한까지 내주는지 확인한다. */
 class CheckOrderTest {
 
-	private static List<Integer> all(CheckOrder order) {
+	private static List<Integer> all(Iterator<Integer> order) {
 		List<Integer> result = new ArrayList<>();
 		order.forEachRemaining(result::add);
 		return result;
@@ -46,7 +48,7 @@ class CheckOrderTest {
 		// when
 		Set<Integer> firsts = new HashSet<>();
 		for (long seed = 1; seed <= 40; seed++) {
-			firsts.add(CheckOrder.of(percentiles, Set.of(), new Random(seed)).next());
+			firsts.add(candidateCheckOrder(percentiles, Set.of(), new Random(seed)).next());
 		}
 
 		// then
@@ -61,8 +63,8 @@ class CheckOrderTest {
 		List<Double> percentiles = List.of(99.0, 98.0, 97.0, 90.0, 89.0);
 
 		// when
-		List<Integer> first = all(CheckOrder.of(percentiles, Set.of(), new Random(seed)));
-		List<Integer> second = all(CheckOrder.of(percentiles, Set.of(), new Random(seed)));
+		List<Integer> first = all(candidateCheckOrder(percentiles, Set.of(), new Random(seed)));
+		List<Integer> second = all(candidateCheckOrder(percentiles, Set.of(), new Random(seed)));
 
 		// then
 		assertThat(first).isEqualTo(second);
@@ -77,7 +79,7 @@ class CheckOrderTest {
 		Set<Integer> second = indices(secondBand);
 
 		// when
-		List<Integer> order = all(CheckOrder.of(percentiles(values), Set.of(), new Random(3)));
+		List<Integer> order = all(candidateCheckOrder(percentiles(values), Set.of(), new Random(3)));
 
 		// then
 		assertThat(new HashSet<>(order.subList(0, first.size()))).isEqualTo(first);
@@ -86,10 +88,10 @@ class CheckOrderTest {
 
 	@ParameterizedTest(name = "[{0}] 제외 {1} → {2}")
 	@CsvSource({"99 98 95, 0, 1 2", "99 98 95, 1, 0 2", "99 98 95, 0 1, 2", "99 98 95, '', 0 1 2"})
-	@DisplayName("제외한 후보 → 내주지 않고, 남은 후보로 점수대를 잡는다")
+	@DisplayName("일부 후보 제외 → 남은 후보만 한 번씩 내준다")
 	void skipsExcluded(String values, String excluded, String expected) {
 		// when
-		List<Integer> order = all(CheckOrder.of(percentiles(values), indices(excluded), new Random(1)));
+		List<Integer> order = all(candidateCheckOrder(percentiles(values), indices(excluded), new Random(1)));
 
 		// then
 		assertThat(order).hasSize(indices(expected).size());
@@ -97,10 +99,29 @@ class CheckOrderTest {
 	}
 
 	@Test
+	@DisplayName("1위를 제외하면 → 남은 1위와 정확히 3점 낮은 후보도 첫 후보가 될 수 있다")
+	void recalculatesFirstBandAfterExcludingLeader() {
+		// given
+		List<Double> percentiles = List.of(99.0, 98.0, 95.0);
+		Random swapPair = new Random() {
+			@Override
+			public int nextInt(int bound) {
+				return 0;
+			}
+		};
+
+		// when
+		int firstCandidate = candidateCheckOrder(percentiles, Set.of(0), swapPair).next();
+
+		// then
+		assertThat(firstCandidate).isEqualTo(2);
+	}
+
+	@Test
 	@DisplayName("모든 후보를 제외 → 내줄 후보가 없다")
 	void allExcluded() {
 		// when
-		CheckOrder order = CheckOrder.of(List.of(99.0, 98.0), Set.of(0, 1), new Random(1));
+		Iterator<Integer> order = candidateCheckOrder(List.of(99.0, 98.0), Set.of(0, 1), new Random(1));
 
 		// then
 		assertThat(order.hasNext()).isFalse();
@@ -117,10 +138,10 @@ class CheckOrderTest {
 		percentiles.addAll(Collections.nCopies(2, 80.0));
 
 		// when
-		List<Integer> order = all(CheckOrder.of(percentiles, Set.of(), new Random(seed)));
+		List<Integer> order = all(candidateCheckOrder(percentiles, Set.of(), new Random(seed)));
 
 		// then
-		assertThat(order).hasSize(CheckOrder.MAX_CHECKS).doesNotContain(10, 11);
+		assertThat(order).hasSize(10).doesNotContain(10, 11);
 	}
 
 	@Test
@@ -133,7 +154,7 @@ class CheckOrderTest {
 		Collections.shuffle(new ArrayList<>(List.of(0, 1)), reference);
 
 		// when
-		CheckOrder.of(percentiles, Set.of(), random).next();
+		candidateCheckOrder(percentiles, Set.of(), random).next();
 
 		// then
 		assertThat(random.nextLong()).isEqualTo(reference.nextLong());
