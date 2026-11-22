@@ -1,0 +1,333 @@
+package com.odyssey.recommendation.v2;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowableOfType;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyList;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
+
+import java.time.LocalTime;
+import java.util.ArrayList;
+import java.util.EnumMap;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.EnumSource;
+
+import com.odyssey.cell.GeoPoint;
+import com.odyssey.cellcondition.entity.Weekday;
+import com.odyssey.cellcondition.repository.CellConditionRepository.Candidate;
+import com.odyssey.cellslotscore.entity.TimeSlot;
+import com.odyssey.recommendation.v2.CourseVisitChecker.Result;
+import com.odyssey.store.entity.StoreKind;
+import com.odyssey.store.repository.StorePlaceRepository.Place;
+
+/** {@link V2CourseService} 의 코스 규칙. 후보는 미리 정한 값이고 영업 확인은 호출을 기록하는 가짜다. */
+class V2CourseServiceTest {
+
+	private static final GeoPoint ORIGIN = new GeoPoint(37.5660, 126.9900);
+
+	private final CourseCandidates loader = mock(CourseCandidates.class);
+	private final FakeChecker checker = new FakeChecker();
+	private final V2CourseService service = new V2CourseService(loader, checker);
+	private final Map<TimeSlot, List<Candidate>> bySlot = new EnumMap<>(TimeSlot.class);
+
+	/** 영업 확인 호출을 기록하고, 정해 둔 결과(기본 OPEN)를 돌려준다. */
+	private static final class FakeChecker implements CourseVisitChecker {
+
+		record Call(String placeId, Weekday weekday, LocalTime visitTime, int stayMinutes) {
+		}
+
+		private final Map<String, Result> results = new HashMap<>();
+		private final List<Call> calls = new ArrayList<>();
+		private Result fallback = Result.OPEN;
+
+		@Override
+		public Result check(String googlePlaceId, Weekday weekday, LocalTime visitTime, int stayMinutes) {
+			calls.add(new Call(googlePlaceId, weekday, visitTime, stayMinutes));
+			return results.getOrDefault(googlePlaceId, fallback);
+		}
+	}
+
+	@BeforeEach
+	void pool() {
+		given(loader.load(anyString(), any(), anyList())).willAnswer(call -> {
+			List<TimeSlot> slots = call.getArgument(2);
+			V2Context context = new V2Context(call.getArgument(0), "2025-11", call.getArgument(1), slots.getFirst());
+			return new CandidatePool(context, bySlot);
+		});
+	}
+
+	/** 출발점 근처(매장 id 마다 약 11m 북쪽)에 둔다. id 20 까지는 출발점에서 300m 안이다. */
+	private static Candidate store(long id, StoreKind kind, double percentile) {
+		return at(id, kind, percentile, 37.5660 + id / 10_000.0, 126.9900);
+	}
+
+	private static Candidate at(long id, StoreKind kind, double percentile, double lat, double lng) {
+		return new Candidate(new Place(id, "매장" + id, id, kind, lat, lng, null, "place-" + id), "m" + id,
+			percentile);
+	}
+
+	private void candidates(TimeSlot slot, Candidate... candidates) {
+		bySlot.put(slot, List.of(candidates));
+	}
+
+	private V2CourseResponse recommend(TimeSlot startSlot, long seed) {
+		return service.recommend("nov", Weekday.FRI, startSlot, ORIGIN, Set.of(), seed, StoreKind.CAFE);
+	}
+
+	@Test
+	@DisplayName("1위와 3점 이내 후보가 여럿 → seed 에 따라 그 안에서만 고른다")
+	void picksWithinTopBand() {
+		// given
+		candidates(TimeSlot.DINNER, store(1, StoreKind.KOREAN, 99), store(2, StoreKind.KOREAN, 97.5),
+			store(3, StoreKind.KOREAN, 96.2), store(4, StoreKind.KOREAN, 95.9));
+
+		// when
+		Set<Long> picked = new HashSet<>();
+		for (long seed = 1; seed <= 40; seed++) {
+			picked.add(recommend(TimeSlot.DINNER, seed).stops().getFirst().place().id());
+		}
+
+		// then
+		assertThat(picked).containsExactlyInAnyOrder(1L, 2L, 3L);
+	}
+
+	@Test
+	@DisplayName("같은 seed → 같은 코스다")
+	void sameSeedSameCourse() {
+		// given
+		candidates(TimeSlot.DINNER, store(1, StoreKind.KOREAN, 99), store(2, StoreKind.KOREAN, 98));
+		candidates(TimeSlot.LATE_NIGHT, store(3, StoreKind.BAR, 99), store(4, StoreKind.BAR, 98));
+
+		// when
+		V2CourseResponse first = recommend(TimeSlot.DINNER, 7);
+		V2CourseResponse second = recommend(TimeSlot.DINNER, 7);
+
+		// then
+		assertThat(second).isEqualTo(first);
+	}
+
+	@Test
+	@DisplayName("1위 점수대가 모두 닫혀 있음 → 다음 점수대에서 고르고 목록 순번을 담는다")
+	void fallsToNextBand() {
+		// given
+		candidates(TimeSlot.DINNER, store(1, StoreKind.KOREAN, 99), store(2, StoreKind.KOREAN, 90));
+		checker.results.put("place-1", Result.NOT_OPEN);
+
+		// when
+		V2CourseResponse course = recommend(TimeSlot.DINNER, 3);
+
+		// then
+		assertThat(course.stops().getFirst().place().id()).isEqualTo(2L);
+		assertThat(course.stops().getFirst().candidateRank()).isEqualTo(2);
+	}
+
+	@Test
+	@DisplayName("다음 구간 → 처음 출발점이 아니라 앞에서 고른 매장 좌표 300m 안에서 찾는다")
+	void nextStageStartsFromPickedStore() {
+		// given: 동쪽 저녁 매장에서 약 265m, 처음 출발점에서는 약 485m 인 주점
+		candidates(TimeSlot.DINNER, at(1, StoreKind.KOREAN, 99, 37.5660, 126.9925));
+		candidates(TimeSlot.LATE_NIGHT, at(2, StoreKind.BAR, 99, 37.5660, 126.9955));
+
+		// when
+		V2CourseResponse course = recommend(TimeSlot.DINNER, 1);
+
+		// then
+		assertThat(course.status()).isEqualTo("COMPLETE");
+		assertThat(course.stops()).extracting(stop -> stop.place().id()).containsExactly(1L, 2L);
+	}
+
+	@Test
+	@DisplayName("1위 점수대 안에서 영업하는 곳이 뒤에 있음 → 섞인 순서와 상관없이 찾는다")
+	void findsOpenStoreLateInBand() {
+		// given
+		List<Candidate> ranked = new ArrayList<>();
+		for (long id = 1; id <= 7; id++) {
+			ranked.add(store(id, StoreKind.KOREAN, 99));
+		}
+		candidates(TimeSlot.DINNER, ranked.toArray(Candidate[]::new));
+		checker.fallback = Result.NOT_OPEN;
+		checker.results.put("place-7", Result.OPEN);
+
+		// when
+		Set<Long> picked = new HashSet<>();
+		for (long seed = 1; seed <= 10; seed++) {
+			picked.add(recommend(TimeSlot.DINNER, seed).stops().getFirst().place().id());
+		}
+
+		// then
+		assertThat(picked).containsExactly(7L);
+	}
+
+	@Test
+	@DisplayName("확인할 후보가 10곳보다 많고 모두 닫힘 → 10번만 확인하고 NO_VERIFIED_MATCH 로 멈춘다")
+	void capsChecksPerStage() {
+		// given: 99점 7곳, 90점 3곳, 80점 2곳
+		List<Candidate> ranked = new ArrayList<>();
+		for (long id = 1; id <= 12; id++) {
+			ranked.add(store(id, StoreKind.KOREAN, id <= 7 ? 99 : id <= 10 ? 90 : 80));
+		}
+		candidates(TimeSlot.DINNER, ranked.toArray(Candidate[]::new));
+		checker.fallback = Result.NOT_OPEN;
+
+		// when
+		V2CourseResponse course = recommend(TimeSlot.DINNER, 1);
+
+		// then
+		assertThat(course.interruption().reason()).isEqualTo("NO_VERIFIED_MATCH");
+		assertThat(checker.calls).hasSize(CheckOrder.MAX_CHECKS)
+			.extracting(FakeChecker.Call::placeId).doesNotContain("place-11", "place-12");
+	}
+
+	@Test
+	@DisplayName("외부 조회가 실패함 → 다음 후보로 넘어가지 않고 VERIFICATION_UNAVAILABLE 로 멈춘다")
+	void stopsWhenVerificationUnavailable() {
+		// given
+		candidates(TimeSlot.DINNER, store(1, StoreKind.KOREAN, 99), store(2, StoreKind.KOREAN, 98));
+		checker.fallback = Result.UNAVAILABLE;
+
+		// when
+		V2CourseResponse course = recommend(TimeSlot.DINNER, 1);
+
+		// then
+		assertThat(course.status()).isEqualTo("NO_MATCHES");
+		assertThat(course.interruption().reason()).isEqualTo("VERIFICATION_UNAVAILABLE");
+		assertThat(checker.calls).hasSize(1);
+	}
+
+	@Test
+	@DisplayName("오후를 구경으로 고름 → 쇼핑 후보에서 찾고 카페는 보지 않는다")
+	void afternoonShop() {
+		// given
+		candidates(TimeSlot.AFTERNOON, store(1, StoreKind.CAFE, 99), store(2, StoreKind.SHOP, 97));
+
+		// when
+		V2CourseResponse course = service.recommend("nov", Weekday.FRI, TimeSlot.AFTERNOON, ORIGIN, Set.of(), 1,
+			StoreKind.SHOP);
+
+		// then
+		assertThat(course.stops().getFirst().place().id()).isEqualTo(2L);
+	}
+
+	@Test
+	@DisplayName("영업시간이 없는 쇼핑 → 받아서 hoursUnknown 으로 표시한다")
+	void shopWithUnknownHours() {
+		// given
+		candidates(TimeSlot.AFTERNOON, store(1, StoreKind.SHOP, 97));
+		checker.fallback = Result.HOURS_UNKNOWN;
+
+		// when
+		V2CourseResponse course = service.recommend("nov", Weekday.FRI, TimeSlot.AFTERNOON, ORIGIN, Set.of(), 1,
+			StoreKind.SHOP);
+
+		// then
+		assertThat(course.stops().getFirst().hoursUnknown()).isTrue();
+	}
+
+	@ParameterizedTest(name = "{0}")
+	@CsvSource({"LUNCH, KOREAN", "AFTERNOON, CAFE", "DINNER, KOREAN", "LATE_NIGHT, BAR"})
+	@DisplayName("영업시간이 없는 음식점·카페·주점 → 받지 않고 NO_VERIFIED_MATCH 로 멈춘다")
+	void nonShopWithUnknownHours(TimeSlot slot, StoreKind kind) {
+		// given
+		candidates(slot, store(1, kind, 97));
+		checker.fallback = Result.HOURS_UNKNOWN;
+
+		// when
+		V2CourseResponse course = recommend(slot, 1);
+
+		// then
+		assertThat(course.stops()).isEmpty();
+		assertThat(course.interruption().reason()).isEqualTo("NO_VERIFIED_MATCH");
+	}
+
+	@ParameterizedTest(name = "{0} {1} → {3} 도착 {4}분")
+	@CsvSource({"LUNCH, KOREAN, CAFE, 12:30, 50", "AFTERNOON, CAFE, CAFE, 15:00, 80",
+		"AFTERNOON, SHOP, SHOP, 15:00, 30", "DINNER, KOREAN, CAFE, 19:00, 60", "LATE_NIGHT, BAR, CAFE, 22:30, 70"})
+	@DisplayName("구간마다 → 정해 둔 도착 시각과 머무는 시간을 영업 확인에 넘긴다")
+	void passesVisitTimeAndStay(TimeSlot slot, StoreKind kind, StoreKind afternoon, LocalTime visitTime,
+		int stayMinutes) {
+		// given
+		candidates(slot, store(1, kind, 99));
+
+		// when
+		V2CourseResponse course = service.recommend("nov", Weekday.FRI, slot, ORIGIN, Set.of(), 1, afternoon);
+
+		// then
+		assertThat(checker.calls.getFirst())
+			.isEqualTo(new FakeChecker.Call("place-1", Weekday.FRI, visitTime, stayMinutes));
+		assertThat(course.stops().getFirst().visitTime()).isEqualTo(visitTime.toString());
+	}
+
+	@Test
+	@DisplayName("다음 구간 후보를 모두 제외함 → 앞 구간만 담은 PARTIAL 과 ALL_EXCLUDED 다")
+	void excludedStoresGivePartialCourse() {
+		// given
+		candidates(TimeSlot.DINNER, store(1, StoreKind.KOREAN, 99));
+		candidates(TimeSlot.LATE_NIGHT, store(3, StoreKind.BAR, 99));
+
+		// when
+		V2CourseResponse course = service.recommend("nov", Weekday.FRI, TimeSlot.DINNER, ORIGIN, Set.of(3L, 4L),
+			1, StoreKind.CAFE);
+
+		// then
+		assertThat(course.status()).isEqualTo("PARTIAL");
+		assertThat(course.stops()).hasSize(1);
+		assertThat(course.interruption()).isEqualTo(
+			new V2CourseResponse.Interruption(TimeSlot.LATE_NIGHT, "ALL_EXCLUDED"));
+	}
+
+	@Test
+	@DisplayName("앞 구간에서 고른 매장 → 뒤 구간 후보에 다시 나와도 고르지 않는다")
+	void pickedStoreIsNotReused() {
+		// given: 같은 매장이 저녁·심야 후보에 모두 있다
+		Candidate both = store(1, StoreKind.KOREAN, 99);
+		candidates(TimeSlot.DINNER, both);
+		candidates(TimeSlot.LATE_NIGHT, at(1, StoreKind.BAR, 99, 37.5661, 126.9900));
+
+		// when
+		V2CourseResponse course = recommend(TimeSlot.DINNER, 1);
+
+		// then
+		assertThat(course.interruption().reason()).isEqualTo("ALL_EXCLUDED");
+	}
+
+	@Test
+	@DisplayName("첫 구간 후보가 없음 → NO_MATCHES 와 NO_NEARBY_MATCH 이고 context 는 시작 시간대다")
+	void noCandidatesAtStart() {
+		// given
+		candidates(TimeSlot.DINNER);
+
+		// when
+		V2CourseResponse course = recommend(TimeSlot.DINNER, 1);
+
+		// then
+		assertThat(course.status()).isEqualTo("NO_MATCHES");
+		assertThat(course.interruption().reason()).isEqualTo("NO_NEARBY_MATCH");
+		assertThat(course.context().slot()).isEqualTo(TimeSlot.DINNER);
+	}
+
+	@ParameterizedTest
+	@EnumSource(value = StoreKind.class, names = {"CAFE", "SHOP"}, mode = EnumSource.Mode.EXCLUDE)
+	@DisplayName("오후 자리가 카페·구경이 아님 → 후보를 읽기 전에 거절한다")
+	void rejectsOtherAfternoonKinds(StoreKind afternoon) {
+		// when
+		IllegalArgumentException exception = catchThrowableOfType(IllegalArgumentException.class, () -> service.recommend("nov",
+			Weekday.FRI, TimeSlot.AFTERNOON, ORIGIN, Set.of(), 1, afternoon));
+
+		// then
+		assertThat(exception).hasMessage("afternoon: " + afternoon);
+		verifyNoInteractions(loader);
+	}
+}

@@ -85,6 +85,22 @@ class StoreQueryRepositoryTest {
 	}
 
 	@Test
+	@DisplayName("쇼핑 매장은 v1 의 전체·음식점 목록에 나오지 않는다")
+	void shopIsNotFood() {
+		// given
+		store(6, CELL_A, "인사동 공예점", "SHOP", "SHOP", "2010-01-01", false, true);
+		List<Long> cellIds = List.of(CELL_A);
+
+		// when
+		List<StoreCardRow> all = storeQueryRepository.findCards(cellIds, null, null, null, null);
+		List<StoreCardRow> food = storeQueryRepository.findCards(cellIds, Category.FOOD, null, null, null);
+
+		// then
+		assertThat(all).extracting(StoreCardRow::name).containsExactly("공평식당", "백부장집");
+		assertThat(food).extracting(StoreCardRow::name).containsExactly("공평식당", "백부장집");
+	}
+
+	@Test
 	@DisplayName("음식점 종류를 주면 그 종류만 남긴다")
 	void foodType() {
 		// given
@@ -191,7 +207,7 @@ class StoreQueryRepositoryTest {
 		// given
 		jdbc.sql("insert into store_badge values (5, 'ORAE_GAGE'), (5, 'CENTURY_STORE')").update();
 		// when
-		var rows = storeQueryRepository.findCards(List.of(CELL_B), null, null,
+		List<StoreCardRow> rows = storeQueryRepository.findCards(List.of(CELL_B), null, null,
 			LocalDate.of(1996, 1, 1), null);
 		// then: 배지 두 개가 있어도 가게는 한 번만 반환한다.
 		assertThat(rows).extracting(StoreCardRow::id).containsExactly(5L);

@@ -3,6 +3,7 @@ package com.odyssey.recommendation.v2;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Stream;
 
 import com.odyssey.cell.GeoPoint;
 import com.odyssey.cellcondition.repository.CellConditionRepository.Candidate;
@@ -35,6 +36,11 @@ final class V2RecommendationSelector {
 	 * @param distanceMeters 사용자 위치에서 매장까지의 직선거리. 반올림하지 않은 값이다
 	 */
 	record Selected(Candidate candidate, double distanceMeters) {
+		static Selected from(Candidate candidate, GeoPoint origin) {
+			Place place = candidate.place();
+			GeoPoint location = new GeoPoint(place.lat(), place.lng());
+			return new Selected(candidate, origin.distanceTo(location));
+		}
 	}
 
 	private V2RecommendationSelector() {
@@ -45,12 +51,11 @@ final class V2RecommendationSelector {
 	 * 입력 목록은 바꾸지 않는다.
 	 */
 	static List<Selected> select(List<Candidate> candidates, V2RecommendationQuery query) {
-		return candidates.stream()
+		Stream<Selected> nearby = candidates.stream()
 			.filter(candidate -> matches(candidate.place(), query))
-			.map(candidate -> new Selected(candidate,
-				query.origin().distanceTo(new GeoPoint(candidate.place().lat(),
-					candidate.place().lng()))))
-			.filter(selected -> selected.distanceMeters() <= RADIUS_METERS)
+			.map(candidate -> Selected.from(candidate, query.origin()))
+			.filter(selected -> selected.distanceMeters() <= RADIUS_METERS);
+		return nearby
 			.sorted(ORDER)
 			.limit(MAX_RESULTS)
 			.toList();

@@ -55,13 +55,13 @@ public class StoreRepository {
 			.orderBy(store.id.asc()).fetch();
 	}
 
-	/** 단일 kind에서 카페와 음식점을 구분한다. 전체 선택이면 조건을 생략한다. */
+	/** 단일 kind에서 카페와 음식점을 구분한다. v1 의 전체는 음식점과 카페뿐이라 쇼핑은 늘 뺀다. */
 	private BooleanExpression categoryCondition(Category category) {
 		if (category == null) {
-			return null;
+			return store.kind.ne(StoreKind.SHOP);
 		}
 		return category == Category.CAFE ? store.kind.eq(StoreKind.CAFE)
-			: store.kind.ne(StoreKind.CAFE);
+			: store.kind.in(StoreKind.KOREAN, StoreKind.BAR, StoreKind.OTHER);
 	}
 
 	/** 음식점 하위 선택을 같은 이름의 kind로 바꾼다. 음식점이 아니면 조건을 생략한다. */

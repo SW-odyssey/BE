@@ -86,7 +86,7 @@ class V2MetaServiceTest {
 		V2MetaResponse meta = service.meta();
 
 		// then
-		assertThat(meta.categories()).containsExactly("food", "cafe", "all");
+		assertThat(meta.categories()).containsExactly("food", "cafe", "shop", "all");
 	}
 
 	@Test
@@ -96,6 +96,6 @@ class V2MetaServiceTest {
 		V2MetaResponse meta = service.meta();
 
 		// then
-		assertThat(meta.kinds()).containsExactly("korean", "bar", "other", "cafe", "all");
+		assertThat(meta.kinds()).containsExactly("korean", "bar", "other", "cafe", "shop", "all");
 	}
 }

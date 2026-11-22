@@ -1,0 +1,151 @@
+package com.odyssey.recommendation.v2;
+
+import java.net.http.HttpClient;
+import java.time.Duration;
+import java.time.LocalTime;
+import java.util.List;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.client.JdkClientHttpRequestFactory;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
+import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.odyssey.cellcondition.entity.Weekday;
+
+/**
+ * Google Place Details(New)로 영업 상태와 정규 영업시간을 확인한다. 시각 계산은 {@link WeeklyOpeningHours} 가 한다.
+ *
+ * <p>정책상 Google 에서 받은 값은 저장하지 않고 이 요청의 판정에만 쓴다. 영업시간 필드 때문에 호출마다
+ * Place Details Enterprise 요금이 붙는다. 공휴일·임시휴무는 정규 영업시간에 없어서 판정하지 못한다.
+ */
+@Component
+class GooglePlaceHours implements CourseVisitChecker {
+
+	private static final Logger log = LoggerFactory.getLogger(GooglePlaceHours.class);
+	private static final String FIELDS = "businessStatus,regularOpeningHours.periods";
+
+	private final RestClient client;
+	private final String apiKey;
+
+	GooglePlaceHours(@Value("${google.places.api-key:}") String apiKey,
+		@Value("${google.places.base-url:https://places.googleapis.com}") String baseUrl) {
+		HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(2)).build();
+		JdkClientHttpRequestFactory factory = new JdkClientHttpRequestFactory(http);
+		factory.setReadTimeout(Duration.ofSeconds(3));
+		this.client = RestClient.builder().baseUrl(baseUrl).requestFactory(factory).build();
+		this.apiKey = apiKey == null ? "" : apiKey.trim();
+	}
+
+	@Override
+	public Result check(String googlePlaceId, Weekday weekday, LocalTime visitTime, int stayMinutes) {
+		if (apiKey.isEmpty()) {
+			log.warn("google.places.api-key 가 없어 코스 영업 확인을 할 수 없습니다.");
+			return Result.UNAVAILABLE;
+		}
+		try {
+			Place place = fetchPlaceHours(googlePlaceId);
+			return checkStayDuringOpeningHours(place, weekday, visitTime, stayMinutes);
+		} catch (HttpClientErrorException.NotFound e) {
+			return Result.NOT_OPEN;
+		} catch (HttpClientErrorException e) {
+			return resultForClientError(e);
+		} catch (RestClientException e) {
+			log.warn("Google Place Details 조회 실패: {}", e.getClass().getSimpleName());
+			return Result.UNAVAILABLE;
+		}
+	}
+
+	private Place fetchPlaceHours(String googlePlaceId) {
+		return client.get().uri("/v1/places/{id}", googlePlaceId)
+			.header("X-Goog-Api-Key", apiKey)
+			.header("X-Goog-FieldMask", FIELDS)
+			.retrieve().body(Place.class);
+	}
+
+	private static Result resultForClientError(HttpClientErrorException e) {
+		// Google은 매장 ID 형식 오류와 만료된 API 키에 모두 400을 반환한다.
+		if (e.getStatusCode() == HttpStatus.BAD_REQUEST && !isInvalidKey(e)) {
+			return Result.NOT_OPEN;
+		}
+		log.warn("Google Place Details 조회 실패: {}", e.getStatusCode());
+		return Result.UNAVAILABLE;
+	}
+
+	private static Result checkStayDuringOpeningHours(Place place, Weekday weekday, LocalTime visitTime, int stayMinutes) {
+		if (place == null || !"OPERATIONAL".equals(place.businessStatus())) {
+			return Result.NOT_OPEN;
+		}
+		if (place.regularOpeningHours() == null) {
+			return Result.HOURS_UNKNOWN;
+		}
+		List<WeeklyOpeningHours.Period> periods = periods(place.regularOpeningHours().periods());
+		return WeeklyOpeningHours.coversStay(periods, weekday, visitTime, stayMinutes)
+			? Result.OPEN : Result.NOT_OPEN;
+	}
+
+	private static boolean isInvalidKey(HttpClientErrorException e) {
+		ErrorBody body;
+		try {
+			body = e.getResponseBodyAs(ErrorBody.class);
+		} catch (RuntimeException unreadable) {
+			return false;
+		}
+		if (body == null || body.error() == null || body.error().details() == null) {
+			return false;
+		}
+		return body.error().details().stream()
+			.anyMatch(detail -> detail != null && "API_KEY_INVALID".equals(detail.reason()));
+	}
+
+	private static List<WeeklyOpeningHours.Period> periods(List<Period> periods) {
+		if (periods == null) {
+			return null;
+		}
+		return periods.stream()
+			.map(GooglePlaceHours::toWeeklyPeriod)
+			.toList();
+	}
+
+	private static WeeklyOpeningHours.Period toWeeklyPeriod(Period period) {
+		return period == null ? null : new WeeklyOpeningHours.Period(point(period.open()), point(period.close()));
+	}
+
+	private static WeeklyOpeningHours.Point point(Point point) {
+		return point == null ? null : new WeeklyOpeningHours.Point(point.day(), point.hour(), point.minute());
+	}
+
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	record Place(String businessStatus, OpeningHours regularOpeningHours) {
+	}
+
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	record OpeningHours(List<Period> periods) {
+	}
+
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	record Period(Point open, Point close) {
+	}
+
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	record Point(int day, int hour, int minute) {
+	}
+
+	/** Google 오류 본문. details 의 reason 은 google.rpc.ErrorInfo 의 값이다 */
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	record ErrorBody(ErrorStatus error) {
+	}
+
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	record ErrorStatus(List<ErrorDetail> details) {
+	}
+
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	record ErrorDetail(String reason) {
+	}
+}
