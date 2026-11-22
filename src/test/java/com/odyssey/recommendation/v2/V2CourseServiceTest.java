@@ -87,7 +87,11 @@ class V2CourseServiceTest {
 	}
 
 	private static Candidate at(long id, StoreKind kind, double percentile, double lat, double lng) {
-		return new Candidate(new Place(id, "매장" + id, id, kind, lat, lng, null, "place-" + id), "m" + id,
+		return at(id, id, kind, percentile, lat, lng);
+	}
+
+	private static Candidate at(long id, long cellId, StoreKind kind, double percentile, double lat, double lng) {
+		return new Candidate(new Place(id, "매장" + id, cellId, kind, lat, lng, null, "place-" + id), "m" + id,
 			percentile);
 	}
 
@@ -178,6 +182,7 @@ class V2CourseServiceTest {
 		// then
 		assertThat(course.status()).isEqualTo("COMPLETE");
 		assertThat(course.stops()).extracting(stop -> stop.place().id()).containsExactly(1L, 2L);
+		assertThat(course.stops()).extracting(V2CourseResponse.Stop::walkMinutes).containsExactly(5, 6);
 	}
 
 	@Test
@@ -562,5 +567,52 @@ class V2CourseServiceTest {
 		assertThat(course.stops().getFirst().candidateRank()).isEqualTo(3);
 		assertThat(course.stops().getFirst().reasons()).containsExactly(new LocalTop(12),
 			new OpenDuringStay("12:00", "12:50"), new SimilarChoices(2));
+	}
+
+	@Test
+	@DisplayName("서로 다른 매장이 같은 칸에 있다 → 칸은 한 번만 조회하고 방문 시간대에 맞춰 이유를 붙인다")
+	void sharesCellFactsAcrossStops() {
+		// given
+		long cellId = 3_000_000_001L;
+		candidates(TimeSlot.DINNER, at(1, cellId, StoreKind.KOREAN, 97, 37.5660, 126.9900));
+		candidates(TimeSlot.LATE_NIGHT, at(2, cellId, StoreKind.BAR, 91, 37.5661, 126.9900));
+		given(reasonFacts.load("nov", Weekday.FRI, List.of(cellId))).willReturn(
+			new Facts(Map.of(cellId, TimeSlot.LATE_NIGHT), Map.of(cellId, "mixed")));
+
+		// when
+		V2CourseResponse course = recommend(TimeSlot.DINNER, 1);
+
+		// then
+		then(reasonFacts).should().load("nov", Weekday.FRI, List.of(cellId));
+		then(reasonFacts).shouldHaveNoMoreInteractions();
+		assertThat(course.status()).isEqualTo("COMPLETE");
+		assertThat(course.stops()).extracting(V2CourseResponse.Stop::reasons).containsExactly(
+			List.of(new LocalTop(3), new OpenDuringStay("19:00", "20:00"), new AreaType("mixed")),
+			List.of(new LocalTop(9), new OpenDuringStay("22:30", "23:40"), new PeakNow(), new AreaType("mixed")));
+	}
+
+	@Test
+	@DisplayName("다음 구간 영업 확인이 실패한다 → 앞서 고른 칸만 조회해 부분 코스에 이유를 붙인다")
+	void enrichesPartialCourseAfterVerificationFailure() {
+		// given
+		candidates(TimeSlot.DINNER, store(1, StoreKind.KOREAN, 96));
+		candidates(TimeSlot.LATE_NIGHT, store(2, StoreKind.BAR, 99));
+		checker.results.put("place-2", Result.UNAVAILABLE);
+		given(reasonFacts.load("nov", Weekday.FRI, List.of(1L))).willReturn(
+			new Facts(Map.of(1L, TimeSlot.DINNER), Map.of()));
+
+		// when
+		V2CourseResponse course = recommend(TimeSlot.DINNER, 1);
+
+		// then
+		assertThat(course.status()).isEqualTo("PARTIAL");
+		assertThat(course.interruption()).isEqualTo(
+			new V2CourseResponse.Interruption(TimeSlot.LATE_NIGHT, "VERIFICATION_UNAVAILABLE"));
+		assertThat(course.stops()).singleElement().satisfies(stop -> {
+			assertThat(stop.place().id()).isEqualTo(1L);
+			assertThat(stop.reasons()).containsExactly(new LocalTop(4),
+				new OpenDuringStay("19:00", "20:00"), new PeakNow());
+		});
+		then(reasonFacts).should().load("nov", Weekday.FRI, List.of(1L));
 	}
 }
