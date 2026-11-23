@@ -291,11 +291,12 @@ class RecommendationControllerTest {
 		expectInvalidInput(result);
 	}
 
-	@Test
-	@DisplayName("v1 은 쇼핑 카테고리를 받지 않는다")
-	void shopCategory() throws Exception {
+	@ParameterizedTest
+	@ValueSource(strings = {"shop", "play"})
+	@DisplayName("v1에 쇼핑·놀거리 요청 → 입력 오류를 반환한다")
+	void unsupportedCategory(String category) throws Exception {
 		// when
-		ResultActions result = mockMvc.perform(get(URL).param("category", "shop"));
+		ResultActions result = mockMvc.perform(get(URL).param("category", category));
 
 		// then
 		expectInvalidInput(result);

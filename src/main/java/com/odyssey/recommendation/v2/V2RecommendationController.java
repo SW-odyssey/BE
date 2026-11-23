@@ -97,13 +97,13 @@ public class V2RecommendationController {
 		@RequestParam double lat,
 		@Parameter(description = "내 위치의 경도. 일반 지도 좌표(WGS84)입니다.", example = "126.9905")
 		@RequestParam double lng,
-		@Parameter(description = "매장 대분류. food=음식점, cafe=카페, all=전체. 생략하면 food입니다.",
-			schema = @Schema(defaultValue = "food", allowableValues = {"food", "cafe", "all"}))
+		@Parameter(description = "매장 대분류. food=음식점, cafe=카페, shop=쇼핑, play=놀거리, all=전체. 생략하면 food입니다.",
+			schema = @Schema(defaultValue = "food", allowableValues = {"food", "cafe", "shop", "play", "all"}))
 		@RequestParam(defaultValue = "food") String category,
-		@Parameter(description = "매장 종류. korean=한식, bar=술집, other=기타, cafe=카페, all=전체. "
+		@Parameter(description = "매장 종류. korean=한식, bar=술집, other=기타, cafe=카페, shop=쇼핑, play=놀거리, all=전체. "
 			+ "category에 속하지 않는 종류를 고르면 400입니다(예: category=cafe&kind=bar).",
 			schema = @Schema(defaultValue = ALL,
-				allowableValues = {"korean", "bar", "other", "cafe", ALL}))
+				allowableValues = {"korean", "bar", "other", "cafe", "shop", "play", ALL}))
 		@RequestParam(defaultValue = ALL) String kind,
 		@Parameter(description = "매장 이름에 이 글자가 들어간 곳만 고릅니다. 대소문자는 구분하지 않고 앞뒤 공백은 무시합니다. 80자까지.")
 		@RequestParam(defaultValue = "") String q,

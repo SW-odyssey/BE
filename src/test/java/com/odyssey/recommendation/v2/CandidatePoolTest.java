@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -45,7 +46,7 @@ class CandidatePoolTest {
 			candidate(2, StoreKind.SHOP, 37.5661, 126.9902, 98))));
 
 		// when
-		List<Selected> near = pool.near(TimeSlot.AFTERNOON, kind, WEST);
+		List<Selected> near = pool.near(TimeSlot.AFTERNOON, Set.of(kind), WEST, CourseSchedule.DEFAULT_MIN_PERCENTILE);
 
 		// then
 		assertThat(ids(near)).containsExactly(expectedId);
@@ -62,10 +63,42 @@ class CandidatePoolTest {
 		GeoPoint origin = originName.equals("WEST") ? WEST : EAST;
 
 		// when
-		List<Selected> near = pool.near(TimeSlot.DINNER, StoreKind.KOREAN, origin);
+		List<Selected> near = pool.near(TimeSlot.DINNER, Set.of(StoreKind.KOREAN), origin, CourseSchedule.DEFAULT_MIN_PERCENTILE);
 
 		// then
 		assertThat(ids(near)).containsExactly(expectedId);
+	}
+
+	@ParameterizedTest
+	@CsvSource({"MON, true", "TUE, true", "WED, true", "THU, true", "FRI, true", "SAT, false", "SUN, false"})
+	@DisplayName("방문 백분위 65인 오후 놀거리 → 월요일부터 금요일까지만 후보에 든다")
+	void afternoonPlayMinimum(Weekday weekday, boolean eligible) {
+		// given
+		CourseSchedule.CourseSlot slot = CourseSchedule.afternoonPlay(weekday);
+		Candidate play = candidate(1, StoreKind.PLAY, WEST.lat(), WEST.lng(), 65);
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(slot.slot(), List.of(play)));
+
+		// when
+		List<Selected> selected = pool.near(slot.slot(), Set.of(StoreKind.PLAY), WEST, slot.minPercentile());
+
+		// then
+		assertThat(selected).hasSize(eligible ? 1 : 0);
+	}
+
+	@ParameterizedTest(name = "{0} 방문 백분위 {1} → 후보 {2}")
+	@CsvSource({"FRI, 59.99, false", "FRI, 60, true", "SAT, 74.99, false", "SAT, 75, true"})
+	@DisplayName("오후 놀거리 하한 경계 → 하한 미만은 빼고 하한과 같은 값은 넣는다")
+	void afternoonPlayMinimumBoundary(Weekday weekday, double percentile, boolean eligible) {
+		// given
+		CourseSchedule.CourseSlot slot = CourseSchedule.afternoonPlay(weekday);
+		Candidate play = candidate(1, StoreKind.PLAY, WEST.lat(), WEST.lng(), percentile);
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(slot.slot(), List.of(play)));
+
+		// when
+		List<Selected> selected = pool.near(slot.slot(), Set.of(StoreKind.PLAY), WEST, slot.minPercentile());
+
+		// then
+		assertThat(selected).hasSize(eligible ? 1 : 0);
 	}
 
 	@Test
@@ -78,10 +111,28 @@ class CandidatePoolTest {
 			candidate(3, StoreKind.KOREAN, 37.5663, 126.9903, 95))));
 
 		// when
-		List<Selected> near = pool.near(TimeSlot.DINNER, StoreKind.KOREAN, WEST);
+		List<Selected> near = pool.near(TimeSlot.DINNER, Set.of(StoreKind.KOREAN), WEST, CourseSchedule.DEFAULT_MIN_PERCENTILE);
 
 		// then
 		assertThat(ids(near)).containsExactly(2L, 3L, 1L);
+	}
+
+	@Test
+	@DisplayName("놀거리·쇼핑 후보가 섞임 → 종류를 합쳐 점수가 높고 거리가 가까운 순으로 고른다")
+	void ranksAcrossKinds() {
+		// given
+		List<Candidate> candidates = List.of(
+			candidate(1, StoreKind.PLAY, 37.5663, WEST.lng(), 90),
+			candidate(2, StoreKind.SHOP, 37.5661, WEST.lng(), 90),
+			candidate(3, StoreKind.PLAY, 37.5664, WEST.lng(), 95),
+			candidate(4, StoreKind.CAFE, WEST.lat(), WEST.lng(), 99));
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(TimeSlot.AFTERNOON, candidates));
+
+		// when
+		List<Selected> selected = pool.near(TimeSlot.AFTERNOON, Set.of(StoreKind.PLAY, StoreKind.SHOP), WEST, 75);
+
+		// then
+		assertThat(ids(selected)).containsExactly(3L, 2L, 1L);
 	}
 
 	@Test
@@ -91,7 +142,7 @@ class CandidatePoolTest {
 		CandidatePool pool = new CandidatePool(CONTEXT, Map.of());
 
 		// when
-		List<Selected> near = pool.near(TimeSlot.LATE_NIGHT, StoreKind.BAR, WEST);
+		List<Selected> near = pool.near(TimeSlot.LATE_NIGHT, Set.of(StoreKind.BAR), WEST, CourseSchedule.DEFAULT_MIN_PERCENTILE);
 
 		// then
 		assertThat(near).isEmpty();

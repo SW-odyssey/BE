@@ -1,6 +1,5 @@
 package com.odyssey.recommendation.v2;
 
-import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -20,34 +19,24 @@ import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.cellslotscore.entity.TimeSlot;
 import com.odyssey.recommendation.v2.CourseReasonFacts.Facts;
 import com.odyssey.recommendation.v2.CourseReasons.StopFacts;
+import com.odyssey.recommendation.v2.CourseSchedule.CourseSlot;
 import com.odyssey.recommendation.v2.CourseVisitChecker.Result;
 import com.odyssey.recommendation.v2.V2CourseResponse.Interruption;
+import com.odyssey.recommendation.v2.V2CourseResponse.Skipped;
 import com.odyssey.recommendation.v2.V2CourseResponse.Stop;
 import com.odyssey.recommendation.v2.V2RecommendationResponse.Item;
 import com.odyssey.recommendation.v2.V2RecommendationSelector.Selected;
 import com.odyssey.store.entity.StoreKind;
 
 /**
+ * 요청한 일정의 각 자리에서 다음에 방문할 매장을 고른다.
  * 뒤 구간이 끊겨도 앞에서 고른 매장은 코스에 남긴다.
+ * 코스를 다 고른 뒤 고른 칸들의 이유 재료를 한 번 읽어 정류장마다 이유를 붙인다.
  */
 @Service
 public class V2CourseService {
 
 	private static final Logger log = LoggerFactory.getLogger(V2CourseService.class);
-
-	/**
-	 * 머무는 시간(분)은 통계청 생활시간조사 2024 원자료로 20·30대가 기타 실내 한 곳에 이동 없이 머문 구간의
-	 * 가중 중앙값이다(저자 계산, 공표 통계 아님). 식사 점심 50·저녁 60, 카페형 80, 오후 시작 쇼핑 30,
-	 * 21시 이후 시작 유흥 70. 자정을 넘긴 구간은 빼고 셌으므로 심야 값은 짧은 쪽으로 치우친다.
-	 * 심야를 23:30 도착으로 두면 그때 연 주점 40%가 00:40 전에 닫아 Google 표본 30곳 완주가 29→25로
-	 * 떨어졌다. U+ 심야(22~01시) 안인 22:30 도착이면 29/30 그대로다(2026-11-21).
-	 */
-	private static final List<Stage> STAGES = List.of(
-		new Stage(TimeSlot.LUNCH, StoreKind.KOREAN, LocalTime.of(12, 30), 50),
-		new Stage(TimeSlot.AFTERNOON, StoreKind.CAFE, LocalTime.of(15, 0), 80),
-		new Stage(TimeSlot.DINNER, StoreKind.KOREAN, LocalTime.of(19, 0), 60),
-		new Stage(TimeSlot.LATE_NIGHT, StoreKind.BAR, LocalTime.of(22, 30), 70));
-	static final int SHOP_STAY_MINUTES = 30;
 
 	/** 90점 이상 칸의 인접 월 백분위 변화는 중앙값 1.3점, 75%가 2.8점 이내였다(2025년 12개 배치). */
 	private static final double PERCENTILE_BAND = 3.0;
@@ -76,43 +65,36 @@ public class V2CourseService {
 	/** @param afternoon 오후 자리의 종류. 카페(CAFE) 또는 구경(SHOP) */
 	public V2CourseResponse recommend(String datasetId, Weekday weekday, TimeSlot startSlot,
 		GeoPoint origin, Set<Long> excludeIds, long seed, StoreKind afternoon) {
-		validateAfternoonKind(afternoon);
-		List<Stage> stages = planStagesFrom(startSlot, afternoon);
-		CandidatePool pool = loadCandidates(datasetId, weekday, stages);
-		return buildCourse(stages, pool, weekday, origin, excludeIds, seed);
+		return recommend(datasetId, weekday, startSlot, origin, excludeIds, seed, afternoon, false);
 	}
 
-	private static void validateAfternoonKind(StoreKind afternoon) {
-		if (afternoon != StoreKind.CAFE && afternoon != StoreKind.SHOP) {
-			throw new IllegalArgumentException("afternoon: " + afternoon);
-		}
+	public V2CourseResponse recommend(String datasetId, Weekday weekday, TimeSlot startSlot,
+		GeoPoint origin, Set<Long> excludeIds, long seed, StoreKind afternoon, boolean lateNight) {
+		List<CourseSlot> slots = CourseSchedule.slots(weekday, afternoon, startSlot, lateNight);
+		List<TimeSlot> timeSlots = slots.stream().map(CourseSlot::slot).distinct().toList();
+		CandidatePool pool = candidates.load(datasetId, weekday, startSlot, timeSlots);
+		Selection selection = selectStops(pool, slots, origin, excludeIds, weekday, new Random(seed));
+		return response(pool.context(), seed, selection);
 	}
 
-	private static List<Stage> planStagesFrom(TimeSlot startSlot, StoreKind afternoon) {
-		List<Stage> remainingStages = STAGES.stream()
-			.dropWhile(stage -> stage.slot() != startSlot)
-			.toList();
-		return remainingStages.stream()
-			.map(stage -> stage.withAfternoonKind(afternoon))
-			.toList();
+	private record Selection(List<Pick> picks, List<Skipped> skipped, Interruption interruption) {
 	}
 
-	private CandidatePool loadCandidates(String datasetId, Weekday weekday, List<Stage> stages) {
-		List<TimeSlot> slots = stages.stream().map(Stage::slot).toList();
-		return candidates.load(datasetId, weekday, slots);
-	}
-
-	private V2CourseResponse buildCourse(List<Stage> stages, CandidatePool pool, Weekday weekday,
-		GeoPoint origin, Set<Long> excludeIds, long seed) {
-		Random random = new Random(seed);
+	private Selection selectStops(CandidatePool pool, List<CourseSlot> slots, GeoPoint origin, Set<Long> excludeIds,
+		Weekday weekday, Random random) {
 		Set<Long> excluded = new HashSet<>(excludeIds);
 		List<Pick> picks = new ArrayList<>();
+		List<Skipped> skipped = new ArrayList<>();
 		Interruption interruption = null;
-		for (Stage stage : stages) {
-			List<Selected> nearby = pool.near(stage.slot(), stage.kind(), origin);
-			Pick pick = pickStageStop(nearby, excluded, weekday, stage, random);
+		for (CourseSlot slot : slots) {
+			List<Selected> ranked = pool.near(slot.slot(), slot.kinds(), origin, slot.minPercentile());
+			Pick pick = pickStageStop(ranked, excluded, weekday, slot, random);
 			if (pick.stop() == null) {
-				interruption = new Interruption(stage.slot(), pick.reason());
+				if (slot.requirement().skipWhenMissing()) {
+					skipped.add(new Skipped(slot.slot(), slot.position(), pick.reason()));
+					continue;
+				}
+				interruption = new Interruption(slot.slot(), pick.reason());
 				break;
 			}
 			picks.add(pick);
@@ -120,12 +102,16 @@ public class V2CourseService {
 			excluded.add(place.id());
 			origin = new GeoPoint(place.lat(), place.lng());
 		}
-		// 영업 확인이 다 끝난 뒤라 이 조회는 Google 호출 중에 커넥션을 잡지 않는다
-		Facts facts = facts(pool.context().datasetId(), weekday, picks);
+		return new Selection(picks, skipped, interruption);
+	}
+
+	private V2CourseResponse response(V2Context context, long seed, Selection selection) {
+		List<Pick> picks = selection.picks();
+		Facts facts = facts(context.datasetId(), context.weekday(), picks);
 		List<Stop> stops = picks.stream().map(pick -> withReasons(pick, facts)).toList();
-		return interruption == null
-			? V2CourseResponse.complete(pool.context(), seed, stops)
-			: V2CourseResponse.interrupted(pool.context(), seed, stops, interruption);
+		return selection.interruption() == null
+			? V2CourseResponse.complete(context, seed, stops, selection.skipped())
+			: V2CourseResponse.interrupted(context, seed, stops, selection.skipped(), selection.interruption());
 	}
 
 	/** 이유 때문에 코스가 실패하지 않게, 조회가 실패하면 그 재료로 붙는 이유(PEAK_NOW, AREA_TYPE)만 뺀다. */
@@ -154,7 +140,7 @@ public class V2CourseService {
 		return Long.parseLong(stop.place().cellId());
 	}
 
-	private Pick pickStageStop(List<Selected> ranked, Set<Long> excluded, Weekday weekday, Stage stage, Random random) {
+	private Pick pickStageStop(List<Selected> ranked, Set<Long> excluded, Weekday weekday, CourseSlot stage, Random random) {
 		if (ranked.isEmpty()) {
 			return Pick.stopped("NO_NEARBY_MATCH");
 		}
@@ -206,13 +192,13 @@ public class V2CourseService {
 		return bands;
 	}
 
-	private Pick findFirstVisitableStop(List<Selected> ranked, Weekday weekday, Stage stage, Iterator<BandCandidate> order) {
+	private Pick findFirstVisitableStop(List<Selected> ranked, Weekday weekday, CourseSlot stage, Iterator<BandCandidate> order) {
 		while (order.hasNext()) {
 			BandCandidate candidate = order.next();
 			Selected selected = ranked.get(candidate.index());
 			Item item = Item.from(selected);
-			Result result = checker.check(item.googlePlaceId(), weekday, stage.visitTime(), stage.stayMinutes());
-			if (stage.allowsVisit(result)) {
+			Result result = checker.check(item.googlePlaceId(), weekday, stage.visitTime(), stage.stayMinutes(item.kind()));
+			if (result == Result.OPEN || (result == Result.HOURS_UNKNOWN && (item.kind() == StoreKind.SHOP || item.kind() == StoreKind.PLAY))) {
 				return Pick.selected(stage, candidate, item, result, selected.candidate().percentile());
 			}
 			if (result == Result.UNAVAILABLE) {
@@ -222,26 +208,12 @@ public class V2CourseService {
 		return Pick.stopped("NO_VERIFIED_MATCH");
 	}
 
-	private record Stage(TimeSlot slot, StoreKind kind, LocalTime visitTime, int stayMinutes) {
-		boolean allowsVisit(Result result) {
-			// 작은 공방·갤러리는 Google에 영업시간이 없는 곳이 많아 쇼핑 구간에서만 허용한다.
-			return result == Result.OPEN || (kind == StoreKind.SHOP && result == Result.HOURS_UNKNOWN);
-		}
-
-		Stage withAfternoonKind(StoreKind afternoon) {
-			if (slot == TimeSlot.AFTERNOON && afternoon == StoreKind.SHOP) {
-				return new Stage(slot, StoreKind.SHOP, visitTime, SHOP_STAY_MINUTES);
-			}
-			return this;
-		}
-	}
-
 	record BandCandidate(int index, int bandSize) {
 	}
 
 	private record Pick(Stop stop, String reason, int bandSize, double percentile) {
-		static Pick selected(Stage stage, BandCandidate candidate, Item item, Result result, double percentile) {
-			Stop stop = Stop.of(stage.slot(), stage.visitTime(), stage.stayMinutes(), candidate.index() + 1, item,
+		static Pick selected(CourseSlot stage, BandCandidate candidate, Item item, Result result, double percentile) {
+			Stop stop = Stop.of(stage.position(), stage.slot(), stage.visitTime(), stage.stayMinutes(item.kind()), candidate.index() + 1, item,
 				result == Result.HOURS_UNKNOWN);
 			return new Pick(stop, null, candidate.bandSize(), percentile);
 		}

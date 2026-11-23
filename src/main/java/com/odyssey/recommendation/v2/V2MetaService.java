@@ -22,9 +22,9 @@ public class V2MetaService {
 
 	private static final String ALL = "all";
 
-	// 선언 순서(CAFE 가 첫째)와 달리 화면은 한식, 술집, 기타, 카페, 쇼핑 순으로 보여 준다
+	// 선언 순서(CAFE 가 첫째)와 달리 화면은 한식, 술집, 기타, 카페, 쇼핑, 놀거리 순으로 보여 준다
 	private static final List<StoreKind> KIND_ORDER =
-		List.of(StoreKind.KOREAN, StoreKind.BAR, StoreKind.OTHER, StoreKind.CAFE, StoreKind.SHOP);
+		List.of(StoreKind.KOREAN, StoreKind.BAR, StoreKind.OTHER, StoreKind.CAFE, StoreKind.SHOP, StoreKind.PLAY);
 
 	private final V2DatasetResolver datasets;
 
