@@ -96,13 +96,33 @@ class BeamSelectorTest {
 			store(3, StoreKind.KOREAN, 200, 99), store(4, StoreKind.KOREAN, 0, 95))));
 		BeamSelector beam = new BeamSelector();
 		Set<Long> chosen = new java.util.HashSet<>();
-		for (long seed : List.of(0L, 1L, 7L, 4096L)) {
+		for (long seed = 0; seed < 100; seed++) {
 			Request request = request(SLOTS.subList(0, 1), seed);
 			Selection first = beam.select(request, pool);
 			assertThat(beam.select(request, pool)).isEqualTo(first);
 			chosen.addAll(ids(first));
 		}
 		assertThat(chosen).containsExactlyInAnyOrder(1L, 2L);
+	}
+
+	@Test
+	@DisplayName("후보가 둘이고 seed 를 1, 2, 3 ... 으로 이어 보냄 → 두 코스가 번갈아 나와 한쪽으로 쏠리지 않는다")
+	void smallConsecutiveSeedsReachEveryChoice() {
+		// given: 점수·거리 범위 안의 점심 후보가 둘이다
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(TimeSlot.LUNCH, List.of(
+			store(1, StoreKind.KOREAN, 5, 99), store(2, StoreKind.KOREAN, 50, 97))));
+		BeamSelector beam = new BeamSelector();
+
+		// when
+		int firstChosen = 0;
+		for (long seed = 1; seed <= 100; seed++) {
+			if (ids(beam.select(request(SLOTS.subList(0, 1), seed), pool)).equals(List.of(1L))) {
+				firstChosen++;
+			}
+		}
+
+		// then: 어느 쪽도 20번 미만으로 나오지 않는다. 쏠리면 0 이나 100 이 된다
+		assertThat(firstChosen).isBetween(20, 80);
 	}
 
 	private static CandidatePool lunchAndDinnerAtBothPlaces() {

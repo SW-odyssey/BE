@@ -5,8 +5,8 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Random;
 import java.util.Set;
+import java.util.SplittableRandom;
 import java.util.stream.Collectors;
 
 import com.odyssey.cell.GeoPoint;
@@ -117,7 +117,9 @@ final class BeamSelector implements CourseSelector {
 	/** 정류장이 가장 많고 점수 합이 1위와 가까운 경로 중, 총 거리가 짧은 쪽에서 seed 로 하나를 고른다. */
 	private Path choose(List<Path> beam, long seed) {
 		List<Path> choices = shortestAmongNearBest(beam);
-		return choices.get(new Random(seed).nextInt(choices.size()));
+		// java.util.Random 은 후보 수가 2의 거듭제곱이면 작은 seed 끼리 거의 같은 값을 줘서, 1·2·3 으로 다시 요청해도
+		// 같은 코스가 나온다. SplittableRandom 은 seed 를 섞어서 시작하므로 이어지는 seed 도 고르게 갈린다.
+		return choices.get(new SplittableRandom(seed).nextInt(choices.size()));
 	}
 
 	private List<Path> shortestAmongNearBest(List<Path> beam) {
