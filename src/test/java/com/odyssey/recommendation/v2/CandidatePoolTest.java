@@ -86,6 +86,22 @@ class CandidatePoolTest {
 		assertThat(selected).hasSize(eligible ? 1 : 0);
 	}
 
+	@ParameterizedTest(name = "{0} 방문 백분위 {1} → 후보 {2}")
+	@CsvSource({"FRI, 59.99, false", "FRI, 60, true", "SAT, 74.99, false", "SAT, 75, true"})
+	@DisplayName("오후 놀거리 하한 경계 → 하한 미만은 빼고 하한과 같은 값은 넣는다")
+	void afternoonPlayMinimumBoundary(Weekday weekday, double percentile, boolean eligible) {
+		// given
+		CourseSchedule.CourseSlot slot = CourseSchedule.afternoonPlay(weekday);
+		Candidate play = candidate(1, StoreKind.PLAY, WEST.lat(), WEST.lng(), percentile);
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(slot.slot(), List.of(play)));
+
+		// when
+		List<Selected> selected = pool.near(slot.slot(), Set.of(StoreKind.PLAY), WEST, slot.minPercentile());
+
+		// then
+		assertThat(selected).hasSize(eligible ? 1 : 0);
+	}
+
 	@Test
 	@DisplayName("여러 후보가 반경 안에 있음 → 목록 API 와 같이 방문 백분위 내림차순이다")
 	void keepsListOrder() {

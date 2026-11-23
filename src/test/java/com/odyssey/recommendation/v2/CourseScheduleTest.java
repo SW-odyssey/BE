@@ -79,6 +79,29 @@ class CourseScheduleTest {
 	}
 
 	@Test
+	@DisplayName("평일 여섯 자리 → 자리마다 받는 종류와 방문 백분위 하한이 정해진 값이다")
+	void kindsAndMinimumsOnWeekday() {
+		// when
+		List<CourseSlot> slots = CourseSchedule.slots(Weekday.FRI, StoreKind.CAFE, TimeSlot.LUNCH, true);
+
+		// then
+		assertThat(slots).extracting(CourseSlot::kinds).containsExactly(
+			Set.of(StoreKind.KOREAN), Set.of(StoreKind.CAFE), Set.of(StoreKind.PLAY, StoreKind.SHOP),
+			Set.of(StoreKind.KOREAN), Set.of(StoreKind.PLAY), Set.of(StoreKind.BAR));
+		assertThat(slots).extracting(CourseSlot::minPercentile).containsExactly(75.0, 75.0, 60.0, 75.0, 75.0, 75.0);
+	}
+
+	@Test
+	@DisplayName("주말 여섯 자리 → 3번 자리도 하한이 75 라서 모든 자리가 75 다")
+	void minimumsOnWeekend() {
+		// when
+		List<CourseSlot> slots = CourseSchedule.slots(Weekday.SAT, StoreKind.CAFE, TimeSlot.LUNCH, true);
+
+		// then
+		assertThat(slots).extracting(CourseSlot::minPercentile).containsExactly(75.0, 75.0, 75.0, 75.0, 75.0, 75.0);
+	}
+
+	@Test
 	@DisplayName("오후를 카페로 고름 → 2번 자리는 카페만 받고 80분 머문다")
 	void afternoonCafe() {
 		// when
@@ -117,7 +140,7 @@ class CourseScheduleTest {
 		CourseSlot slot = CourseSchedule.afternoonPlay(weekday);
 
 		// then
-		assertThat(slot.minPercentile()).isEqualTo(CourseSchedule.MIN_COURSE_PERCENTILE);
+		assertThat(slot.minPercentile()).isEqualTo(60.0);
 	}
 
 	@ParameterizedTest
@@ -128,7 +151,7 @@ class CourseScheduleTest {
 		CourseSlot slot = CourseSchedule.afternoonPlay(weekday);
 
 		// then
-		assertThat(slot.minPercentile()).isEqualTo(CourseSchedule.DEFAULT_MIN_PERCENTILE);
+		assertThat(slot.minPercentile()).isEqualTo(75.0);
 	}
 
 	@Test
