@@ -3,7 +3,6 @@ package com.odyssey.recommendation.v2;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
-import java.util.stream.Stream;
 
 import com.odyssey.cell.GeoPoint;
 import com.odyssey.cellcondition.repository.CellConditionRepository.Candidate;
@@ -41,6 +40,10 @@ final class V2RecommendationSelector {
 			GeoPoint location = new GeoPoint(place.lat(), place.lng());
 			return new Selected(candidate, origin.distanceTo(location));
 		}
+
+		GeoPoint location() {
+			return new GeoPoint(candidate.place().lat(), candidate.place().lng());
+		}
 	}
 
 	private V2RecommendationSelector() {
@@ -58,12 +61,15 @@ final class V2RecommendationSelector {
 	}
 
 	static List<Selected> rankNearby(List<Candidate> candidates, GeoPoint origin) {
-		Stream<Selected> nearby = candidates.stream()
+		return rankWithin(candidates, origin, 0, RADIUS_METERS).stream().limit(MAX_RESULTS).toList();
+	}
+
+	/** @return 출발점에서 minimum 이상 radius 이하 거리의 후보를 목록 API 와 같은 순서로. 개수 제한은 없다 */
+	static List<Selected> rankWithin(List<Candidate> candidates, GeoPoint origin, double minimum, double radius) {
+		return candidates.stream()
 			.map(candidate -> Selected.from(candidate, origin))
-			.filter(selected -> selected.distanceMeters() <= RADIUS_METERS);
-		return nearby
+			.filter(selected -> selected.distanceMeters() >= minimum && selected.distanceMeters() <= radius)
 			.sorted(ORDER)
-			.limit(MAX_RESULTS)
 			.toList();
 	}
 

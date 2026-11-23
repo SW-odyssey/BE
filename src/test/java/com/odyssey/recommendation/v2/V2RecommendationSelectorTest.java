@@ -298,4 +298,36 @@ class V2RecommendationSelectorTest {
 		// then
 		assertThat(selected).isEmpty();
 	}
+
+	@Test
+	@DisplayName("하한 100m·상한 300m → 그 사이의 후보만 방문 백분위 순으로 준다")
+	void rankWithinKeepsOnlyTheDistanceBand() {
+		// given
+		List<Candidate> candidates = List.of(
+			candidate(1, 99.9, 99, "a"),
+			candidate(2, 100.1, 90, "b"),
+			candidate(3, 299.9, 95, "c"),
+			candidate(4, 300.1, 99, "d"));
+
+		// when
+		List<Selected> selected = V2RecommendationSelector.rankWithin(candidates,
+			new GeoPoint(ORIGIN_LAT, ORIGIN_LNG), 100, 300);
+
+		// then
+		assertThat(ids(selected)).containsExactly(3L, 2L);
+	}
+
+	@Test
+	@DisplayName("후보가 35곳이다 → rankWithin 은 모두 주고 rankNearby 는 30곳만 준다")
+	void rankWithinHasNoCountLimit() {
+		// given
+		List<Candidate> candidates = IntStream.rangeClosed(1, 35)
+			.mapToObj(id -> candidate(id, 10, 90, "m%02d".formatted(id)))
+			.toList();
+		GeoPoint origin = new GeoPoint(ORIGIN_LAT, ORIGIN_LNG);
+
+		// then
+		assertThat(V2RecommendationSelector.rankWithin(candidates, origin, 0, 300)).hasSize(35);
+		assertThat(V2RecommendationSelector.rankNearby(candidates, origin)).hasSize(30);
+	}
 }

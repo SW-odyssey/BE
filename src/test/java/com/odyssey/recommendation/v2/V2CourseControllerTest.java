@@ -66,7 +66,7 @@ class V2CourseControllerTest {
 
 	@BeforeEach
 	void anyCourse() {
-		given(service.recommend(any(), any(), any(), any(), anySet(), anyLong(), any(), anyBoolean())).willReturn(PARTIAL);
+		given(service.recommend(any(), any(), any(), any(), anySet(), anyLong(), any(), anyBoolean(), any())).willReturn(PARTIAL);
 	}
 
 	/** 필수 값 다섯 개를 채운 요청에서 key 의 값만 value 로 바꾼다. */
@@ -100,14 +100,14 @@ class V2CourseControllerTest {
 	@DisplayName("모든 값을 보냄 → 바꾼 값 그대로 서비스에 넘긴다")
 	void passesParsedValues() throws Exception {
 		// given
-		MockHttpServletRequestBuilder request = valid().param("excludeIds", "3,4").param("seed", "7").param("afternoon", "shop").param("lateNight", "true");
+		MockHttpServletRequestBuilder request = valid().param("excludeIds", "3,4").param("seed", "7").param("afternoon", "shop").param("lateNight", "true").param("walk", "short");
 
 		// when
 		mvc.perform(request).andExpect(status().isOk());
 
 		// then
 		then(service).should().recommend("nov", Weekday.FRI, TimeSlot.DINNER, new GeoPoint(37.5655342, 126.9903373),
-			Set.of(3L, 4L), 7L, StoreKind.SHOP, true);
+			Set.of(3L, 4L), 7L, StoreKind.SHOP, true, WalkPreference.SHORT);
 	}
 
 	@ParameterizedTest(name = "afternoon=\"{0}\" → {1}")
@@ -121,7 +121,7 @@ class V2CourseControllerTest {
 		mvc.perform(request).andExpect(status().isOk());
 
 		// then
-		then(service).should().recommend(any(), any(), any(), any(), any(), anyLong(), eq(expected), eq(false));
+		then(service).should().recommend(any(), any(), any(), any(), any(), anyLong(), eq(expected), eq(false), eq(WalkPreference.DEFAULT));
 	}
 
 	@Test
@@ -136,7 +136,7 @@ class V2CourseControllerTest {
 		// then
 		ArgumentCaptor<Long> seed = ArgumentCaptor.forClass(Long.class);
 		then(service).should().recommend(any(), any(), any(), any(), eq(Set.of()), seed.capture(),
-			eq(StoreKind.CAFE), eq(false));
+			eq(StoreKind.CAFE), eq(false), eq(WalkPreference.DEFAULT));
 		assertThat(seed.getValue()).isBetween(1L, (1L << 53) - 1);
 	}
 
@@ -256,7 +256,7 @@ class V2CourseControllerTest {
 		Stop lateStop = new Stop(6, TimeSlot.LATE_NIGHT, "22:00", "23:10", 1, 1, bar, false, List.of());
 		List<Stop> stops = include ? List.of(lateStop) : List.of();
 		given(service.recommend(any(), any(), eq(TimeSlot.LATE_NIGHT), any(), anySet(), anyLong(),
-			eq(StoreKind.CAFE), eq(include))).willReturn(new V2CourseResponse("COMPLETE", context, 7, stops, List.of(), null));
+			eq(StoreKind.CAFE), eq(include), eq(WalkPreference.DEFAULT))).willReturn(new V2CourseResponse("COMPLETE", context, 7, stops, List.of(), null));
 		MockHttpServletRequestBuilder request = validWith("startSlot", "late_night").param("seed", "7");
 		if (value != null) {
 			request.param("lateNight", value);
@@ -270,6 +270,13 @@ class V2CourseControllerTest {
 		if (include) {
 			result.andExpect(jsonPath("$.data.stops[0].position").value(6));
 		}
+	}
+
+	@Test
+	@DisplayName("지원하지 않는 걷기 조건이면 400 INVALID_INPUT을 반환한다")
+	void invalidWalk() throws Exception {
+		ResultActions result = mvc.perform(validWith("walk", "long"));
+		expectInvalidInput(result, "walk 는 default 또는 short 입니다.");
 	}
 
 	@Test
@@ -331,7 +338,7 @@ class V2CourseControllerTest {
 	@DisplayName("서비스가 배치를 찾지 못함 → 404 DATASET_NOT_FOUND 를 같은 오류 형식으로 준다")
 	void datasetNotFound() throws Exception {
 		// given
-		given(service.recommend(any(), any(), any(), any(), anySet(), anyLong(), any(), anyBoolean()))
+		given(service.recommend(any(), any(), any(), any(), anySet(), anyLong(), any(), anyBoolean(), any()))
 			.willThrow(new BusinessException(V2Error.DATASET_NOT_FOUND, "공개된 분석 배치를 찾을 수 없습니다."));
 
 		// when

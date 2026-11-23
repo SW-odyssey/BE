@@ -1,6 +1,6 @@
 package com.odyssey.recommendation.v2;
 
-import static com.odyssey.recommendation.v2.V2CourseService.candidateCheckOrder;
+import static com.odyssey.recommendation.v2.BandShuffleSelector.candidateCheckOrder;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.ArrayList;
@@ -19,7 +19,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 
-import com.odyssey.recommendation.v2.V2CourseService.BandCandidate;
+import com.odyssey.recommendation.v2.BandShuffleSelector.BandCandidate;
 
 /** {@link V2CourseService} 가 점수대를 나눠 섞고 상한까지 내주는지 확인한다. */
 class CheckOrderTest {
