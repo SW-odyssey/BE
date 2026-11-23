@@ -52,7 +52,8 @@ public class CellConditionRepository {
 	 * 지정한 분석 배치·요일·시간대에서 추천할 수 있는 매장을 조회한다.
 	 *
 	 * <p>품질이 AVAILABLE 이고 방문 백분위가 하한 이상인 칸의 활성 매장이다. 후보에는 비어 있지 않은
-	 * 구글 장소 ID 가 있어야 한다. 하한은 이 SQL 한 곳에서만 적용하고, 값은 호출하는 서비스가 정한다.
+	 * 구글 장소 ID 가 있어야 한다. 이 SQL 은 호출하는 서비스가 정한 하한을 그대로 적용한다. 코스는 자리별 하한 중
+	 * 가장 낮은 값으로 넓게 읽고, 자리별 하한은 {@code CandidatePool.near} 가 다시 거른다.
 	 *
 	 * @param datasetId          분석 배치 ID
 	 * @param weekday            요일

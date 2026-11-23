@@ -15,7 +15,7 @@ import com.odyssey.store.entity.StoreKind;
  * 앞 구간에서 고른 매장 좌표가 정해질 때마다 여기서 거리만 다시 거른다.
  *
  * @param context 시작 시간대 기준의 응답 context
- * @param bySlot  시간대별 후보. 방문 백분위 하한은 조회 SQL 이 이미 적용했다
+ * @param bySlot  시간대별 후보. 조회 SQL 은 모든 자리 중 가장 낮은 하한(60)으로 넓게 읽고, 자리별 하한은 {@link #near} 가 다시 거른다
  */
 record CandidatePool(V2Context context, Map<TimeSlot, List<Candidate>> bySlot) {
 
