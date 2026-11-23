@@ -676,4 +676,22 @@ class V2CourseServiceTest {
 		assertThat(atMinimum.stops()).extracting(stop -> stop.place().id()).containsExactly(1L, 2L);
 		assertThat(atMinimum.skipped()).isEmpty();
 	}
+
+	@ParameterizedTest(name = "{0} 방문 백분위 65인 놀거리 → 3번 자리 선택 {1}")
+	@CsvSource({"MON, true", "FRI, true", "SAT, false", "SUN, false"})
+	@DisplayName("오후 놀거리(3번) 하한 → 월~금은 60 이라 고르고 주말은 75 라서 건너뛴다")
+	void afternoonPlayFloorFollowsWeekday(Weekday weekday, boolean picked) {
+		// given
+		candidates(TimeSlot.AFTERNOON, store(1, StoreKind.CAFE, 99), store(2, StoreKind.PLAY, 65));
+
+		// when
+		V2CourseResponse course = service.recommend("nov", weekday, TimeSlot.AFTERNOON, ORIGIN, Set.of(), 1,
+			StoreKind.CAFE, false);
+
+		// then
+		assertThat(course.stops()).extracting(stop -> stop.place().id())
+			.isEqualTo(picked ? List.of(1L, 2L) : List.of(1L));
+		assertThat(course.skipped()).isEqualTo(picked ? List.<V2CourseResponse.Skipped>of()
+			: List.of(new V2CourseResponse.Skipped(TimeSlot.AFTERNOON, 3, "NO_NEARBY_MATCH")));
+	}
 }
