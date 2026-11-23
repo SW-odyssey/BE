@@ -68,6 +68,7 @@ final class VerifiedCourseSelector implements CourseSelector {
 		VisitVerification(Request request) {
 			this.request = request;
 			this.excluded = new HashSet<>(request.excludeIds());
+			request.excludedBySlot().forEach((position, ids) -> closedAtSlot.put(position, new HashSet<>(ids)));
 			this.remaining = new ArrayList<>(request.slots());
 		}
 

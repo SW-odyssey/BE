@@ -36,31 +36,57 @@ final class BeamSelector implements CourseSelector {
 	public Selection select(Request request, CandidatePool pool) {
 		List<Path> beam = List.of(Path.start(request.origin()));
 		for (CourseSlot slot : request.slots()) {
-			List<Path> next = expand(beam, slot, pool, request);
+			Legs legs = Legs.of(slot, pool, request);
+			List<Path> next = expand(beam, slot, legs, request);
 			if (next.isEmpty()) {
-				Interruption interruption = new Interruption(slot.slot(), "NO_VERIFIED_MATCH");
-				return choose(beam, request.seed()).selection(interruption);
+				Path chosen = choose(beam, request.seed());
+				Interruption interruption = new Interruption(slot.slot(), missingReason(legs.of(chosen), chosen, request));
+				return chosen.selection(interruption);
 			}
 			beam = prune(next);
 		}
 		return choose(beam, request.seed()).selection(null);
 	}
 
-	private List<Path> expand(List<Path> beam, CourseSlot slot, CandidatePool pool, Request request) {
-		LegCandidates firstLeg = pool.forLeg(slot, 0, V2RecommendationSelector.RADIUS_METERS, 0);
-		LegCandidates betweenStops = request.walk().betweenStops(pool, slot);
+	/** 자리의 첫 구간(출발점 기준)과 그 뒤 구간(직전 매장 기준)에서 후보를 찾는 규칙 */
+	private record Legs(LegCandidates first, LegCandidates between) {
+
+		static Legs of(CourseSlot slot, CandidatePool pool, Request request) {
+			return new Legs(pool.forLeg(slot, 0, V2RecommendationSelector.RADIUS_METERS, 0),
+				request.walk().betweenStops(pool, slot));
+		}
+
+		LegCandidates of(Path path) {
+			return path.picks().isEmpty() ? first : between;
+		}
+	}
+
+	private List<Path> expand(List<Path> beam, CourseSlot slot, Legs legs, Request request) {
 		Set<Long> excludedHere = request.excludedAt(slot.position());
 		List<Path> next = new ArrayList<>();
 		for (Path path : beam) {
-			LegCandidates leg = path.picks().isEmpty() ? firstLeg : betweenStops;
+			LegCandidates leg = legs.of(path);
 			List<Ranked> nearby = leg.near(path.origin(), path.earlierStops(), path.excludedIds(excludedHere));
 			addCandidatePaths(next, path, slot, nearby);
 			if (slot.requirement().skipWhenMissing()) {
-				String reason = nearby.isEmpty() ? "NO_VERIFIED_MATCH" : "SKIPPED_FOR_ROUTE";
+				String reason = nearby.isEmpty() ? missingReason(leg, path, request) : "SKIPPED_FOR_ROUTE";
 				next.add(path.skip(slot, reason));
 			}
 		}
 		return next;
+	}
+
+	/**
+	 * 이 경로가 자리를 못 채운 이유. 구간 안에 후보가 없으면 NO_NEARBY_MATCH, 요청에서 제외했거나 앞에서 이미 고른
+	 * 매장뿐이면 ALL_EXCLUDED, 그 밖에는 영업 확인으로 모두 뺀 것이므로 NO_VERIFIED_MATCH 다.
+	 */
+	private static String missingReason(LegCandidates leg, Path path, Request request) {
+		if (leg.near(path.origin(), path.earlierStops(), Set.of()).isEmpty()) {
+			return "NO_NEARBY_MATCH";
+		}
+		boolean allExcluded = leg.near(path.origin(), path.earlierStops(), path.excludedIds(request.excludeIds()))
+			.isEmpty();
+		return allExcluded ? "ALL_EXCLUDED" : "NO_VERIFIED_MATCH";
 	}
 
 	private void addCandidatePaths(List<Path> next, Path path, CourseSlot slot, List<Ranked> nearby) {
