@@ -174,11 +174,11 @@ class BeamSelectorTest {
 
 		// then
 		assertThat(ids(selected)).containsExactly(1L);
-		assertThat(selected.interruption()).isEqualTo(new Interruption(TimeSlot.DINNER, "NO_VERIFIED_MATCH"));
+		assertThat(selected.interruption()).isEqualTo(new Interruption(TimeSlot.DINNER, "ALL_EXCLUDED"));
 	}
 
 	@Test
-	@DisplayName("첫 필수 자리에 후보가 없음 → 정류장 없이 그 자리에서 NO_VERIFIED_MATCH 로 멈춘다")
+	@DisplayName("첫 필수 자리에 후보가 없음 → 정류장 없이 그 자리에서 NO_NEARBY_MATCH 로 멈춘다")
 	void stopsAtFirstRequiredSlotWithoutCandidates() {
 		// when
 		Selection selected = new BeamSelector().select(request(SLOTS.subList(0, 1), 7),
@@ -186,11 +186,11 @@ class BeamSelectorTest {
 
 		// then
 		assertThat(selected.picks()).isEmpty();
-		assertThat(selected.interruption()).isEqualTo(new Interruption(TimeSlot.LUNCH, "NO_VERIFIED_MATCH"));
+		assertThat(selected.interruption()).isEqualTo(new Interruption(TimeSlot.LUNCH, "NO_NEARBY_MATCH"));
 	}
 
 	@Test
-	@DisplayName("선택 자리에 후보가 하나도 없음 → 중단하지 않고 NO_VERIFIED_MATCH 로 건너뛴다")
+	@DisplayName("선택 자리에 후보가 하나도 없음 → 중단하지 않고 NO_NEARBY_MATCH 로 건너뛴다")
 	void skipsOptionalSlotWithoutCandidates() {
 		// when
 		Selection selected = new BeamSelector().select(request(List.of(SLOTS.get(2)), 7),
@@ -199,7 +199,7 @@ class BeamSelectorTest {
 		// then
 		assertThat(selected.picks()).isEmpty();
 		assertThat(selected.interruption()).isNull();
-		assertThat(selected.skipped()).containsExactly(new Skipped(TimeSlot.AFTERNOON, 3, "NO_VERIFIED_MATCH"));
+		assertThat(selected.skipped()).containsExactly(new Skipped(TimeSlot.AFTERNOON, 3, "NO_NEARBY_MATCH"));
 	}
 
 	@Test
@@ -219,7 +219,7 @@ class BeamSelectorTest {
 		// then
 		assertThat(ids(byDefault)).containsExactly(1L, 2L);
 		assertThat(ids(byShort)).containsExactly(1L);
-		assertThat(byShort.interruption()).isEqualTo(new Interruption(TimeSlot.AFTERNOON, "NO_VERIFIED_MATCH"));
+		assertThat(byShort.interruption()).isEqualTo(new Interruption(TimeSlot.AFTERNOON, "NO_NEARBY_MATCH"));
 	}
 
 	@Test
@@ -239,7 +239,79 @@ class BeamSelectorTest {
 
 		// then
 		assertThat(ids(byDefault)).containsExactly(1L, 2L);
-		assertThat(byDefault.interruption()).isEqualTo(new Interruption(TimeSlot.DINNER, "NO_VERIFIED_MATCH"));
+		assertThat(byDefault.interruption()).isEqualTo(new Interruption(TimeSlot.DINNER, "NO_NEARBY_MATCH"));
 		assertThat(ids(byShort)).containsExactly(1L, 2L, 3L);
+	}
+
+	@Test
+	@DisplayName("첫 필수 자리의 후보를 요청에서 모두 제외함 → 정류장 없이 ALL_EXCLUDED 로 멈춘다")
+	void stopsWithAllExcludedAtFirstRequiredSlot() {
+		// given
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(
+			TimeSlot.LUNCH, List.of(store(1, StoreKind.KOREAN, 0, 99), store(2, StoreKind.KOREAN, 20, 98))));
+		Request request = new Request(SLOTS.subList(0, 1), START, Set.of(1L, 2L), Weekday.FRI, 7,
+			WalkPreference.DEFAULT);
+
+		// when
+		Selection selected = new BeamSelector().select(request, pool);
+
+		// then
+		assertThat(selected.picks()).isEmpty();
+		assertThat(selected.interruption()).isEqualTo(new Interruption(TimeSlot.LUNCH, "ALL_EXCLUDED"));
+	}
+
+	@Test
+	@DisplayName("첫 필수 자리의 후보를 그 자리에서 모두 뺌(영업 확인으로 닫힘) → NO_VERIFIED_MATCH 로 멈춘다")
+	void stopsWithNoVerifiedMatchWhenEverySlotCandidateIsClosed() {
+		// given
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(
+			TimeSlot.LUNCH, List.of(store(1, StoreKind.KOREAN, 0, 99), store(2, StoreKind.KOREAN, 20, 98))));
+		Request request = new Request(SLOTS.subList(0, 1), START, Set.of(), Weekday.FRI, 7, WalkPreference.DEFAULT,
+			Map.of(1, Set.of(1L, 2L)));
+
+		// when
+		Selection selected = new BeamSelector().select(request, pool);
+
+		// then
+		assertThat(selected.picks()).isEmpty();
+		assertThat(selected.interruption()).isEqualTo(new Interruption(TimeSlot.LUNCH, "NO_VERIFIED_MATCH"));
+	}
+
+	@Test
+	@DisplayName("선택 자리 후보를 요청에서 제외함 → ALL_EXCLUDED, 그 자리에서 닫힘으로 뺌 → NO_VERIFIED_MATCH 로 건너뛴다")
+	void optionalSlotSkipReasonSeparatesExcludedFromClosed() {
+		// given
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(
+			TimeSlot.AFTERNOON, List.of(store(1, StoreKind.PLAY, 0, 99))));
+		List<CourseSlot> slots = List.of(SLOTS.get(2));
+		Request excluded = new Request(slots, START, Set.of(1L), Weekday.FRI, 7, WalkPreference.DEFAULT);
+		Request closed = new Request(slots, START, Set.of(), Weekday.FRI, 7, WalkPreference.DEFAULT,
+			Map.of(3, Set.of(1L)));
+
+		// when
+		Selection byExclusion = new BeamSelector().select(excluded, pool);
+		Selection byClosing = new BeamSelector().select(closed, pool);
+
+		// then
+		assertThat(byExclusion.skipped()).containsExactly(new Skipped(TimeSlot.AFTERNOON, 3, "ALL_EXCLUDED"));
+		assertThat(byClosing.skipped()).containsExactly(new Skipped(TimeSlot.AFTERNOON, 3, "NO_VERIFIED_MATCH"));
+	}
+
+	@Test
+	@DisplayName("앞에서 이미 고른 매장뿐인 자리 → 요청에서 제외한 것과 같은 ALL_EXCLUDED 다")
+	void earlierPickCountsAsExcluded() {
+		// given: 점심에 고른 1번이 저녁 후보의 전부다. 같은 자리라 거리 제한은 받지 않는다
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(
+			TimeSlot.LUNCH, List.of(store(1, StoreKind.KOREAN, 0, 99)),
+			TimeSlot.DINNER, List.of(store(1, StoreKind.KOREAN, 200, 99))));
+		Request request = new Request(List.of(SLOTS.get(0), SLOTS.get(3)), START, Set.of(), Weekday.FRI, 7,
+			WalkPreference.SHORT);
+
+		// when
+		Selection selected = new BeamSelector().select(request, pool);
+
+		// then
+		assertThat(ids(selected)).containsExactly(1L);
+		assertThat(selected.interruption()).isEqualTo(new Interruption(TimeSlot.DINNER, "ALL_EXCLUDED"));
 	}
 }

@@ -227,4 +227,25 @@ class CandidatePoolTest {
 		assertThat(nearby.getFirst().rank()).isEqualTo(6);
 		assertThat(nearby.getLast().rank()).isEqualTo(35);
 	}
+
+	@Test
+	@DisplayName("후보가 36곳이고 앞의 5곳을 제외함 → 제외 뒤에도 31곳이 남아도 30곳까지만 주고 36번째는 뺀다")
+	void capsAtThirtyWhenMoreRemainAfterExclusions() {
+		// given
+		CourseSchedule.CourseSlot slot = CourseSchedule.afternoonPlay(Weekday.FRI);
+		List<Candidate> candidates = new ArrayList<>();
+		for (int id = 1; id <= 36; id++) {
+			candidates.add(candidate(id, StoreKind.PLAY, WEST.lat() + 0.0005, WEST.lng(), 99.9 - id * 0.1));
+		}
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(slot.slot(), candidates));
+		CandidatePool.LegCandidates leg = pool.forLeg(slot, 0, 500, 0);
+
+		// when
+		List<CandidatePool.LegCandidates.Ranked> nearby = leg.near(WEST, List.of(), Set.of(1L, 2L, 3L, 4L, 5L));
+
+		// then
+		assertThat(nearby).hasSize(30);
+		assertThat(nearby.getLast().rank()).isEqualTo(35);
+		assertThat(nearby).extracting(row -> row.selected().candidate().place().id()).doesNotContain(36L);
+	}
 }

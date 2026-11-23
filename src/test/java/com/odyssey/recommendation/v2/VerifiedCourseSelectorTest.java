@@ -2,6 +2,7 @@ package com.odyssey.recommendation.v2;
 
 import static com.odyssey.recommendation.v2.BeamSelectorTest.CONTEXT;
 import static com.odyssey.recommendation.v2.BeamSelectorTest.SLOTS;
+import static com.odyssey.recommendation.v2.BeamSelectorTest.START;
 import static com.odyssey.recommendation.v2.BeamSelectorTest.ids;
 import static com.odyssey.recommendation.v2.BeamSelectorTest.request;
 import static com.odyssey.recommendation.v2.BeamSelectorTest.store;
@@ -10,12 +11,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
+import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.cellcondition.repository.CellConditionRepository.Candidate;
 import com.odyssey.cellslotscore.entity.TimeSlot;
 import com.odyssey.recommendation.v2.CourseHoursLookup.Hours;
@@ -238,5 +241,28 @@ class VerifiedCourseSelectorTest {
 		// then
 		assertThat(result.picks()).isEmpty();
 		assertThat(result.interruption()).isEqualTo(interruption);
+	}
+
+	@Test
+	@DisplayName("요청의 자리별 제외 → 처음 계획부터 적용하고, 조회 중 닫힌 매장 제외와 함께 다시 짤 때도 유지한다")
+	void keepsRequestSlotExclusionsAcrossReplans() {
+		// given: 점심 1번은 요청이 점심에서 빼고, 저녁 3번은 조회해 보니 닫혀 있다
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(
+			TimeSlot.LUNCH, List.of(store(1, StoreKind.KOREAN, 0, 99), store(2, StoreKind.KOREAN, 100, 90)),
+			TimeSlot.DINNER, List.of(store(3, StoreKind.KOREAN, 400, 99), store(4, StoreKind.KOREAN, 450, 90))));
+		List<String> calls = new ArrayList<>();
+		CourseSelector selector = new VerifiedCourseSelector(new BeamSelector(), id -> {
+			calls.add(id);
+			return Hours.fixed(id.equals("p3") ? Result.NOT_OPEN : Result.OPEN);
+		});
+		Request request = new Request(List.of(SLOTS.get(0), SLOTS.get(3)), START, Set.of(), Weekday.FRI, 7,
+			WalkPreference.DEFAULT, Map.of(1, Set.of(1L)));
+
+		// when
+		Selection result = selector.select(request, pool);
+
+		// then
+		assertThat(ids(result)).containsExactly(2L, 4L);
+		assertThat(calls).doesNotContain("p1");
 	}
 }
