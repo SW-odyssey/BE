@@ -144,6 +144,25 @@ class V2CourseControllerTest {
 		assertThat(seed.getValue()).isBetween(1L, (1L << 53) - 1);
 	}
 
+	@ParameterizedTest
+	@ValueSource(strings = {"", " ", "EN", "fr"})
+	@DisplayName("잘못된 lang은 400으로 거부하고 서비스를 호출하지 않는다")
+	void rejectsInvalidLanguage(String lang) throws Exception {
+		mvc.perform(valid().param("lang", lang))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+		then(service).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("lang이 두 번 오면 400으로 거부하고 서비스를 호출하지 않는다")
+	void rejectsRepeatedLanguage() throws Exception {
+		mvc.perform(valid().param("lang", "en", "ja"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+		then(service).shouldHaveNoInteractions();
+	}
+
 	@Test
 	@DisplayName("코스 정류장의 상호를 요청한 언어로 표시한다")
 	void localizesStopName() throws Exception {

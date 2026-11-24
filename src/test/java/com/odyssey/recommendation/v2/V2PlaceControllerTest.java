@@ -59,6 +59,25 @@ class V2PlaceControllerTest {
 	}
 
 	@ParameterizedTest
+	@ValueSource(strings = {"", " ", "EN", "fr"})
+	@DisplayName("잘못된 lang은 400으로 거부하고 서비스를 호출하지 않는다")
+	void rejectsInvalidLanguage(String lang) throws Exception {
+		mockMvc.perform(get("/api/v2/places/7").param("lang", lang))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+		then(service).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("lang이 두 번 오면 400으로 거부하고 서비스를 호출하지 않는다")
+	void rejectsRepeatedLanguage() throws Exception {
+		mockMvc.perform(get("/api/v2/places/7").param("lang", "en", "ja"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+		then(service).shouldHaveNoInteractions();
+	}
+
+	@ParameterizedTest
 	@CsvSource({"ko, 공평식당", "en, Gongpyeong Restaurant", "zh, 公平食堂", "ja, 公平食堂"})
 	@DisplayName("lang에 해당하는 상호를 기존 name 필드에 담는다")
 	void returnsRequestedName(String lang, String expected) throws Exception {

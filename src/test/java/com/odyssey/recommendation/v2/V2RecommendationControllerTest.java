@@ -15,6 +15,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -107,6 +108,25 @@ class V2RecommendationControllerTest {
 		assertThat(query.category()).isNull();
 		assertThat(query.kind()).isEqualTo(StoreKind.KOREAN);
 		assertThat(query.q()).isEqualTo("스타");
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"", " ", "EN", "fr"})
+	@DisplayName("잘못된 lang은 400으로 거부하고 서비스를 호출하지 않는다")
+	void rejectsInvalidLanguage(String lang) throws Exception {
+		mockMvc.perform(valid().param("lang", lang))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+		then(service).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("lang이 두 번 오면 400으로 거부하고 서비스를 호출하지 않는다")
+	void rejectsRepeatedLanguage() throws Exception {
+		mockMvc.perform(valid().param("lang", "en", "ja"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+		then(service).shouldHaveNoInteractions();
 	}
 
 	@Test
