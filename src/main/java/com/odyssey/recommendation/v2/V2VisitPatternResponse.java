@@ -8,7 +8,7 @@ import com.odyssey.cellvisitprofile.VisitProfile;
 import com.odyssey.recommendationdataset.repository.RecommendationDatasetRepository.Dataset;
 
 /**
- * 상세 화면의 요일별 방문 패턴. 그래프를 그리지 않는 상태는 {@code graph} 가 null 이고 키는 남는다.
+ * 상세 화면의 요일별 방문 패턴. 막대가 없는 프로필은 {@code graph} 가 null 이고 키는 남는다.
  * 방문 값이 없는 것을 0 인 막대로 바꾸지 않는다.
  *
  * <p>status 는 대문자 이름 그대로 나간다(계약이 AVAILABLE 형태다). weekday 와 시간대는 Jackson
@@ -28,11 +28,12 @@ public record V2VisitPatternResponse(PatternContext context, String status, Grap
 		Weekday weekday) {
 	}
 
-	public record Bar(TimeSlot slot, int relativeHeight) {
+	/** @param relativeHeight 품질 검사를 통과하지 못한 시간대는 null 이다. 0 으로 바꾸지 않는다 */
+	public record Bar(TimeSlot slot, Integer relativeHeight) {
 	}
 
 	/**
-	 * @param highlightSlot 100 인 막대의 시간대
+	 * @param highlightSlot 100 인 막대의 시간대. AVAILABLE 이 아니면 null 이다
 	 * @param bars          점심 → 심야 순서. 합이 100 일 필요는 없다
 	 */
 	public record Graph(String metric, String comparison, int scaleMax, TimeSlot highlightSlot,
@@ -41,11 +42,10 @@ public record V2VisitPatternResponse(PatternContext context, String status, Grap
 
 	static V2VisitPatternResponse from(Dataset dataset, long cellId, Weekday weekday,
 		VisitProfile profile) {
-		Graph graph = profile.peakSlot()
-			.map(peak -> new Graph(METRIC, COMPARISON, SCALE_MAX, peak, profile.bars().stream()
+		Graph graph = profile.bars().isEmpty() ? null
+			: new Graph(METRIC, COMPARISON, SCALE_MAX, profile.peakSlot().orElse(null), profile.bars().stream()
 				.map(bar -> new Bar(bar.slot(), bar.relativeHeight()))
-				.toList()))
-			.orElse(null);
+				.toList());
 		return new V2VisitPatternResponse(
 			new PatternContext(dataset.id(), dataset.referenceMonth(), Long.toString(cellId),
 				weekday),

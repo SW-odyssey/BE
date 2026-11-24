@@ -101,6 +101,25 @@ class CellVisitProfileRepositoryTest {
 	}
 
 	@Test
+	@DisplayName("빠진 시간대 높이가 null 인 프로필 → 그 막대를 null 로 읽고 다른 막대와 순서는 그대로다")
+	void incompleteProfileKeepsNullHeight() {
+		// given
+		db.profile(DS, 101, MON, "INCOMPLETE_TIME_SLOTS");
+		db.bar(DS, 101, MON, "late_night", null);
+		db.bar(DS, 101, MON, "dinner", 60);
+		db.bar(DS, 101, MON, "afternoon", 100);
+		db.bar(DS, 101, MON, "lunch", null);
+
+		// when
+		VisitProfile profile = find(DS, Weekday.MON, 101).orElseThrow();
+
+		// then
+		assertThat(profile.bars()).containsExactly(
+			new VisitBar(TimeSlot.LUNCH, null), new VisitBar(TimeSlot.AFTERNOON, 100),
+			new VisitBar(TimeSlot.DINNER, 60), new VisitBar(TimeSlot.LATE_NIGHT, null));
+	}
+
+	@Test
 	@DisplayName("네 가지 상태를 모두 적재한다 → 상태마다 그대로 읽는다")
 	void everyStatusIsRead() {
 		// given

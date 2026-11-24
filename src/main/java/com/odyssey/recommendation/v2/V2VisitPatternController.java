@@ -40,17 +40,21 @@ public class V2VisitPatternController {
 		시간대(slot)는 받지 않습니다. 목록에서 어떤 시간대를 골랐든 네 시간대를 모두 보여 주기 때문입니다.
 		datasetId·weekday에는 추천 목록을 부를 때 보낸 값을 그대로 넣습니다.
 
-		**status=AVAILABLE**: graph.bars에 점심 → 오후 → 저녁 → 심야 순서로 막대 4개가 옵니다.
+		graph.bars에 점심 → 오후 → 저녁 → 심야 순서로 막대 4개가 옵니다.
 		가장 많이 오는 시간대를 100으로 두고 나머지를 그 비율로 나타낸 값입니다(relativeHeight, 정수 0~100).
 		5 단위로 반올림하고, 방문이 조금이라도 있으면 최소 1로 둡니다. 실제 인원이나 매장 점수가 아닙니다.
-		100인 시간대는 graph.highlightSlot에 따로 알려 줍니다.
 		다른 칸과 비교하는 값이 아니고, 네 값을 더해 100이 될 필요도 없습니다.
 
-		**그 외 status** (INCOMPLETE_TIME_SLOTS 네 시간대 중 자료가 빠진 시간대가 있음, NO_POSITIVE_VISITS 방문 없음,
-		NO_DISTINCT_PEAK 자료는 있지만 가장 많은 시간대를 하나로 정할 수 없음): graph=null입니다.
-		그래프를 그리지 마세요. 값이 없는 시간대를 0인 막대로 그리면 "아무도 안 온다"로 잘못 보입니다.
+		| status | graph |
+		|---|---|
+		| AVAILABLE | 막대 4개, 100이 하나. 그 시간대가 graph.highlightSlot |
+		| NO_DISTINCT_PEAK | 막대 4개. 1위가 2위의 1.25배에 못 미쳐 100이 여러 개일 수 있고 highlightSlot=null |
+		| INCOMPLETE_TIME_SLOTS | 자료가 빠진 시간대는 relativeHeight=null, highlightSlot=null. 쓸 수 있는 시간대가 없으면 graph=null |
+		| NO_POSITIVE_VISITS | graph=null |
+
+		relativeHeight=null인 막대는 0으로 그리지 말고 "자료 없음"으로 표시하세요. 0으로 그리면 "아무도 안 온다"로 잘못 보입니다.
 		""")
-	@ApiResponse(responseCode = "200", description = "방문 패턴 조회 성공 (그래프 없는 상태 포함)",
+	@ApiResponse(responseCode = "200", description = "방문 패턴 조회 성공 (graph=null 포함)",
 		useReturnTypeSchema = true)
 	@ApiResponse(responseCode = "400", description = "INVALID_INPUT: 필수 값이 없음, 허용 값이 아님(예: weekday=sunday), "
 		+ "0 이하의 cellId, 설명에 없는 쿼리 파라미터(slot을 보내도 400)",
