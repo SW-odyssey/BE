@@ -28,7 +28,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class V2CourseController {
 
 	private static final Set<String> KEYS =
-		Set.of("datasetId", "weekday", "startSlot", "lat", "lng", "excludeIds", "seed", "afternoon", "lateNight", "walk", "lang");
+		Set.of("datasetId", "weekday", "startSlot", "lat", "lng", "excludeIds", "previousStopIds", "seed", "afternoon", "lateNight", "walk", "lang");
 	private final V2CourseService service;
 
 	public V2CourseController(V2CourseService service) {
@@ -58,11 +58,15 @@ public class V2CourseController {
 		walk=short는 매장 사이 300m 이내이며 최소 거리와 이전 방문지 반경 제한을 두지 않습니다.
 		빔 탐색은 매 자리에서 정류장 수, 방문 점수 합, 총 직선거리 순으로 코스 후보를 건너뛴 자리 조합마다 최대 300개 남깁니다.
 		마지막에는 정류장이 가장 많은 코스 중 최고 점수에서 정류장 수 × 3점 이내인 코스를 모읍니다.
-		그중 최단 거리보다 100m 이내로 더 걷는 코스까지 seed로 고릅니다.
+		그중 최단 거리보다 100m 이내로 더 걷는 코스까지 모읍니다.
+		previousStopIds를 보내면 직전 매장을 모두 제외하고, 필수 자리를 채우면서 직전 코스 이상의 매장 수를 확보하는 코스를 먼저 찾습니다.
+		전체 교체가 어려우면 기존 매장도 포함해 저녁 식사(4번) 외에 새 매장이 있는 코스를 우선합니다.
+		100m 범위에 그런 코스가 없으면 150m까지 찾습니다. 그래도 없으면 100m 범위에서 고릅니다.
+		같은 범위에서는 새 매장이 많은 코스를 우선하고 동률이면 seed로 고릅니다.
 		방문 순서대로 영업을 확인하고 닫힌 매장은 제외한 뒤 처음부터 다시 고릅니다.
-		요청당 Google 조회는 최대 40곳입니다. 추가 조회가 필요하면 CHECK_LIMIT, 후보 소진은 NO_VERIFIED_MATCH입니다.
+		두 탐색은 Google 조회 결과를 공유하며 요청 전체의 조회 상한은 40곳입니다. 추가 조회가 필요하면 CHECK_LIMIT, 후보 소진은 NO_VERIFIED_MATCH입니다.
 		공휴일·임시휴무와 도보 경로는 보장하지 않습니다.
-		같은 seed를 보내면 같은 순서로 후보를 확인합니다. 다른 코스를 보려면 seed를 바꾸거나 빼세요.
+		같은 조건과 seed를 보내면 같은 순서로 후보를 확인합니다.
 		한 시간대의 장소를 다시 고르려면 그 시간대 시작 좌표와 startSlot, 제외할 매장 ID를 보내세요.
 		leaveTime은 도착 시각에 머무는 시간을 더한 값이고, walkMinutes는 직선거리(m)×1.3을 분당 67m로 나눠 올림한 값입니다(최소 1분).
 		reasons는 고른 이유를 정해진 순서(LOCAL_TOP, OPEN_DURING_STAY, PEAK_NOW, AREA_TYPE, SIMILAR_CHOICES)로 담고, 문장은 FE가 만듭니다.
@@ -75,6 +79,8 @@ public class V2CourseController {
 		@Parameter(description = "출발 위도", example = "37.5655342") @RequestParam double lat,
 		@Parameter(description = "출발 경도", example = "126.9903373") @RequestParam double lng,
 		@Parameter(description = "이미 방문하거나 건너뛸 매장 ID. 쉼표로 구분") @RequestParam(required = false) List<Long> excludeIds,
+		@Parameter(description = "전체 재생성의 직전 매장 ID. 쉼표로 구분하며 최대 6개")
+		@RequestParam(required = false) List<Long> previousStopIds,
 		@Parameter(description = "후보를 섞는 값. 없으면 서버가 정해 응답에 담는다") @RequestParam(required = false) Long seed,
 		@Parameter(description = "오후 구성. cafe(기본), shop(구경), mixed(카페 후 구경)",
 			schema = @Schema(defaultValue = "cafe", allowableValues = {"cafe", "shop", "mixed"}))
@@ -88,13 +94,17 @@ public class V2CourseController {
 		@Parameter(hidden = true) @RequestParam MultiValueMap<String, String> params) {
 		V2RequestParams.check(params, KEYS);
 		Language language = V2RequestParams.displayLanguage(lang);
-		Set<Long> excluded = parseExcludedStoreIds(excludeIds);
+		Set<Long> excluded = parseStoreIds(excludeIds, "excludeIds");
+		if (previousStopIds != null && previousStopIds.size() > 6) {
+			throw new BusinessException(CommonErrorCode.INVALID_INPUT, "previousStopIds는 최대 6개까지 보낼 수 있습니다.");
+		}
+		Set<Long> previous = parseStoreIds(previousStopIds, "previousStopIds");
 		String dataset = V2RequestParams.requireDatasetId(datasetId);
 		Weekday visitDay = V2RequestParams.required(Weekday.class, "weekday", weekday);
 		TimeSlot firstSlot = V2RequestParams.required(TimeSlot.class, "startSlot", startSlot);
 		GeoPoint origin = new GeoPoint(lat, lng);
 		V2CourseResponse course = service.recommend(dataset, visitDay, firstSlot, origin, excluded,
-			seedOrRandom(seed), parseAfternoon(afternoon), includeLateNight(lateNight), walkPreference(walk));
+			seedOrRandom(seed), parseAfternoon(afternoon), includeLateNight(lateNight), walkPreference(walk), previous);
 		return ApiResult.ok(language == Language.KO ? course : course.withLanguage(language));
 	}
 
@@ -118,14 +128,14 @@ public class V2CourseController {
 		throw new BusinessException(CommonErrorCode.INVALID_INPUT, "lateNight 는 true 또는 false 입니다.");
 	}
 
-	private static Set<Long> parseExcludedStoreIds(List<Long> excludeIds) {
-		if (excludeIds == null) {
+	private static Set<Long> parseStoreIds(List<Long> ids, String parameter) {
+		if (ids == null) {
 			return Set.of();
 		}
-		if (excludeIds.stream().anyMatch(id -> id == null || id <= 0)) {
-			throw new BusinessException(CommonErrorCode.INVALID_INPUT, "excludeIds에는 양의 매장 ID가 필요합니다.");
+		if (ids.stream().anyMatch(id -> id == null || id <= 0)) {
+			throw new BusinessException(CommonErrorCode.INVALID_INPUT, parameter + "에는 양의 매장 ID가 필요합니다.");
 		}
-		return Set.copyOf(excludeIds);
+		return Set.copyOf(ids);
 	}
 
 	private static long seedOrRandom(Long seed) {

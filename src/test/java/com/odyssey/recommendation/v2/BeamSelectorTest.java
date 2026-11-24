@@ -9,6 +9,8 @@ import java.util.Set;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import com.odyssey.cell.GeoPoint;
 import com.odyssey.cellcondition.entity.Weekday;
@@ -123,6 +125,50 @@ class BeamSelectorTest {
 
 		// then: 어느 쪽도 20번 미만으로 나오지 않는다. 쏠리면 0 이나 100 이 된다
 		assertThat(firstChosen).isBetween(20, 80);
+	}
+
+	@Test
+	@DisplayName("코스 재생성은 기존 점수·거리 범위 안에서 새 매장 두 곳, 한 곳, 없는 코스 순으로 고른다")
+	void prefersMoreNewStopsWithinExistingMargins() {
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(
+			TimeSlot.LUNCH, List.of(store(1, StoreKind.KOREAN, 0, 99), store(2, StoreKind.KOREAN, 20, 98),
+				store(3, StoreKind.KOREAN, 30, 90), store(4, StoreKind.KOREAN, -150, 99)),
+			TimeSlot.AFTERNOON, List.of(store(5, StoreKind.CAFE, 220, 99), store(6, StoreKind.CAFE, 240, 98),
+				store(7, StoreKind.CAFE, 250, 98), store(8, StoreKind.CAFE, 390, 99))));
+		BeamSelector selector = new BeamSelector();
+		List<CourseSlot> slots = SLOTS.subList(0, 2);
+		Set<List<Long>> twoNewChoices = new java.util.HashSet<>();
+		for (long seed = 1; seed <= 20; seed++) {
+			Request twoNew = new Request(slots, START, Set.of(), Weekday.FRI, seed, WalkPreference.DEFAULT,
+				Set.of(1L, 5L), Map.of());
+			Request oneNew = new Request(slots, START, Set.of(), Weekday.FRI, seed, WalkPreference.DEFAULT,
+				Set.of(1L, 2L, 5L, 6L), Map.of());
+			Request noNew = new Request(slots, START, Set.of(), Weekday.FRI, seed, WalkPreference.DEFAULT,
+				Set.of(1L, 2L, 5L, 6L, 7L), Map.of());
+			twoNewChoices.add(ids(selector.select(twoNew, pool)));
+			assertThat(ids(selector.select(oneNew, pool)).getLast()).isEqualTo(7L);
+			assertThat(selector.select(noNew, pool)).isEqualTo(selector.select(request(slots, seed), pool));
+		}
+		assertThat(twoNewChoices).containsExactlyInAnyOrder(List.of(2L, 6L), List.of(2L, 7L));
+	}
+
+	@ParameterizedTest
+	@CsvSource({"-40, 99, 2, 3", "-55, 99, 2, 4", "-80, 99, 1, 4", "-55, 90, 1, 4"})
+	@DisplayName("저녁 외 변경을 우선하며 필요한 경우에만 최단 거리 +150m까지 같은 점수 기준으로 본다")
+	void prefersAChangeOutsideDinner(int lunchNorth, int percentile, long lunch, long dinner) {
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(
+			TimeSlot.LUNCH, List.of(store(1, StoreKind.KOREAN, 0, 99),
+				store(2, StoreKind.KOREAN, lunchNorth, percentile)),
+			TimeSlot.DINNER, List.of(store(3, StoreKind.KOREAN, 200, 99),
+				store(4, StoreKind.KOREAN, 230, 99))));
+		BeamSelector selector = new BeamSelector();
+		Request regenerate = new Request(LUNCH_AND_DINNER, START, Set.of(), Weekday.FRI, 7,
+			WalkPreference.DEFAULT, Set.of(1L, 3L), Map.of());
+
+		assertThat(ids(selector.select(regenerate, pool))).containsExactly(lunch, dinner);
+		if (lunchNorth < -50) {
+			assertThat(ids(selector.select(request(LUNCH_AND_DINNER, 7), pool)).getFirst()).isEqualTo(1L);
+		}
 	}
 
 	private static CandidatePool lunchAndDinnerAtBothPlaces() {

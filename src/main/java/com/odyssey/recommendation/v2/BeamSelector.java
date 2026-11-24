@@ -27,6 +27,7 @@ final class BeamSelector implements CourseSelector {
 	/** 건너뛴 자리 조합마다 남기는 경로 수 */
 	private static final int WIDTH = 300;
 	private static final double EXTRA_METERS = 100;
+	private static final double REGENERATION_EXTRA_METERS = 150;
 	private static final Comparator<Path> ORDER = Comparator
 		.comparingInt((Path path) -> path.picks().size()).reversed()
 		.thenComparing(Comparator.comparingDouble(Path::score).reversed())
@@ -39,13 +40,13 @@ final class BeamSelector implements CourseSelector {
 			Legs legs = Legs.of(slot, pool, request);
 			List<Path> next = expand(beam, slot, legs, request);
 			if (next.isEmpty()) {
-				Path chosen = choose(beam, request.seed());
+				Path chosen = choose(beam, request);
 				Interruption interruption = new Interruption(slot.slot(), missingReason(legs.of(chosen), chosen, request));
 				return chosen.selection(interruption);
 			}
 			beam = prune(next);
 		}
-		return choose(beam, request.seed()).selection(null);
+		return choose(beam, request).selection(null);
 	}
 
 	/** 자리의 첫 구간(출발점 기준)과 그 뒤 구간(직전 매장 기준)에서 후보를 찾는 규칙 */
@@ -114,23 +115,45 @@ final class BeamSelector implements CourseSelector {
 			.toList();
 	}
 
-	/** 정류장이 가장 많고 점수 합이 1위와 가까운 경로 중, 총 거리가 짧은 쪽에서 seed 로 하나를 고른다. */
-	private Path choose(List<Path> beam, long seed) {
-		List<Path> choices = shortestAmongNearBest(beam);
+	/** 정류장이 가장 많고 점수 합이 1위와 가까운 경로 중, 거리 조건과 재생성 우선순위를 적용한 뒤 seed 로 하나를 고른다. */
+	private Path choose(List<Path> beam, Request request) {
+		List<Path> nearBest = nearBest(beam);
+		double shortest = nearBest.stream().mapToDouble(Path::distance).min().orElseThrow();
+		List<Path> choices = withinDistance(nearBest, shortest + EXTRA_METERS);
+		if (!request.previousStopIds().isEmpty()) {
+			choices = regenerationChoices(nearBest, shortest, choices, request.previousStopIds());
+		}
 		// java.util.Random 은 후보 수가 2의 거듭제곱이면 작은 seed 끼리 거의 같은 값을 줘서, 1·2·3 으로 다시 요청해도
 		// 같은 코스가 나온다. SplittableRandom 은 seed 를 섞어서 시작하므로 이어지는 seed 도 고르게 갈린다.
-		return choices.get(new SplittableRandom(seed).nextInt(choices.size()));
+		return choices.get(new SplittableRandom(request.seed()).nextInt(choices.size()));
 	}
 
-	private List<Path> shortestAmongNearBest(List<Path> beam) {
+	private List<Path> regenerationChoices(List<Path> nearBest, double shortest, List<Path> choices,
+		Set<Long> previousStopIds) {
+		List<Path> diverse = choices.stream().filter(path -> path.hasNewNonDinnerStop(previousStopIds)).toList();
+		if (diverse.isEmpty()) {
+			diverse = nearBest.stream()
+				.filter(path -> path.distance() > shortest + EXTRA_METERS
+					&& path.distance() <= shortest + REGENERATION_EXTRA_METERS)
+				.filter(path -> path.hasNewNonDinnerStop(previousStopIds))
+				.toList();
+		}
+		List<Path> candidates = diverse.isEmpty() ? choices : diverse;
+		long mostNewStops = candidates.stream().mapToLong(path -> path.newStopCount(previousStopIds)).max().orElseThrow();
+		return candidates.stream().filter(path -> path.newStopCount(previousStopIds) == mostNewStops).toList();
+	}
+
+	private List<Path> withinDistance(List<Path> paths, double maximumDistance) {
+		return paths.stream().filter(path -> path.distance() <= maximumDistance).toList();
+	}
+
+	private List<Path> nearBest(List<Path> beam) {
 		Path best = beam.getFirst();
 		int stopCount = best.picks().size();
 		double minimumScore = best.score() - stopCount * BandShuffleSelector.PERCENTILE_BAND;
-		List<Path> nearBest = beam.stream()
+		return beam.stream()
 			.filter(path -> path.picks().size() == stopCount && path.score() >= minimumScore)
 			.toList();
-		double shortest = nearBest.stream().mapToDouble(Path::distance).min().orElseThrow();
-		return nearBest.stream().filter(path -> path.distance() <= shortest + EXTRA_METERS).toList();
 	}
 
 	private record Path(GeoPoint origin, List<GeoPoint> visited, List<Pick> picks, List<Skipped> skipped,
@@ -155,6 +178,16 @@ final class BeamSelector implements CourseSelector {
 				excluded.add(pick.stop().place().id());
 			}
 			return excluded;
+		}
+
+		boolean hasNewNonDinnerStop(Set<Long> previousStopIds) {
+			return picks.stream().map(Pick::stop)
+				.anyMatch(stop -> stop.position() != CourseSchedule.DINNER_MEAL_POSITION
+					&& !previousStopIds.contains(stop.place().id()));
+		}
+
+		long newStopCount(Set<Long> previousStopIds) {
+			return picks.stream().filter(pick -> !previousStopIds.contains(pick.stop().place().id())).count();
 		}
 
 		Path visit(CourseSlot slot, Selected selected, int rank, int bandSize) {

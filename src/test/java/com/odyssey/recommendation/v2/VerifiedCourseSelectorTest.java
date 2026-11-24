@@ -55,6 +55,96 @@ class VerifiedCourseSelectorTest {
 		assertThat(calls).containsExactly("p1", "p2", "p3", "p1", "p2", "p3");
 	}
 
+	@Test
+	@DisplayName("새 매장이 닫혀도 재탐색마다 새 매장을 우선하고, 모두 닫혔으면 직전 매장을 선택한다")
+	void retainsRegenerationPriorityAfterClosedStops() {
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(
+			TimeSlot.LUNCH, List.of(store(1, StoreKind.KOREAN, 0, 99)),
+			TimeSlot.AFTERNOON, List.of(store(2, StoreKind.CAFE, 200, 99),
+				store(3, StoreKind.CAFE, 220, 99), store(4, StoreKind.CAFE, 240, 99))));
+		List<String> calls = new ArrayList<>();
+		CourseSelector selector = new VerifiedCourseSelector(new BeamSelector(), id -> {
+			calls.add(id);
+			return Hours.fixed(Set.of("p3", "p4").contains(id) ? Result.NOT_OPEN : Result.OPEN);
+		});
+		Request request = new Request(SLOTS.subList(0, 2), START, Set.of(), Weekday.FRI, 7,
+			WalkPreference.DEFAULT, Set.of(1L, 2L), Map.of());
+
+		Selection result = selector.select(request, pool);
+
+		assertThat(ids(result)).containsExactly(1L, 2L);
+		assertThat(calls.subList(1, 3)).containsExactlyInAnyOrder("p3", "p4");
+		assertThat(calls.getLast()).isEqualTo("p2");
+	}
+
+	@Test
+	@DisplayName("전체 교체는 기존 제외 조건을 함께 적용해 같은 방문 수를 모두 새 매장으로 채운다")
+	void replacesEveryStopWhenACompleteRouteExists() {
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(
+			TimeSlot.LUNCH, List.of(store(1, StoreKind.KOREAN, 0, 99), store(3, StoreKind.KOREAN, 20, 90),
+				store(5, StoreKind.KOREAN, 10, 99)),
+			TimeSlot.AFTERNOON, List.of(store(2, StoreKind.CAFE, 200, 99), store(4, StoreKind.CAFE, 240, 90))));
+		List<String> calls = new ArrayList<>();
+		CourseSelector selector = new VerifiedCourseSelector(new BeamSelector(), id -> {
+			calls.add(id);
+			return Hours.fixed(Result.OPEN);
+		});
+		Request rebuild = new Request(SLOTS.subList(0, 2), START, Set.of(5L), Weekday.FRI, 7,
+			WalkPreference.DEFAULT, Set.of(1L, 2L), Map.of());
+
+		Selection result = selector.select(rebuild, pool);
+
+		assertThat(result.interruption()).isNull();
+		assertThat(ids(result)).containsExactly(3L, 4L);
+		assertThat(calls).containsExactly("p3", "p4");
+	}
+
+	@Test
+	@DisplayName("새 카페가 닫아서 방문 수가 줄면 부분 교체로 돌아가고 조회 결과를 재사용한다")
+	void fallsBackWithSharedHoursWhenTheNewRouteCannotBeVerified() {
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(
+			TimeSlot.LUNCH, List.of(store(1, StoreKind.KOREAN, 0, 99), store(3, StoreKind.KOREAN, 20, 99)),
+			TimeSlot.AFTERNOON, List.of(store(2, StoreKind.CAFE, 200, 99), store(4, StoreKind.CAFE, 240, 99))));
+		List<String> calls = new ArrayList<>();
+		CourseSelector selector = new VerifiedCourseSelector(new BeamSelector(), id -> {
+			calls.add(id);
+			return Hours.fixed(id.equals("p4") ? Result.NOT_OPEN : Result.OPEN);
+		});
+		Request rebuild = new Request(SLOTS.subList(0, 2), START, Set.of(), Weekday.FRI, 7,
+			WalkPreference.DEFAULT, Set.of(1L, 2L), Map.of());
+
+		Selection result = selector.select(rebuild, pool);
+
+		assertThat(result.interruption()).isNull();
+		assertThat(ids(result)).containsExactly(3L, 2L);
+		assertThat(calls).containsExactly("p3", "p4", "p2");
+	}
+
+	@Test
+	@DisplayName("새 매장 조회가 상한에 가까우면 부분 교체를 검증할 여유를 남긴다")
+	void reservesLookupsForFallbackWithoutExceedingTheRequestLimit() {
+		List<Candidate> candidates = new ArrayList<>();
+		candidates.add(store(1, StoreKind.KOREAN, 0, 99));
+		for (int id = 2; id <= 41; id++) {
+			candidates.add(store(id, StoreKind.KOREAN, id, 90));
+		}
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(TimeSlot.LUNCH, candidates));
+		List<String> calls = new ArrayList<>();
+		CourseSelector selector = new VerifiedCourseSelector(new BeamSelector(), id -> {
+			calls.add(id);
+			return Hours.fixed(id.equals("p1") ? Result.OPEN : Result.NOT_OPEN);
+		});
+		Request rebuild = new Request(SLOTS.subList(0, 1), START, Set.of(), Weekday.FRI, 7,
+			WalkPreference.DEFAULT, Set.of(1L), Map.of());
+
+		Selection result = selector.select(rebuild, pool);
+
+		assertThat(result.interruption()).isNull();
+		assertThat(ids(result)).containsExactly(1L);
+		assertThat(calls).hasSize(40).doesNotHaveDuplicates();
+		assertThat(calls.getLast()).isEqualTo("p1");
+	}
+
 	@ParameterizedTest
 	@CsvSource({"40, NO_VERIFIED_MATCH", "41, CHECK_LIMIT"})
 	@DisplayName("40곳을 확인한 뒤 후보가 없을 때와 한 곳을 더 확인해야 할 때를 구분한다")

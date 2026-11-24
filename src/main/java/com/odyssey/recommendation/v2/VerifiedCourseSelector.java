@@ -36,7 +36,22 @@ final class VerifiedCourseSelector implements CourseSelector {
 
 	@Override
 	public Selection select(Request request, CandidatePool pool) {
-		return new VisitVerification(request).selectVerifiedCourse(pool);
+		Map<String, Hours> hoursByPlace = new HashMap<>();
+		if (!request.previousStopIds().isEmpty()) {
+			Set<Long> avoided = new HashSet<>(request.excludeIds());
+			avoided.addAll(request.previousStopIds());
+			Request replacement = new Request(request.slots(), request.origin(), avoided, request.weekday(),
+				request.seed(), request.walk(), request.excludedBySlot());
+			// 부분 교체로 넘어갈 때 정류장마다 한 곳을 확인할 수 있도록 조회 여유를 남긴다.
+			int replacementLookupLimit = MAX_LOOKUPS - request.slots().size();
+			Optional<Selection> full = new VisitVerification(replacement, hoursByPlace, replacementLookupLimit)
+				.selectVerifiedCourse(pool, request.previousStopIds().size());
+			if (full.isPresent()) {
+				return full.get();
+			}
+		}
+		return new VisitVerification(request, hoursByPlace, MAX_LOOKUPS).selectVerifiedCourse(pool, 0)
+			.orElseThrow();
 	}
 
 	/** 한 계획의 한 정류장을 확인한 결과. */
@@ -62,29 +77,39 @@ final class VerifiedCourseSelector implements CourseSelector {
 		/** 자리 번호 → 그 자리에서 영업하지 않아 뺀 매장. 같은 매장이 다른 시각의 자리에서는 열 수 있다 */
 		private final Map<Integer, Set<Long>> closedAtSlot = new HashMap<>();
 		private final List<CourseSlot> remaining;
-		private final Map<String, Hours> hoursByPlace = new HashMap<>();
+		private final Map<String, Hours> hoursByPlace;
+		private final int lookupLimit;
 		private final List<Skipped> unavailableSlots = new ArrayList<>();
 
-		VisitVerification(Request request) {
+		VisitVerification(Request request, Map<String, Hours> hoursByPlace, int lookupLimit) {
 			this.request = request;
+			this.hoursByPlace = hoursByPlace;
+			this.lookupLimit = lookupLimit;
 			this.excluded = new HashSet<>(request.excludeIds());
 			request.excludedBySlot().forEach((position, ids) -> closedAtSlot.put(position, new HashSet<>(ids)));
 			this.remaining = new ArrayList<>(request.slots());
 		}
 
-		Selection selectVerifiedCourse(CandidatePool pool) {
+		Optional<Selection> selectVerifiedCourse(CandidatePool pool, int minimumStops) {
 			while (true) {
 				Selection plan = planner.select(retryRequest(), pool);
+				if (!meetsTarget(plan, minimumStops)) {
+					return Optional.empty();
+				}
 				Optional<Selection> verified = verify(plan);
 				if (verified.isPresent()) {
-					return verified.get();
+					return verified.filter(course -> meetsTarget(course, minimumStops));
 				}
 			}
 		}
 
+		private boolean meetsTarget(Selection plan, int minimumStops) {
+			return minimumStops == 0 || (plan.interruption() == null && plan.picks().size() >= minimumStops);
+		}
+
 		private Request retryRequest() {
 			return new Request(remaining, request.origin(), excluded, request.weekday(), request.seed(),
-				request.walk(), closedAtSlot);
+				request.walk(), request.previousStopIds(), closedAtSlot);
 		}
 
 		/** @return 확인을 마친 코스. 계획을 버리고 다시 짜야 하면 빈 값 */
@@ -113,7 +138,7 @@ final class VerifiedCourseSelector implements CourseSelector {
 				excluded.add(place.id());
 				return new Verdict.Replan();
 			}
-			if (!hoursByPlace.containsKey(placeId) && hoursByPlace.size() >= MAX_LOOKUPS) {
+			if (!hoursByPlace.containsKey(placeId) && hoursByPlace.size() >= lookupLimit) {
 				return new Verdict.Interrupt(slot, "CHECK_LIMIT");
 			}
 			Hours hours = hoursByPlace.computeIfAbsent(placeId, lookup::load);
