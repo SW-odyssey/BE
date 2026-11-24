@@ -7,9 +7,13 @@ import org.springframework.util.MultiValueMap;
 import com.odyssey.global.api.ApiEnums;
 import com.odyssey.global.exception.BusinessException;
 import com.odyssey.global.exception.CommonErrorCode;
+import com.odyssey.store.StoreNames.Language;
 
 /** v2 API 가 받는 쿼리 파라미터의 공통 규칙. 키 규칙과, 여러 API 가 함께 쓰는 값 형식을 둔다. */
 final class V2RequestParams {
+
+	static final String LANGUAGE_DOC =
+		"상호 표시 언어. ko(기본), en, zh(간체 중국어), ja. 해당 언어 표기가 없으면 원본 상호를 줍니다.";
 
 	private V2RequestParams() {
 	}
@@ -28,6 +32,10 @@ final class V2RequestParams {
 					CommonErrorCode.INVALID_INPUT, "지원하지 않거나 중복된 요청 조건: " + key);
 			}
 		});
+	}
+
+	static Language displayLanguage(String value) {
+		return value == null ? Language.KO : required(Language.class, "lang", value);
 	}
 
 	/**

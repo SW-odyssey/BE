@@ -5,6 +5,7 @@ import java.util.List;
 
 import com.odyssey.cellslotscore.entity.TimeSlot;
 import com.odyssey.recommendation.v2.V2RecommendationResponse.Item;
+import com.odyssey.store.StoreNames.Language;
 
 /**
  * context.slot은 시작 시간대이고, 각 매장의 직선거리는 직전 출발 위치가 기준이다.
@@ -17,6 +18,11 @@ public record V2CourseResponse(String status, V2Context context, long seed,
 	public V2CourseResponse {
 		stops = List.copyOf(stops);
 		skipped = List.copyOf(skipped);
+	}
+
+	V2CourseResponse withLanguage(Language language) {
+		return new V2CourseResponse(status, context, seed, stops.stream()
+			.map(stop -> stop.withLanguage(language)).toList(), skipped, interruption);
 	}
 
 	static V2CourseResponse complete(V2Context context, long seed, List<Stop> stops, List<Skipped> skipped) {
@@ -52,6 +58,11 @@ public record V2CourseResponse(String status, V2Context context, long seed,
 			boolean hoursUnknown) {
 			return new Stop(position, slot, visitTime.toString(), visitTime.plusMinutes(stayMinutes).toString(),
 				walkMinutes(place.distanceMeters()), candidateRank, place, hoursUnknown, List.of());
+		}
+
+		Stop withLanguage(Language language) {
+			return new Stop(position, slot, visitTime, leaveTime, walkMinutes, candidateRank,
+				place.withLanguage(language), hoursUnknown, reasons);
 		}
 
 		Stop withReasons(List<CourseReason> reasons) {

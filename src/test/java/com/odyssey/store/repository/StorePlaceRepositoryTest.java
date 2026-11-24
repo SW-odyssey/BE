@@ -18,6 +18,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.odyssey.TestcontainersConfiguration;
+import com.odyssey.store.StoreNames;
 import com.odyssey.store.entity.StoreKind;
 import com.odyssey.store.repository.StorePlaceRepository.Place;
 import com.odyssey.support.SplitRecommendationFixture;
@@ -57,6 +58,23 @@ class StorePlaceRepositoryTest {
 		// then
 		assertThat(place).contains(new Place(7, "공평식당", CELL, StoreKind.KOREAN, 37.57, 126.98,
 			LocalDate.of(1995, 5, 20), "place-7"));
+	}
+
+	@Test
+	@DisplayName("번역 당시의 상호가 현재 상호와 일치할 때만 번역을 읽는다")
+	void findsTranslationsForCurrentName() {
+		db.store(7, CELL, "공평식당", "KOREAN", null, "place-7", true);
+		jdbc.sql("""
+			insert into store_name_translation (store_id, source_name, name_en, name_zh, name_ja)
+			values (7, '공평식당', 'Gongpyeong Restaurant', '公平食堂', '公平食堂')
+			""").update();
+
+		assertThat(repository.findActiveById(7)).get().extracting(Place::names)
+			.isEqualTo(new StoreNames("Gongpyeong Restaurant", "公平食堂", "公平食堂"));
+
+		jdbc.sql("update store set name = '새식당' where id = 7").update();
+
+		assertThat(repository.findActiveById(7)).get().extracting(Place::names).isEqualTo(StoreNames.EMPTY);
 	}
 
 	@ParameterizedTest

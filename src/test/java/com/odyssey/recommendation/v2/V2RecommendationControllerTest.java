@@ -15,6 +15,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -27,6 +28,7 @@ import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.cellslotscore.entity.TimeSlot;
 import com.odyssey.recommendation.v2.V2RecommendationResponse.Item;
 import com.odyssey.store.entity.Category;
+import com.odyssey.store.StoreNames;
 import com.odyssey.store.entity.StoreKind;
 
 /** {@link V2RecommendationController} 의 웹 계층 테스트. 서비스는 가짜라서 요청 해석과 응답 모양만 본다. */
@@ -106,6 +108,37 @@ class V2RecommendationControllerTest {
 		assertThat(query.category()).isNull();
 		assertThat(query.kind()).isEqualTo(StoreKind.KOREAN);
 		assertThat(query.q()).isEqualTo("스타");
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"", " ", "EN", "fr"})
+	@DisplayName("잘못된 lang은 400으로 거부하고 서비스를 호출하지 않는다")
+	void rejectsInvalidLanguage(String lang) throws Exception {
+		mockMvc.perform(valid().param("lang", lang))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+		then(service).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("lang이 두 번 오면 400으로 거부하고 서비스를 호출하지 않는다")
+	void rejectsRepeatedLanguage() throws Exception {
+		mockMvc.perform(valid().param("lang", "en", "ja"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+		then(service).shouldHaveNoInteractions();
+	}
+
+	@Test
+	@DisplayName("추천 목록의 상호를 요청한 언어로 표시한다")
+	void localizesRecommendationName() throws Exception {
+		given(service.recommend(any())).willReturn(new V2RecommendationResponse("OK", 1, CONTEXT,
+			List.of(new Item(7, "공평식당", "101", StoreKind.KOREAN, 37.57, 126.98, 11.4, "place-7",
+				new StoreNames("Gongpyeong Restaurant", "公平食堂", "公平食堂")))));
+
+		mockMvc.perform(valid().param("lang", "zh"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.items[0].name").value("公平食堂"));
 	}
 
 	@Test

@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 import com.odyssey.global.exception.BusinessException;
 import com.odyssey.global.exception.CommonErrorCode;
 import com.odyssey.global.response.ApiResult;
+import com.odyssey.store.StoreNames.Language;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -32,10 +33,10 @@ public class V2PlaceController {
 		this.service = service;
 	}
 
-	/** 활성 매장의 기본 정보를 준다. 받는 쿼리 파라미터는 없고, id 는 양의 정수여야 한다. */
+	/** 활성 매장의 기본 정보를 준다. id는 양의 정수여야 한다. */
 	@GetMapping("/places/{id}")
 	@Operation(summary = "장소 기본 정보", description = """
-		폐업하지 않은 매장의 기본 정보(이름, 종류, 좌표, 칸 번호, 개업일, 구글 장소 ID)를 줍니다. 쿼리 파라미터는 받지 않습니다.
+		폐업하지 않은 매장의 기본 정보(이름, 종류, 좌표, 칸 번호, 개업일, 구글 장소 ID)를 줍니다.
 		주소·사진·영업시간은 이 API에 없으니 googlePlaceId로 구글에서 가져옵니다.
 
 		**datasetId를 받지 않는 이유**: 매장 정보는 달마다 바뀌는 분석 결과와 상관없습니다.
@@ -43,7 +44,7 @@ public class V2PlaceController {
 		id는 데이터를 새로 올려도 바뀌지 않으므로 저장·공유 링크에 그대로 써도 됩니다.
 		""")
 	@ApiResponse(responseCode = "200", description = "장소 조회 성공", useReturnTypeSchema = true)
-	@ApiResponse(responseCode = "400", description = "INVALID_INPUT: 0 이하의 id, 쿼리 파라미터를 보낸 경우",
+	@ApiResponse(responseCode = "400", description = "INVALID_INPUT: 0 이하의 id, 잘못된 lang 또는 지원하지 않는 쿼리 파라미터",
 		content = @Content(schema = @Schema(implementation = ApiResult.class),
 			examples = @ExampleObject(value = """
 				{"success":false,"data":null,"error":{"code":"INVALID_INPUT",
@@ -65,11 +66,15 @@ public class V2PlaceController {
 	public ApiResult<V2PlaceResponse> place(
 		@Parameter(description = "매장 번호. 추천 목록의 items[].id입니다.", example = "1557")
 		@PathVariable long id,
+		@Parameter(description = V2RequestParams.LANGUAGE_DOC, example = "en")
+		@RequestParam(required = false) String lang,
 		@Parameter(hidden = true) @RequestParam MultiValueMap<String, String> params) {
-		V2RequestParams.check(params, Set.of());
+		V2RequestParams.check(params, Set.of("lang"));
+		Language language = V2RequestParams.displayLanguage(lang);
 		if (id <= 0) {
 			throw new BusinessException(CommonErrorCode.INVALID_INPUT, "id는 양의 정수입니다.");
 		}
-		return ApiResult.ok(service.place(id));
+		V2PlaceResponse response = service.place(id);
+		return ApiResult.ok(language == Language.KO ? response : response.withLanguage(language));
 	}
 }
