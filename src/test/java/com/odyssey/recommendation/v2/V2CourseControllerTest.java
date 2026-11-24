@@ -40,6 +40,7 @@ import com.odyssey.recommendation.v2.CourseReason.LocalTop;
 import com.odyssey.recommendation.v2.CourseReason.OpenDuringStay;
 import com.odyssey.recommendation.v2.CourseReason.PeakNow;
 import com.odyssey.recommendation.v2.CourseReason.SimilarChoices;
+import com.odyssey.recommendation.v2.CourseSchedule.AfternoonPreference;
 import com.odyssey.recommendation.v2.V2CourseResponse.Interruption;
 import com.odyssey.recommendation.v2.V2CourseResponse.Stop;
 import com.odyssey.recommendation.v2.V2RecommendationResponse.Item;
@@ -68,7 +69,8 @@ class V2CourseControllerTest {
 
 	@BeforeEach
 	void anyCourse() {
-		given(service.recommend(any(), any(), any(), any(), anySet(), anyLong(), any(), anyBoolean(), any())).willReturn(PARTIAL);
+		given(service.recommend(any(), any(), any(), any(), anySet(), anyLong(),
+			any(AfternoonPreference.class), anyBoolean(), any())).willReturn(PARTIAL);
 	}
 
 	/** 필수 값 다섯 개를 채운 요청에서 key 의 값만 value 로 바꾼다. */
@@ -109,13 +111,13 @@ class V2CourseControllerTest {
 
 		// then
 		then(service).should().recommend("nov", Weekday.FRI, TimeSlot.DINNER, new GeoPoint(37.5655342, 126.9903373),
-			Set.of(3L, 4L), 7L, StoreKind.SHOP, true, WalkPreference.SHORT);
+			Set.of(3L, 4L), 7L, AfternoonPreference.SHOP, true, WalkPreference.SHORT);
 	}
 
 	@ParameterizedTest(name = "afternoon=\"{0}\" → {1}")
-	@CsvSource({"cafe, CAFE", "shop, SHOP", "'', CAFE"})
-	@DisplayName("afternoon → cafe·shop 을 종류로 바꾸고 비어 있으면 카페다")
-	void afternoonKind(String value, StoreKind expected) throws Exception {
+	@CsvSource({"cafe, CAFE", "shop, SHOP", "mixed, MIXED", "'', CAFE"})
+	@DisplayName("afternoon에 지원 값을 보냄 → 오후 구성으로 변환한다")
+	void afternoonKind(String value, AfternoonPreference expected) throws Exception {
 		// given
 		MockHttpServletRequestBuilder request = validWith("afternoon", value);
 
@@ -138,7 +140,7 @@ class V2CourseControllerTest {
 		// then
 		ArgumentCaptor<Long> seed = ArgumentCaptor.forClass(Long.class);
 		then(service).should().recommend(any(), any(), any(), any(), eq(Set.of()), seed.capture(),
-			eq(StoreKind.CAFE), eq(false), eq(WalkPreference.DEFAULT));
+			eq(AfternoonPreference.CAFE), eq(false), eq(WalkPreference.DEFAULT));
 		assertThat(seed.getValue()).isBetween(1L, (1L << 53) - 1);
 	}
 
@@ -251,7 +253,7 @@ class V2CourseControllerTest {
 		ResultActions result = mvc.perform(validWith("afternoon", value));
 
 		// then
-		expectInvalidInput(result, "afternoon 은 cafe 또는 shop 입니다.");
+		expectInvalidInput(result, "afternoon 은 cafe, shop 또는 mixed 입니다.");
 	}
 
 	@ParameterizedTest
@@ -266,7 +268,8 @@ class V2CourseControllerTest {
 		Stop lateStop = new Stop(6, TimeSlot.LATE_NIGHT, "22:00", "23:10", 1, 1, bar, false, List.of());
 		List<Stop> stops = include ? List.of(lateStop) : List.of();
 		given(service.recommend(any(), any(), eq(TimeSlot.LATE_NIGHT), any(), anySet(), anyLong(),
-			eq(StoreKind.CAFE), eq(include), eq(WalkPreference.DEFAULT))).willReturn(new V2CourseResponse("COMPLETE", context, 7, stops, List.of(), null));
+			eq(AfternoonPreference.CAFE), eq(include), eq(WalkPreference.DEFAULT)))
+			.willReturn(new V2CourseResponse("COMPLETE", context, 7, stops, List.of(), null));
 		MockHttpServletRequestBuilder request = validWith("startSlot", "late_night").param("seed", "7");
 		if (value != null) {
 			request.param("lateNight", value);
@@ -348,7 +351,8 @@ class V2CourseControllerTest {
 	@DisplayName("서비스가 배치를 찾지 못함 → 404 DATASET_NOT_FOUND 를 같은 오류 형식으로 준다")
 	void datasetNotFound() throws Exception {
 		// given
-		given(service.recommend(any(), any(), any(), any(), anySet(), anyLong(), any(), anyBoolean(), any()))
+		given(service.recommend(any(), any(), any(), any(), anySet(), anyLong(),
+			any(AfternoonPreference.class), anyBoolean(), any()))
 			.willThrow(new BusinessException(V2Error.DATASET_NOT_FOUND, "공개된 분석 배치를 찾을 수 없습니다."));
 
 		// when

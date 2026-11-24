@@ -102,6 +102,25 @@ class V2CourseServiceBeamTest {
 	}
 
 	@Test
+	@DisplayName("카페와 구경을 선택함 → 카페 다음에 쇼핑 장소를 넣고 저녁까지 잇는다")
+	void mixedAfternoonIncludesBothKinds() {
+		// given
+		candidates(TimeSlot.AFTERNOON,
+			store(1, StoreKind.CAFE, 0, 96),
+			store(2, StoreKind.SHOP, 200, 90),
+			store(3, StoreKind.PLAY, 200, 99));
+		candidates(TimeSlot.DINNER, store(4, StoreKind.KOREAN, 450, 96));
+
+		// when
+		V2CourseResponse course = service.recommend("nov", Weekday.FRI, TimeSlot.AFTERNOON, START,
+			Set.of(), 1, CourseSchedule.AfternoonPreference.MIXED, false, WalkPreference.DEFAULT);
+
+		// then
+		assertThat(course.stops()).extracting(stop -> stop.place().kind())
+			.containsExactly(StoreKind.CAFE, StoreKind.SHOP, StoreKind.KOREAN);
+	}
+
+	@Test
 	@DisplayName("영업시간이 없는 쇼핑 → hoursUnknown 으로 담고 영업 중 이유는 붙이지 않는다")
 	void shopWithUnknownHoursHasNoOpenReason() {
 		// given
