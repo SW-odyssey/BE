@@ -100,6 +100,25 @@ class VerifiedCourseSelectorTest {
 	}
 
 	@Test
+	@DisplayName("요청 자리를 모두 채워도 직전 방문 수보다 적으면 부분 교체로 돌아간다")
+	void fallsBackWhenAllNewRouteHasFewerStopsThanPreviousCourse() {
+		// given
+		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(
+			TimeSlot.LUNCH, List.of(store(1, StoreKind.KOREAN, 0, 99), store(3, StoreKind.KOREAN, 20, 90)),
+			TimeSlot.AFTERNOON, List.of(store(4, StoreKind.CAFE, 200, 99))));
+		CourseSelector selector = new VerifiedCourseSelector(new BeamSelector(), id -> Hours.fixed(Result.OPEN));
+		Request rebuild = new Request(SLOTS.subList(0, 2), START, Set.of(), Weekday.FRI, 7,
+			WalkPreference.DEFAULT, Set.of(1L, 2L, 5L), Map.of());
+
+		// when
+		Selection result = selector.select(rebuild, pool);
+
+		// then
+		assertThat(result.interruption()).isNull();
+		assertThat(ids(result)).containsExactly(1L, 4L);
+	}
+
+	@Test
 	@DisplayName("새 카페가 닫아서 방문 수가 줄면 부분 교체로 돌아가고 조회 결과를 재사용한다")
 	void fallsBackWithSharedHoursWhenTheNewRouteCannotBeVerified() {
 		CandidatePool pool = new CandidatePool(CONTEXT, Map.of(

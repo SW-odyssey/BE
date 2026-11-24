@@ -244,12 +244,44 @@ class V2CourseControllerTest {
 	}
 
 	@Test
-	@DisplayName("직전 코스에 유효하지 않은 매장 ID를 보냄 → 400 INVALID_INPUT")
-	void invalidPreviousStopIds() throws Exception {
-		expectInvalidInput(mvc.perform(validWith("previousStopIds", "3,0")),
-			"previousStopIds에는 양의 매장 ID가 필요합니다.");
-		expectInvalidInput(mvc.perform(validWith("previousStopIds", "1,2,3,4,5,6,7")),
-			"previousStopIds는 최대 6개까지 보낼 수 있습니다.");
+	@DisplayName("직전 매장 ID를 6개 보내면 모두 서비스에 전달한다")
+	void passesSixPreviousStopIds() throws Exception {
+		// given
+		MockHttpServletRequestBuilder request = validWith("previousStopIds", "1,2,3,4,5,6");
+
+		// when
+		ResultActions result = mvc.perform(request);
+
+		// then
+		result.andExpect(status().isOk());
+		then(service).should().recommend(any(), any(), any(), any(), anySet(), anyLong(),
+			any(AfternoonPreference.class), anyBoolean(), any(), eq(Set.of(1L, 2L, 3L, 4L, 5L, 6L)));
+	}
+
+	@Test
+	@DisplayName("직전 매장 ID를 7개 보내면 400 INVALID_INPUT으로 거부한다")
+	void rejectsSevenPreviousStopIds() throws Exception {
+		// given
+		MockHttpServletRequestBuilder request = validWith("previousStopIds", "1,2,3,4,5,6,7");
+
+		// when
+		ResultActions result = mvc.perform(request);
+
+		// then
+		expectInvalidInput(result, "previousStopIds는 최대 6개까지 보낼 수 있습니다.");
+	}
+
+	@Test
+	@DisplayName("직전 매장 ID가 양수가 아니면 400 INVALID_INPUT으로 거부한다")
+	void rejectsNonPositivePreviousStopIds() throws Exception {
+		// given
+		MockHttpServletRequestBuilder request = validWith("previousStopIds", "3,0");
+
+		// when
+		ResultActions result = mvc.perform(request);
+
+		// then
+		expectInvalidInput(result, "previousStopIds에는 양의 매장 ID가 필요합니다.");
 	}
 
 	@Test
