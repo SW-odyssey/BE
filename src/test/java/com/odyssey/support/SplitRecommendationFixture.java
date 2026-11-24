@@ -62,7 +62,7 @@ public final class SplitRecommendationFixture {
 			""").params(datasetId, cellId, weekday, status).update();
 	}
 
-	public void bar(String datasetId, long cellId, String weekday, String slot, int relativeHeight) {
+	public void bar(String datasetId, long cellId, String weekday, String slot, Integer relativeHeight) {
 		jdbc.sql("""
 			insert into cell_visit_bar (dataset_id, cell_id, weekday, slot, relative_height)
 			values (?, ?, ?, ?, ?)

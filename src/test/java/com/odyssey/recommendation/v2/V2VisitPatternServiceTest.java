@@ -113,11 +113,51 @@ class V2VisitPatternServiceTest {
 			new Bar(TimeSlot.DINNER, 100), new Bar(TimeSlot.LATE_NIGHT, 70));
 	}
 
+	private static VisitProfile profile(VisitProfileStatus status, Integer lunch, Integer afternoon,
+		Integer dinner, Integer lateNight) {
+		return new VisitProfile(status, List.of(
+			new VisitBar(TimeSlot.LUNCH, lunch), new VisitBar(TimeSlot.AFTERNOON, afternoon),
+			new VisitBar(TimeSlot.DINNER, dinner), new VisitBar(TimeSlot.LATE_NIGHT, lateNight)));
+	}
+
+	@Test
+	@DisplayName("NO_DISTINCT_PEAK 100 · 85 · 100 · 40 → 막대를 모두 주고 강조 시간대는 null 이다")
+	void tiedPeakGraph() {
+		// given
+		givenProfile(Weekday.WED, 10, profile(VisitProfileStatus.NO_DISTINCT_PEAK, 100, 85, 100, 40));
+
+		// when
+		V2VisitPatternResponse response = service.visitPattern(query(Weekday.WED, 10));
+
+		// then
+		assertThat(response.status()).isEqualTo("NO_DISTINCT_PEAK");
+		assertThat(response.graph().highlightSlot()).isNull();
+		assertThat(response.graph().bars()).containsExactly(
+			new Bar(TimeSlot.LUNCH, 100), new Bar(TimeSlot.AFTERNOON, 85),
+			new Bar(TimeSlot.DINNER, 100), new Bar(TimeSlot.LATE_NIGHT, 40));
+	}
+
+	@Test
+	@DisplayName("INCOMPLETE_TIME_SLOTS 의 빠진 시간대 → 그 막대 높이는 0 이 아니라 null 이다")
+	void incompleteGraphKeepsMissingSlotNull() {
+		// given
+		givenProfile(Weekday.WED, 10, profile(VisitProfileStatus.INCOMPLETE_TIME_SLOTS, null, 100, 60, null));
+
+		// when
+		Graph graph = service.visitPattern(query(Weekday.WED, 10)).graph();
+
+		// then
+		assertThat(graph.highlightSlot()).isNull();
+		assertThat(graph.bars()).containsExactly(
+			new Bar(TimeSlot.LUNCH, null), new Bar(TimeSlot.AFTERNOON, 100),
+			new Bar(TimeSlot.DINNER, 60), new Bar(TimeSlot.LATE_NIGHT, null));
+	}
+
 	@ParameterizedTest
 	@EnumSource(value = VisitProfileStatus.class, names = "AVAILABLE",
 		mode = EnumSource.Mode.EXCLUDE)
-	@DisplayName("그래프를 그리지 않는 상태 → 상태 이름만 주고 graph 는 null 이다")
-	void nonAvailableHasNoGraph(VisitProfileStatus status) {
+	@DisplayName("막대가 없는 프로필 → 상태 이름만 주고 graph 는 null 이다")
+	void profileWithoutBarsHasNoGraph(VisitProfileStatus status) {
 		// given
 		givenProfile(Weekday.WED, 10, new VisitProfile(status, List.of()));
 

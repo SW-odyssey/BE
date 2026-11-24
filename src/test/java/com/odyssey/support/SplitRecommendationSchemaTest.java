@@ -131,11 +131,75 @@ class SplitRecommendationSchemaTest {
 	}
 
 	@Test
-	@DisplayName("AVAILABLE 이 아닌 프로필에 막대가 있다 → 공개할 수 없다")
+	@DisplayName("NO_POSITIVE_VISITS 프로필에 막대가 있다 → 공개할 수 없다")
 	void publishRejectsBarsOnUnavailableProfile() {
 		// given
 		db.profile(DS, 101, MON, "NO_POSITIVE_VISITS");
 		db.bar(DS, 101, MON, "lunch", 100);
+
+		// when
+		DataAccessException exception = publishFailure();
+
+		// then
+		assertThat(exception).hasMessageContaining(PUBLISH_ERROR);
+	}
+
+	private void bars(String status, Integer lunch, Integer afternoon, Integer dinner, Integer lateNight) {
+		db.profile(DS, 101, MON, status);
+		db.bar(DS, 101, MON, "lunch", lunch);
+		db.bar(DS, 101, MON, "afternoon", afternoon);
+		db.bar(DS, 101, MON, "dinner", dinner);
+		db.bar(DS, 101, MON, "late_night", lateNight);
+	}
+
+	@Test
+	@DisplayName("NO_DISTINCT_PEAK 프로필에 막대 4개와 높이 100 둘이 있다 → 공개된다")
+	void publishTiedPeakProfile() {
+		// given
+		bars("NO_DISTINCT_PEAK", 100, 85, 100, 40);
+
+		// when
+		db.publish(DS);
+
+		// then
+		Boolean published = jdbc.sql("select published from recommendation_dataset"
+			+ " where dataset_id = ?").params(DS).query(Boolean.class).single();
+		assertThat(published).isTrue();
+	}
+
+	@Test
+	@DisplayName("INCOMPLETE_TIME_SLOTS 프로필의 빠진 시간대만 높이가 null 이다 → 공개된다")
+	void publishIncompleteProfileWithMissingSlot() {
+		// given
+		bars("INCOMPLETE_TIME_SLOTS", null, 100, 60, null);
+
+		// when
+		db.publish(DS);
+
+		// then
+		Integer missing = jdbc.sql("select count(*) from cell_visit_bar where dataset_id = ?"
+			+ " and relative_height is null").params(DS).query(Integer.class).single();
+		assertThat(missing).isEqualTo(2);
+	}
+
+	@Test
+	@DisplayName("NO_DISTINCT_PEAK 프로필에 높이가 null 인 막대가 있다 → 공개할 수 없다")
+	void publishRejectsMissingHeightOnTiedPeak() {
+		// given
+		bars("NO_DISTINCT_PEAK", null, 100, 60, 40);
+
+		// when
+		DataAccessException exception = publishFailure();
+
+		// then
+		assertThat(exception).hasMessageContaining(PUBLISH_ERROR);
+	}
+
+	@Test
+	@DisplayName("INCOMPLETE_TIME_SLOTS 프로필의 막대 4개가 모두 값이 있다 → 공개할 수 없다")
+	void publishRejectsCompleteBarsOnIncompleteProfile() {
+		// given
+		bars("INCOMPLETE_TIME_SLOTS", 70, 100, 60, 40);
 
 		// when
 		DataAccessException exception = publishFailure();

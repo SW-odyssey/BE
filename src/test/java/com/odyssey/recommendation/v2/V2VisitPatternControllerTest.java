@@ -85,16 +85,37 @@ class V2VisitPatternControllerTest {
 	}
 
 	@Test
-	@DisplayName("그래프를 그리지 않는 상태 → 200 이고 graph 키는 남기고 값은 null 이다")
-	void nullGraphKeepsKey() throws Exception {
+	@DisplayName("빠진 시간대가 있는 그래프 → 그 막대와 강조 시간대는 키를 남기고 값은 null 이다")
+	void missingSlotKeepsNullHeight() throws Exception {
 		// given
+		Graph graph = new Graph("visit", "SAME_CELL_SAME_WEEKDAY", 100, null, List.of(
+			new Bar(TimeSlot.LUNCH, null), new Bar(TimeSlot.AFTERNOON, 100),
+			new Bar(TimeSlot.DINNER, 60), new Bar(TimeSlot.LATE_NIGHT, null)));
 		given(service.visitPattern(any()))
-			.willReturn(new V2VisitPatternResponse(CONTEXT, "NO_DISTINCT_PEAK", null));
+			.willReturn(new V2VisitPatternResponse(CONTEXT, "INCOMPLETE_TIME_SLOTS", graph));
 
 		// when & then
 		mockMvc.perform(valid())
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.data.status").value("NO_DISTINCT_PEAK"))
+			.andExpect(jsonPath("$.data.status").value("INCOMPLETE_TIME_SLOTS"))
+			.andExpect(jsonPath("$.data.graph.highlightSlot").hasJsonPath())
+			.andExpect(jsonPath("$.data.graph.highlightSlot").isEmpty())
+			.andExpect(jsonPath("$.data.graph.bars[0].relativeHeight").hasJsonPath())
+			.andExpect(jsonPath("$.data.graph.bars[0].relativeHeight").isEmpty())
+			.andExpect(jsonPath("$.data.graph.bars[1].relativeHeight").value(100));
+	}
+
+	@Test
+	@DisplayName("막대가 없는 프로필 → 200 이고 graph 키는 남기고 값은 null 이다")
+	void nullGraphKeepsKey() throws Exception {
+		// given
+		given(service.visitPattern(any()))
+			.willReturn(new V2VisitPatternResponse(CONTEXT, "INCOMPLETE_TIME_SLOTS", null));
+
+		// when & then
+		mockMvc.perform(valid())
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.status").value("INCOMPLETE_TIME_SLOTS"))
 			.andExpect(jsonPath("$.data.graph").hasJsonPath())
 			.andExpect(jsonPath("$.data.graph").isEmpty());
 	}
