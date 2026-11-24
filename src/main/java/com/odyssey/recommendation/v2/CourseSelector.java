@@ -19,14 +19,16 @@ interface CourseSelector {
 
 	/**
 	 * @param excludeIds     모든 자리에서 뺄 매장
+	 * @param previousStopIds 직전 코스의 매장. 재생성 후보의 새 매장 수를 셀 때 사용한다
 	 * @param excludedBySlot 자리 번호(position) → 그 자리에서만 뺄 매장. 한 매장이 점심에는 닫혀도 저녁에는 열 수
 	 *                       있어서, 영업 확인에 실패한 매장은 실패한 자리에만 적용한다
 	 */
 	record Request(List<CourseSlot> slots, GeoPoint origin, Set<Long> excludeIds, Weekday weekday, long seed,
-		WalkPreference walk, Map<Integer, Set<Long>> excludedBySlot) {
+		WalkPreference walk, Set<Long> previousStopIds, Map<Integer, Set<Long>> excludedBySlot) {
 		public Request {
 			slots = List.copyOf(slots);
 			excludeIds = Set.copyOf(excludeIds);
+			previousStopIds = Set.copyOf(previousStopIds);
 			Map<Integer, Set<Long>> copy = new HashMap<>();
 			excludedBySlot.forEach((position, ids) -> copy.put(position, Set.copyOf(ids)));
 			excludedBySlot = Map.copyOf(copy);
@@ -35,6 +37,11 @@ interface CourseSelector {
 		public Request(List<CourseSlot> slots, GeoPoint origin, Set<Long> excludeIds, Weekday weekday, long seed,
 			WalkPreference walk) {
 			this(slots, origin, excludeIds, weekday, seed, walk, Map.of());
+		}
+
+		public Request(List<CourseSlot> slots, GeoPoint origin, Set<Long> excludeIds, Weekday weekday, long seed,
+			WalkPreference walk, Map<Integer, Set<Long>> excludedBySlot) {
+			this(slots, origin, excludeIds, weekday, seed, walk, Set.of(), excludedBySlot);
 		}
 
 		/** @return 이 자리에서 뺄 매장: 모든 자리에서 뺄 매장과 이 자리에서만 뺄 매장을 합친 것 */

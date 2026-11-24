@@ -36,7 +36,20 @@ final class VerifiedCourseSelector implements CourseSelector {
 
 	@Override
 	public Selection select(Request request, CandidatePool pool) {
-		return new VisitVerification(request).selectVerifiedCourse(pool);
+		Map<String, Hours> hoursByPlace = new HashMap<>();
+		// 전체 교체 탐색에서 조회 한도를 써도 이미 영업을 확인한 코스를 반환할 수 있게 한다.
+		Selection fallback = new VisitVerification(request, hoursByPlace).selectVerifiedCourse(pool, 0)
+			.orElseThrow();
+		if (request.previousStopIds().isEmpty()) {
+			return fallback;
+		}
+		Set<Long> avoided = new HashSet<>(request.excludeIds());
+		avoided.addAll(request.previousStopIds());
+		Request replacement = new Request(request.slots(), request.origin(), avoided, request.weekday(),
+			request.seed(), request.walk(), request.excludedBySlot());
+		return new VisitVerification(replacement, hoursByPlace)
+			.selectVerifiedCourse(pool, request.previousStopIds().size())
+			.orElse(fallback);
 	}
 
 	/** 한 계획의 한 정류장을 확인한 결과. */
@@ -62,29 +75,37 @@ final class VerifiedCourseSelector implements CourseSelector {
 		/** 자리 번호 → 그 자리에서 영업하지 않아 뺀 매장. 같은 매장이 다른 시각의 자리에서는 열 수 있다 */
 		private final Map<Integer, Set<Long>> closedAtSlot = new HashMap<>();
 		private final List<CourseSlot> remaining;
-		private final Map<String, Hours> hoursByPlace = new HashMap<>();
+		private final Map<String, Hours> hoursByPlace;
 		private final List<Skipped> unavailableSlots = new ArrayList<>();
 
-		VisitVerification(Request request) {
+		VisitVerification(Request request, Map<String, Hours> hoursByPlace) {
 			this.request = request;
+			this.hoursByPlace = hoursByPlace;
 			this.excluded = new HashSet<>(request.excludeIds());
 			request.excludedBySlot().forEach((position, ids) -> closedAtSlot.put(position, new HashSet<>(ids)));
 			this.remaining = new ArrayList<>(request.slots());
 		}
 
-		Selection selectVerifiedCourse(CandidatePool pool) {
+		Optional<Selection> selectVerifiedCourse(CandidatePool pool, int minimumStops) {
 			while (true) {
 				Selection plan = planner.select(retryRequest(), pool);
+				if (!meetsTarget(plan, minimumStops)) {
+					return Optional.empty();
+				}
 				Optional<Selection> verified = verify(plan);
 				if (verified.isPresent()) {
-					return verified.get();
+					return verified.filter(course -> meetsTarget(course, minimumStops));
 				}
 			}
 		}
 
+		private boolean meetsTarget(Selection plan, int minimumStops) {
+			return minimumStops == 0 || (plan.interruption() == null && plan.picks().size() >= minimumStops);
+		}
+
 		private Request retryRequest() {
 			return new Request(remaining, request.origin(), excluded, request.weekday(), request.seed(),
-				request.walk(), closedAtSlot);
+				request.walk(), request.previousStopIds(), closedAtSlot);
 		}
 
 		/** @return 확인을 마친 코스. 계획을 버리고 다시 짜야 하면 빈 값 */

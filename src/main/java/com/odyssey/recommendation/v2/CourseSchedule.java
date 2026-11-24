@@ -19,6 +19,7 @@ import com.odyssey.store.entity.StoreKind;
  */
 final class CourseSchedule {
 
+	static final int DINNER_MEAL_POSITION = 4;
 	static final int SHOP_STAY_MINUTES = 30;
 	static final double MIN_COURSE_PERCENTILE = 60;
 	/** 목록 API 와 같은 기본 하한. */
@@ -100,7 +101,7 @@ final class CourseSchedule {
 			afternoon == AfternoonPreference.MIXED
 				? afternoonSecond(weekday, Map.of(StoreKind.SHOP, SHOP_STAY_MINUTES))
 				: afternoonPlay(weekday),
-			required(4, TimeSlot.DINNER, LocalTime.of(18, 0), Map.of(StoreKind.KOREAN, 60)),
+			required(DINNER_MEAL_POSITION, TimeSlot.DINNER, LocalTime.of(18, 0), Map.of(StoreKind.KOREAN, 60)),
 			new CourseSlot(5, TimeSlot.DINNER, LocalTime.of(19, 30), Map.of(StoreKind.PLAY, 60),
 				Requirement.OPTIONAL, DEFAULT_MIN_PERCENTILE),
 			new CourseSlot(6, TimeSlot.LATE_NIGHT, LocalTime.of(22, 0), Map.of(StoreKind.BAR, 70),

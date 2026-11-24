@@ -113,7 +113,7 @@ class V2CourseServiceBeamTest {
 
 		// when
 		V2CourseResponse course = service.recommend("nov", Weekday.FRI, TimeSlot.AFTERNOON, START,
-			Set.of(), 1, CourseSchedule.AfternoonPreference.MIXED, false, WalkPreference.DEFAULT);
+			Set.of(), 1, CourseSchedule.AfternoonPreference.MIXED, false, WalkPreference.DEFAULT, Set.of());
 
 		// then
 		assertThat(course.stops()).extracting(stop -> stop.place().kind())

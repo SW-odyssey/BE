@@ -1,6 +1,7 @@
 package com.odyssey.recommendation.v2;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.slf4j.Logger;
@@ -63,15 +64,16 @@ public class V2CourseService {
 	public V2CourseResponse recommend(String datasetId, Weekday weekday, TimeSlot startSlot, GeoPoint origin,
 		Set<Long> excludeIds, long seed, StoreKind afternoon, boolean lateNight, WalkPreference walk) {
 		return recommend(datasetId, weekday, startSlot, origin, excludeIds, seed,
-			AfternoonPreference.from(afternoon), lateNight, walk);
+			AfternoonPreference.from(afternoon), lateNight, walk, Set.of());
 	}
 
 	V2CourseResponse recommend(String datasetId, Weekday weekday, TimeSlot startSlot, GeoPoint origin,
-		Set<Long> excludeIds, long seed, AfternoonPreference afternoon, boolean lateNight, WalkPreference walk) {
+		Set<Long> excludeIds, long seed, AfternoonPreference afternoon, boolean lateNight, WalkPreference walk,
+		Set<Long> previousStopIds) {
 		List<CourseSlot> slots = CourseSchedule.slots(weekday, afternoon, startSlot, lateNight);
 		List<TimeSlot> timeSlots = slots.stream().map(CourseSlot::slot).distinct().toList();
 		CandidatePool pool = candidates.load(datasetId, weekday, startSlot, timeSlots);
-		Request request = new Request(slots, origin, excludeIds, weekday, seed, walk);
+		Request request = new Request(slots, origin, excludeIds, weekday, seed, walk, previousStopIds, Map.of());
 		Selection selection = selector.select(request, pool);
 		return response(pool.context(), seed, selection);
 	}
