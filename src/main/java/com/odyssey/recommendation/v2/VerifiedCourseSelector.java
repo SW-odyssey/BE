@@ -37,21 +37,19 @@ final class VerifiedCourseSelector implements CourseSelector {
 	@Override
 	public Selection select(Request request, CandidatePool pool) {
 		Map<String, Hours> hoursByPlace = new HashMap<>();
-		if (!request.previousStopIds().isEmpty()) {
-			Set<Long> avoided = new HashSet<>(request.excludeIds());
-			avoided.addAll(request.previousStopIds());
-			Request replacement = new Request(request.slots(), request.origin(), avoided, request.weekday(),
-				request.seed(), request.walk(), request.excludedBySlot());
-			// 부분 교체로 넘어갈 때 정류장마다 한 곳을 확인할 수 있도록 조회 여유를 남긴다.
-			int replacementLookupLimit = MAX_LOOKUPS - request.slots().size();
-			Optional<Selection> full = new VisitVerification(replacement, hoursByPlace, replacementLookupLimit)
-				.selectVerifiedCourse(pool, request.previousStopIds().size());
-			if (full.isPresent()) {
-				return full.get();
-			}
-		}
-		return new VisitVerification(request, hoursByPlace, MAX_LOOKUPS).selectVerifiedCourse(pool, 0)
+		// 전체 교체 탐색에서 조회 한도를 써도 이미 영업을 확인한 코스를 반환할 수 있게 한다.
+		Selection fallback = new VisitVerification(request, hoursByPlace).selectVerifiedCourse(pool, 0)
 			.orElseThrow();
+		if (request.previousStopIds().isEmpty()) {
+			return fallback;
+		}
+		Set<Long> avoided = new HashSet<>(request.excludeIds());
+		avoided.addAll(request.previousStopIds());
+		Request replacement = new Request(request.slots(), request.origin(), avoided, request.weekday(),
+			request.seed(), request.walk(), request.excludedBySlot());
+		return new VisitVerification(replacement, hoursByPlace)
+			.selectVerifiedCourse(pool, request.previousStopIds().size())
+			.orElse(fallback);
 	}
 
 	/** 한 계획의 한 정류장을 확인한 결과. */
@@ -78,13 +76,11 @@ final class VerifiedCourseSelector implements CourseSelector {
 		private final Map<Integer, Set<Long>> closedAtSlot = new HashMap<>();
 		private final List<CourseSlot> remaining;
 		private final Map<String, Hours> hoursByPlace;
-		private final int lookupLimit;
 		private final List<Skipped> unavailableSlots = new ArrayList<>();
 
-		VisitVerification(Request request, Map<String, Hours> hoursByPlace, int lookupLimit) {
+		VisitVerification(Request request, Map<String, Hours> hoursByPlace) {
 			this.request = request;
 			this.hoursByPlace = hoursByPlace;
-			this.lookupLimit = lookupLimit;
 			this.excluded = new HashSet<>(request.excludeIds());
 			request.excludedBySlot().forEach((position, ids) -> closedAtSlot.put(position, new HashSet<>(ids)));
 			this.remaining = new ArrayList<>(request.slots());
@@ -138,7 +134,7 @@ final class VerifiedCourseSelector implements CourseSelector {
 				excluded.add(place.id());
 				return new Verdict.Replan();
 			}
-			if (!hoursByPlace.containsKey(placeId) && hoursByPlace.size() >= lookupLimit) {
+			if (!hoursByPlace.containsKey(placeId) && hoursByPlace.size() >= MAX_LOOKUPS) {
 				return new Verdict.Interrupt(slot, "CHECK_LIMIT");
 			}
 			Hours hours = hoursByPlace.computeIfAbsent(placeId, lookup::load);
