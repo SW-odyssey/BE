@@ -43,6 +43,7 @@ import com.odyssey.recommendation.v2.CourseReason.SimilarChoices;
 import com.odyssey.recommendation.v2.V2CourseResponse.Interruption;
 import com.odyssey.recommendation.v2.V2CourseResponse.Stop;
 import com.odyssey.recommendation.v2.V2RecommendationResponse.Item;
+import com.odyssey.store.StoreNames;
 import com.odyssey.store.entity.StoreKind;
 
 /** {@link V2CourseController} 의 HTTP 계약. 서비스는 가짜라서 요청 해석·오류 형식·응답 모양만 본다. */
@@ -53,7 +54,8 @@ class V2CourseControllerTest {
 	private static final V2Context CONTEXT = new V2Context("nov", "2025-11", Weekday.FRI, TimeSlot.AFTERNOON);
 	private static final V2CourseResponse PARTIAL = new V2CourseResponse("PARTIAL", CONTEXT, 7,
 		List.of(new Stop(2, TimeSlot.AFTERNOON, "14:00", "15:20", 1, 2,
-			new Item(12, "공평카페", "81383966", StoreKind.CAFE, 37.5661, 126.9901, 14.2, "place-12"), false,
+			new Item(12, "공평카페", "81383966", StoreKind.CAFE, 37.5661, 126.9901, 14.2, "place-12",
+				new StoreNames("Gongpyeong Cafe", null, null)), false,
 			List.of(new LocalTop(3), new OpenDuringStay("14:00", "15:20"), new PeakNow(), new AreaType("mixed"),
 				new SimilarChoices(2)))),
 		List.of(new V2CourseResponse.Skipped(TimeSlot.AFTERNOON, 3, "NO_NEARBY_MATCH")),
@@ -138,6 +140,14 @@ class V2CourseControllerTest {
 		then(service).should().recommend(any(), any(), any(), any(), eq(Set.of()), seed.capture(),
 			eq(StoreKind.CAFE), eq(false), eq(WalkPreference.DEFAULT));
 		assertThat(seed.getValue()).isBetween(1L, (1L << 53) - 1);
+	}
+
+	@Test
+	@DisplayName("코스 정류장의 상호를 요청한 언어로 표시한다")
+	void localizesStopName() throws Exception {
+		mvc.perform(validWith("startSlot", "afternoon").param("lang", "en"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.stops[0].place.name").value("Gongpyeong Cafe"));
 	}
 
 	@Test

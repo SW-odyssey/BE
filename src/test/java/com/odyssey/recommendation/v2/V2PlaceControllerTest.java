@@ -13,6 +13,7 @@ import java.time.LocalDate;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -21,6 +22,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import com.odyssey.global.exception.BusinessException;
 import com.odyssey.global.exception.CommonErrorCode;
+import com.odyssey.store.StoreNames;
 import com.odyssey.store.entity.StoreKind;
 
 /** {@link V2PlaceController} 의 웹 계층 테스트. 서비스는 가짜라서 응답 모양과 요청 검증만 본다. */
@@ -54,6 +56,31 @@ class V2PlaceControllerTest {
 			.andExpect(jsonPath("$.data.sinceDate").value("2011-06-07"))
 			.andExpect(jsonPath("$.data.googlePlaceId").value("place-1504"))
 			.andExpect(jsonPath("$.error").isEmpty());
+	}
+
+	@ParameterizedTest
+	@CsvSource({"ko, 공평식당", "en, Gongpyeong Restaurant", "zh, 公平食堂", "ja, 公平食堂"})
+	@DisplayName("lang에 해당하는 상호를 기존 name 필드에 담는다")
+	void returnsRequestedName(String lang, String expected) throws Exception {
+		given(service.place(7L)).willReturn(new V2PlaceResponse(7, "공평식당", "101",
+			StoreKind.KOREAN, 37.57, 126.98, null, "place-7",
+			new StoreNames("Gongpyeong Restaurant", "公平食堂", "公平食堂")));
+
+		mockMvc.perform(get("/api/v2/places/7").param("lang", lang))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.name").value(expected))
+			.andExpect(jsonPath("$.data.length()").value(8));
+	}
+
+	@Test
+	@DisplayName("번역이 없으면 원본 상호를 준다")
+	void fallsBackToOriginalName() throws Exception {
+		given(service.place(7L)).willReturn(new V2PlaceResponse(7, "공평식당", "101",
+			StoreKind.KOREAN, 37.57, 126.98, null, "place-7"));
+
+		mockMvc.perform(get("/api/v2/places/7").param("lang", "ja"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.data.name").value("공평식당"));
 	}
 
 	@Test

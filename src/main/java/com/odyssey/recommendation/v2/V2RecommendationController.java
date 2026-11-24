@@ -13,6 +13,7 @@ import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.cellslotscore.entity.TimeSlot;
 import com.odyssey.global.api.ApiEnums;
 import com.odyssey.global.response.ApiResult;
+import com.odyssey.store.StoreNames.Language;
 import com.odyssey.store.entity.Category;
 import com.odyssey.store.entity.StoreKind;
 
@@ -31,7 +32,7 @@ public class V2RecommendationController {
 
 	private static final String ALL = "all";
 	private static final Set<String> KEYS =
-		Set.of("datasetId", "weekday", "slot", "lat", "lng", "category", "kind", "q");
+		Set.of("datasetId", "weekday", "slot", "lat", "lng", "category", "kind", "q", "lang");
 
 	private final V2RecommendationService service;
 
@@ -107,8 +108,11 @@ public class V2RecommendationController {
 		@RequestParam(defaultValue = ALL) String kind,
 		@Parameter(description = "매장 이름에 이 글자가 들어간 곳만 고릅니다. 대소문자는 구분하지 않고 앞뒤 공백은 무시합니다. 80자까지.")
 		@RequestParam(defaultValue = "") String q,
+		@Parameter(description = V2RequestParams.LANGUAGE_DOC, example = "en")
+		@RequestParam(required = false) String lang,
 		@Parameter(hidden = true) @RequestParam MultiValueMap<String, String> params) {
 		V2RequestParams.check(params, KEYS);
+		Language language = V2RequestParams.displayLanguage(lang);
 		V2RecommendationQuery query = new V2RecommendationQuery(
 			datasetId,
 			V2RequestParams.required(Weekday.class, "weekday", weekday),
@@ -117,6 +121,7 @@ public class V2RecommendationController {
 			ApiEnums.parse(Category.class, "category", category, ALL).orElse(null),
 			ApiEnums.parse(StoreKind.class, "kind", kind, ALL).orElse(null),
 			q);
-		return ApiResult.ok(service.recommend(query));
+		V2RecommendationResponse response = service.recommend(query);
+		return ApiResult.ok(language == Language.KO ? response : response.withLanguage(language));
 	}
 }

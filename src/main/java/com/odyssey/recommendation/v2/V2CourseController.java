@@ -15,6 +15,7 @@ import com.odyssey.cellslotscore.entity.TimeSlot;
 import com.odyssey.global.exception.BusinessException;
 import com.odyssey.global.exception.CommonErrorCode;
 import com.odyssey.global.response.ApiResult;
+import com.odyssey.store.StoreNames.Language;
 import com.odyssey.store.entity.StoreKind;
 
 import io.swagger.v3.oas.annotations.Operation;
@@ -27,7 +28,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 public class V2CourseController {
 
 	private static final Set<String> KEYS =
-		Set.of("datasetId", "weekday", "startSlot", "lat", "lng", "excludeIds", "seed", "afternoon", "lateNight", "walk");
+		Set.of("datasetId", "weekday", "startSlot", "lat", "lng", "excludeIds", "seed", "afternoon", "lateNight", "walk", "lang");
 	private final V2CourseService service;
 
 	public V2CourseController(V2CourseService service) {
@@ -79,8 +80,11 @@ public class V2CourseController {
 		@Parameter(description = "매장 사이 걷기 조건", example = "default",
 			schema = @Schema(defaultValue = "default", allowableValues = {"default", "short"}))
 		@RequestParam(required = false) String walk,
+		@Parameter(description = V2RequestParams.LANGUAGE_DOC, example = "en")
+		@RequestParam(required = false) String lang,
 		@Parameter(hidden = true) @RequestParam MultiValueMap<String, String> params) {
 		V2RequestParams.check(params, KEYS);
+		Language language = V2RequestParams.displayLanguage(lang);
 		Set<Long> excluded = parseExcludedStoreIds(excludeIds);
 		String dataset = V2RequestParams.requireDatasetId(datasetId);
 		Weekday visitDay = V2RequestParams.required(Weekday.class, "weekday", weekday);
@@ -88,7 +92,7 @@ public class V2CourseController {
 		GeoPoint origin = new GeoPoint(lat, lng);
 		V2CourseResponse course = service.recommend(dataset, visitDay, firstSlot, origin, excluded,
 			seedOrRandom(seed), parseAfternoonKind(afternoon), includeLateNight(lateNight), walkPreference(walk));
-		return ApiResult.ok(course);
+		return ApiResult.ok(language == Language.KO ? course : course.withLanguage(language));
 	}
 
 	private static WalkPreference walkPreference(String value) {
