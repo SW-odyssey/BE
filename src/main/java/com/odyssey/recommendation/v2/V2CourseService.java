@@ -14,6 +14,7 @@ import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.cellslotscore.entity.TimeSlot;
 import com.odyssey.recommendation.v2.CourseReasonFacts.Facts;
 import com.odyssey.recommendation.v2.CourseReasons.StopFacts;
+import com.odyssey.recommendation.v2.CourseSchedule.AfternoonPreference;
 import com.odyssey.recommendation.v2.CourseSchedule.CourseSlot;
 import com.odyssey.recommendation.v2.CourseSelector.Pick;
 import com.odyssey.recommendation.v2.CourseSelector.Request;
@@ -61,6 +62,12 @@ public class V2CourseService {
 
 	public V2CourseResponse recommend(String datasetId, Weekday weekday, TimeSlot startSlot, GeoPoint origin,
 		Set<Long> excludeIds, long seed, StoreKind afternoon, boolean lateNight, WalkPreference walk) {
+		return recommend(datasetId, weekday, startSlot, origin, excludeIds, seed,
+			AfternoonPreference.from(afternoon), lateNight, walk);
+	}
+
+	V2CourseResponse recommend(String datasetId, Weekday weekday, TimeSlot startSlot, GeoPoint origin,
+		Set<Long> excludeIds, long seed, AfternoonPreference afternoon, boolean lateNight, WalkPreference walk) {
 		List<CourseSlot> slots = CourseSchedule.slots(weekday, afternoon, startSlot, lateNight);
 		List<TimeSlot> timeSlots = slots.stream().map(CourseSlot::slot).distinct().toList();
 		CandidatePool pool = candidates.load(datasetId, weekday, startSlot, timeSlots);

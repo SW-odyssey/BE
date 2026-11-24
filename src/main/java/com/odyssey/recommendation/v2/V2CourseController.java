@@ -15,7 +15,7 @@ import com.odyssey.cellslotscore.entity.TimeSlot;
 import com.odyssey.global.exception.BusinessException;
 import com.odyssey.global.exception.CommonErrorCode;
 import com.odyssey.global.response.ApiResult;
-import com.odyssey.store.entity.StoreKind;
+import com.odyssey.recommendation.v2.CourseSchedule.AfternoonPreference;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -48,6 +48,7 @@ public class V2CourseController {
 		| 6 | late_night | 22:00 | 주점 70 | lateNight=true |
 
 		평일 3번 자리의 칸 방문 백분위 하한은 60, 다른 자리는 75입니다.
+		afternoon=mixed는 2번 자리에 카페, 3번 자리에 구경할 곳을 배치합니다.
 		선택 자리를 채우지 못하면 skipped에 slot, position, reason을 담고 마지막으로 고른 장소에서 계속합니다.
 		lateNight 생략 또는 false이면 6번 자리를 계산하지 않습니다. 필수 자리 실패는 interruption에 담습니다.
 		쇼핑·놀거리는 정규 영업시간 정보가 없어도 포함될 수 있으며 이때 hoursUnknown은 true입니다.
@@ -74,7 +75,9 @@ public class V2CourseController {
 		@Parameter(description = "출발 경도", example = "126.9903373") @RequestParam double lng,
 		@Parameter(description = "이미 방문하거나 건너뛸 매장 ID. 쉼표로 구분") @RequestParam(required = false) List<Long> excludeIds,
 		@Parameter(description = "후보를 섞는 값. 없으면 서버가 정해 응답에 담는다") @RequestParam(required = false) Long seed,
-		@Parameter(description = "2번 자리의 종류. cafe(기본) 또는 shop(구경)") @RequestParam(required = false) String afternoon,
+		@Parameter(description = "오후 구성. cafe(기본), shop(구경), mixed(카페 후 구경)",
+			schema = @Schema(defaultValue = "cafe", allowableValues = {"cafe", "shop", "mixed"}))
+		@RequestParam(required = false) String afternoon,
 		@Parameter(description = "심야 주점 포함 여부. 기본 false") @RequestParam(required = false) String lateNight,
 		@Parameter(description = "매장 사이 걷기 조건", example = "default",
 			schema = @Schema(defaultValue = "default", allowableValues = {"default", "short"}))
@@ -87,7 +90,7 @@ public class V2CourseController {
 		TimeSlot firstSlot = V2RequestParams.required(TimeSlot.class, "startSlot", startSlot);
 		GeoPoint origin = new GeoPoint(lat, lng);
 		V2CourseResponse course = service.recommend(dataset, visitDay, firstSlot, origin, excluded,
-			seedOrRandom(seed), parseAfternoonKind(afternoon), includeLateNight(lateNight), walkPreference(walk));
+			seedOrRandom(seed), parseAfternoon(afternoon), includeLateNight(lateNight), walkPreference(walk));
 		return ApiResult.ok(course);
 	}
 
@@ -125,13 +128,16 @@ public class V2CourseController {
 		return seed == null ? ThreadLocalRandom.current().nextLong(1, 1L << 53) : seed;
 	}
 
-	private static StoreKind parseAfternoonKind(String value) {
-		if (value == null || value.isBlank() || value.equals("cafe")) {
-			return StoreKind.CAFE;
+	private static AfternoonPreference parseAfternoon(String value) {
+		if (value == null || value.isBlank()) {
+			return AfternoonPreference.CAFE;
 		}
-		if (value.equals("shop")) {
-			return StoreKind.SHOP;
-		}
-		throw new BusinessException(CommonErrorCode.INVALID_INPUT, "afternoon 은 cafe 또는 shop 입니다.");
+		return switch (value) {
+			case "cafe" -> AfternoonPreference.CAFE;
+			case "shop" -> AfternoonPreference.SHOP;
+			case "mixed" -> AfternoonPreference.MIXED;
+			default -> throw new BusinessException(CommonErrorCode.INVALID_INPUT,
+				"afternoon 은 cafe, shop 또는 mixed 입니다.");
+		};
 	}
 }

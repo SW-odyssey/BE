@@ -24,6 +24,18 @@ final class CourseSchedule {
 	/** 목록 API 와 같은 기본 하한. */
 	static final double DEFAULT_MIN_PERCENTILE = V2RecommendationSelector.MIN_VISITOR_PERCENTILE;
 
+	enum AfternoonPreference {
+		CAFE, SHOP, MIXED;
+
+		static AfternoonPreference from(StoreKind kind) {
+			return switch (kind) {
+				case CAFE -> CAFE;
+				case SHOP -> SHOP;
+				default -> throw new IllegalArgumentException("afternoon: " + kind);
+			};
+		}
+	}
+
 	/** 자리를 못 찾았을 때 코스를 어떻게 할지. */
 	enum Requirement {
 		/** 못 찾으면 코스를 멈춘다. */
@@ -75,15 +87,19 @@ final class CourseSchedule {
 	}
 
 	static List<CourseSlot> slots(Weekday weekday, StoreKind afternoon, TimeSlot startSlot, boolean lateNight) {
-		Map<StoreKind, Integer> afternoonStay = switch (afternoon) {
-			case CAFE -> Map.of(StoreKind.CAFE, 80);
-			case SHOP -> Map.of(StoreKind.SHOP, SHOP_STAY_MINUTES);
-			default -> throw new IllegalArgumentException("afternoon: " + afternoon);
-		};
+		return slots(weekday, AfternoonPreference.from(afternoon), startSlot, lateNight);
+	}
+
+	static List<CourseSlot> slots(Weekday weekday, AfternoonPreference afternoon, TimeSlot startSlot,
+		boolean lateNight) {
+		Map<StoreKind, Integer> afternoonStay = afternoon == AfternoonPreference.SHOP
+			? Map.of(StoreKind.SHOP, SHOP_STAY_MINUTES) : Map.of(StoreKind.CAFE, 80);
 		List<CourseSlot> schedule = List.of(
 			required(1, TimeSlot.LUNCH, LocalTime.NOON, Map.of(StoreKind.KOREAN, 50)),
 			required(2, TimeSlot.AFTERNOON, LocalTime.of(14, 0), afternoonStay),
-			afternoonPlay(weekday),
+			afternoon == AfternoonPreference.MIXED
+				? afternoonSecond(weekday, Map.of(StoreKind.SHOP, SHOP_STAY_MINUTES))
+				: afternoonPlay(weekday),
 			required(4, TimeSlot.DINNER, LocalTime.of(18, 0), Map.of(StoreKind.KOREAN, 60)),
 			new CourseSlot(5, TimeSlot.DINNER, LocalTime.of(19, 30), Map.of(StoreKind.PLAY, 60),
 				Requirement.OPTIONAL, DEFAULT_MIN_PERCENTILE),
@@ -96,12 +112,16 @@ final class CourseSchedule {
 	}
 
 	static CourseSlot afternoonPlay(Weekday weekday) {
+		return afternoonSecond(weekday, Map.of(StoreKind.PLAY, 60, StoreKind.SHOP, SHOP_STAY_MINUTES));
+	}
+
+	private static CourseSlot afternoonSecond(Weekday weekday, Map<StoreKind, Integer> stayByKind) {
 		double minimum = switch (weekday) {
 			case SAT, SUN -> DEFAULT_MIN_PERCENTILE;
 			default -> MIN_COURSE_PERCENTILE;
 		};
 		return new CourseSlot(3, TimeSlot.AFTERNOON, LocalTime.of(15, 40),
-			Map.of(StoreKind.PLAY, 60, StoreKind.SHOP, SHOP_STAY_MINUTES), Requirement.OPTIONAL, minimum);
+			stayByKind, Requirement.OPTIONAL, minimum);
 	}
 
 	private static CourseSlot required(int position, TimeSlot slot, LocalTime visitTime,
