@@ -19,6 +19,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
@@ -33,8 +34,10 @@ import com.odyssey.recommendation.v2.V2CourseResponse.Interruption;
 /**
  * 코스 API 의 요청 한도. 한도를 넘은 요청은 429 로 막혀 서비스(= Google 조회)까지 가지 않아야 한다.
  * 한도는 시험용으로 작게 줄여 둔다: 클라이언트당 2번, 서버 전체 3번.
+ * 한도 상태는 앱 컨텍스트 안에 남으므로, 시험마다 컨텍스트를 새로 만들어 앞 시험의 요청이 섞이지 않게 한다.
  */
 @WebMvcTest(V2CourseController.class)
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
 @TestPropertySource(properties = {
 	"rate-limit.course.enabled=true",
 	"rate-limit.course.client-burst=2",
