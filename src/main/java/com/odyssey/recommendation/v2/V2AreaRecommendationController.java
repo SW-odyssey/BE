@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.RestController;
 import com.odyssey.cell.entity.Area;
 import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.cellslotscore.entity.TimeSlot;
-import com.odyssey.global.api.ApiEnums;
 import com.odyssey.global.exception.BusinessException;
 import com.odyssey.global.exception.CommonErrorCode;
 import com.odyssey.global.response.ApiResult;
@@ -23,6 +22,7 @@ import com.odyssey.store.entity.StoreKind;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.RequiredArgsConstructor;
 
 @RestController
@@ -44,8 +44,9 @@ public class V2AreaRecommendationController {
 		@RequestParam String datasetId,
 		@RequestParam String weekday,
 		@RequestParam String slot,
-		@Parameter(description = "all, jongno, ikseon, insadong, euljiro, myeongdong")
-		@RequestParam(defaultValue = "all") String areaId,
+		@Parameter(description = "all, jongno, ikseon, insadong, euljiro, myeongdong",
+			schema = @Schema(defaultValue = "all"))
+		@RequestParam(required = false) String areaId,
 		@Parameter(description = "쉼표로 구분한 종류. 기본 food,cafe. 명시적으로 shop, play도 선택 가능")
 		@RequestParam(defaultValue = "food,cafe") String categories,
 		@RequestParam(defaultValue = "0") int page,
@@ -61,7 +62,8 @@ public class V2AreaRecommendationController {
 		}
 		Weekday parsedWeekday = V2RequestParams.required(Weekday.class, "weekday", weekday);
 		TimeSlot parsedSlot = V2RequestParams.required(TimeSlot.class, "slot", slot);
-		Area area = ApiEnums.parse(Area.class, "areaId", areaId, "all").orElse(null);
+		Area area = areaId == null || "all".equals(areaId)
+			? null : V2RequestParams.required(Area.class, "areaId", areaId);
 		Language language = V2RequestParams.displayLanguage(lang);
 		return ApiResult.ok(service.recommend(datasetId, parsedWeekday, parsedSlot, area,
 			kindsFor(categories), page, size, language));
