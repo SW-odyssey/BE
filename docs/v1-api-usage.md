@@ -17,3 +17,9 @@ Node 호출과 PowerShell 4건은 일회성 점검이었다고 작업 요청자�
 - 보관 노트북에서는 조건별 추천 검토가 `collect_snapshots`를 사용한다. 이전 실시간 추천 카드 검토와 페이지 수집 노트북도 실행 옵션을 켜면 v1을 직접 호출한다.
 
 활성 노트북과 저장소의 자동 실행 설정에서 위 호출을 찾지 못했다. 분석용 v1 수집·진단 작업은 과거 분석용이며 다시 실행할 계획이 없음을 확인했다.
+
+## 이후 지역 목록 점검
+
+전체·지역별 추천 후보를 다시 점검할 때는 [v2 지역 탐색](https://github.com/SW-odyssey/BE/pull/96)을 사용한다. `/api/v2/meta`에서 배치 ID를 선택하고 `/api/v2/area-recommendations`에 `datasetId`, `weekday`, `slot`, `areaId`, `categories`, `page`, `size`를 보낸다. 0페이지부터 `hasNext`가 `false`인 페이지까지 조회한다. 이 경로는 선택한 종류와 방문 백분위 75 이상인 활성 매장만 반환한다. 분석 기준의 DB 적재 대상 매장 목록은 [분석 저장소의 매장 내보내기](https://github.com/SW-odyssey/analysis/blob/d5de619f57ba4e0eaaebfd31c2807d204e485b36/scripts/export/export_be.py)에서 얻는다.
+
+2026-11-25 운영 API에서 2025-12 배치, 수요일 점심, 음식점·카페, 페이지 크기 30으로 전체(`all`)와 명동(`myeongdong`)의 0·1페이지를 조회했다. 네 요청 모두 HTTP 200이었고 각 페이지에 30곳이 있었으며 같은 지역의 두 페이지 사이에 매장 ID 중복이 없었다. 전체 일치 수는 전체 515곳, 명동 66곳으로 각 지역의 두 응답에서 같았다.
