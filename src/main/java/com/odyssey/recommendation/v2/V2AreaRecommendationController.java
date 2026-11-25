@@ -66,10 +66,10 @@ public class V2AreaRecommendationController {
 			? null : V2RequestParams.required(Area.class, "areaId", areaId);
 		Language language = V2RequestParams.displayLanguage(lang);
 		return ApiResult.ok(service.recommend(datasetId, parsedWeekday, parsedSlot, area,
-			kindsFor(categories), page, size, language));
+			parseStoreKinds(categories), page, size, language));
 	}
 
-	private static Set<StoreKind> kindsFor(String categories) {
+	private static Set<StoreKind> parseStoreKinds(String categories) {
 		Set<Category> selected = Arrays.stream(categories.split(",", -1))
 			.map(String::strip)
 			.map(value -> V2RequestParams.required(Category.class, "categories", value))
