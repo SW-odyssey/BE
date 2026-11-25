@@ -58,19 +58,30 @@ public class AreaRecommendationRepository {
 	private static BooleanExpression[] matchingStoreConditions(String datasetId, Weekday weekday, TimeSlot slot,
 		Area area, Set<StoreKind> kinds, double minPercentile) {
 		return new BooleanExpression[] {
-			cellCondition.id.datasetId.eq(datasetId),
-			cellCondition.id.weekday.eq(ApiEnums.toValue(weekday)),
-			cellCondition.id.slot.eq(ApiEnums.toValue(slot)),
-			cellCondition.qualityStatus.eq(CellQualityStatus.AVAILABLE),
-			cellCondition.visitorPercentile.goe(minPercentile),
-
-			store.active.isTrue(),
-			store.googlePlaceId.isNotNull(),
-			store.googlePlaceId.trim().ne(""),
-
+			matchesVisitCondition(datasetId, weekday, slot, minPercentile),
+			isActiveWithGooglePlaceId(),
 			store.kind.in(kinds),
-			area == null ? legalDong.area.in(Area.values()) : legalDong.area.eq(area)
+			matchesArea(area)
 		};
+	}
+
+	private static BooleanExpression matchesVisitCondition(String datasetId, Weekday weekday, TimeSlot slot,
+		double minPercentile) {
+		return cellCondition.id.datasetId.eq(datasetId)
+			.and(cellCondition.id.weekday.eq(ApiEnums.toValue(weekday)))
+			.and(cellCondition.id.slot.eq(ApiEnums.toValue(slot)))
+			.and(cellCondition.qualityStatus.eq(CellQualityStatus.AVAILABLE))
+			.and(cellCondition.visitorPercentile.goe(minPercentile));
+	}
+
+	private static BooleanExpression isActiveWithGooglePlaceId() {
+		return store.active.isTrue()
+			.and(store.googlePlaceId.isNotNull())
+			.and(store.googlePlaceId.trim().ne(""));
+	}
+
+	private static BooleanExpression matchesArea(Area area) {
+		return area == null ? legalDong.area.in(Area.values()) : legalDong.area.eq(area);
 	}
 
 	private long countMatchingStores(BooleanExpression[] conditions) {
@@ -78,17 +89,25 @@ public class AreaRecommendationRepository {
 	}
 
 	private List<Row> fetchPageItems(BooleanExpression[] conditions, long offset, int size) {
-		List<Tuple> tuples = queryMatchingStores(query.select(store.id, store.name, cell.cellId, store.kind,
-				store.lat, store.lng, store.sinceDate, store.googlePlaceId, legalDong.area,
-				storeNameTranslation.nameEn, storeNameTranslation.nameZh, storeNameTranslation.nameJa), conditions)
-			.leftJoin(storeNameTranslation).on(storeNameTranslation.storeId.eq(store.id),
-				storeNameTranslation.sourceName.eq(store.name))
+		JPAQuery<Tuple> stores = queryMatchingStores(selectPageColumns(), conditions);
+		List<Tuple> tuples = joinCurrentTranslations(stores)
 			.orderBy(cellCondition.visitorPercentile.desc(), store.id.asc())
 			.offset(offset)
 			.limit(size)
 			.fetch();
 
 		return toRows(tuples);
+	}
+
+	private JPAQuery<Tuple> selectPageColumns() {
+		return query.select(store.id, store.name, cell.cellId, store.kind, store.lat, store.lng, store.sinceDate,
+			store.googlePlaceId, legalDong.area, storeNameTranslation.nameEn, storeNameTranslation.nameZh,
+			storeNameTranslation.nameJa);
+	}
+
+	private static JPAQuery<Tuple> joinCurrentTranslations(JPAQuery<Tuple> stores) {
+		return stores.leftJoin(storeNameTranslation)
+			.on(storeNameTranslation.storeId.eq(store.id), storeNameTranslation.sourceName.eq(store.name));
 	}
 
 	private <T> JPAQuery<T> queryMatchingStores(JPAQuery<T> selection, BooleanExpression[] conditions) {
