@@ -6,6 +6,7 @@ import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.mock;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -14,6 +15,8 @@ import org.junit.jupiter.api.Test;
 
 import com.odyssey.global.exception.BusinessException;
 import com.odyssey.global.exception.CommonErrorCode;
+import com.odyssey.store.StoreNames;
+import com.odyssey.store.StoreNames.Language;
 import com.odyssey.store.entity.StoreKind;
 import com.odyssey.store.repository.StorePlaceRepository;
 import com.odyssey.store.repository.StorePlaceRepository.Place;
@@ -60,6 +63,35 @@ class V2PlaceServiceTest {
 		// then
 		assertThat(response.sinceDate()).isNull();
 		assertThat(response.googlePlaceId()).isNull();
+	}
+
+	@Test
+	@DisplayName("요청 언어 번역이 있는 검색 결과 → 그 언어 상호를 준다")
+	void searchShowsRequestedLanguageName() {
+		// given
+		given(repository.searchActiveByName("공평", Language.EN, 6)).willReturn(List.of(new Place(
+			7, "공평식당", 101L, StoreKind.KOREAN, 37.57, 126.98, null, null,
+			new StoreNames("Gongpyeong Restaurant", "公平餐厅", "コンピョン食堂"))));
+
+		// when
+		List<V2PlaceResponse> places = service.searchByName("공평", Language.EN, 6);
+
+		// then
+		assertThat(places).extracting(V2PlaceResponse::name).containsExactly("Gongpyeong Restaurant");
+	}
+
+	@Test
+	@DisplayName("요청 언어 번역이 없는 검색 결과 → 한국어 원본 상호를 준다")
+	void searchFallsBackToKoreanName() {
+		// given
+		given(repository.searchActiveByName("공평", Language.JA, 6)).willReturn(List.of(new Place(
+			7, "공평식당", 101L, StoreKind.KOREAN, 37.57, 126.98, null, null)));
+
+		// when
+		List<V2PlaceResponse> places = service.searchByName("공평", Language.JA, 6);
+
+		// then
+		assertThat(places).extracting(V2PlaceResponse::name).containsExactly("공평식당");
 	}
 
 	@Test

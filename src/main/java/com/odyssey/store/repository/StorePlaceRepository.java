@@ -3,6 +3,8 @@ package com.odyssey.store.repository;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 
@@ -11,6 +13,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import com.odyssey.store.StoreNames;
+import com.odyssey.store.StoreNames.Language;
 import com.odyssey.store.entity.StoreKind;
 
 /**
@@ -68,6 +71,43 @@ public class StorePlaceRepository {
 		return jdbc.query(
 			"select " + COLUMNS + " from store s" + TRANSLATION_JOIN + "where s.id = :id and s.active",
 			Map.of("id", id), MAPPER).stream().findFirst();
+	}
+
+	public List<Place> searchActiveByName(String query, Language language, int limit) {
+		String sql = """
+			with search as (select %s as term)
+			select %s from store s %s
+			cross join search
+			cross join lateral (
+				select candidate.match_order, candidate.language_order
+				from (
+					select
+						case
+							when title = search.term then 0
+							when starts_with(title, search.term) then 1
+							else 2
+						end as match_order,
+						case when lang = :lang then 0 else 1 end as language_order
+					from (
+						select lang, %s as title
+						from (values ('ko', s.name), ('en', t.name_en), ('zh', t.name_zh), ('ja', t.name_ja))
+							as names(lang, raw_name)
+					) named
+					where strpos(title, search.term) > 0
+				) candidate
+				order by candidate.match_order, candidate.language_order
+				limit 1
+			) matched
+			where s.active and search.term <> ''
+			order by matched.match_order, matched.language_order, s.id
+			limit :limit
+			""".formatted(searchKey(":query"), COLUMNS, TRANSLATION_JOIN, searchKey("raw_name"));
+		return jdbc.query(sql,
+			Map.of("query", query, "lang", language.name().toLowerCase(Locale.ROOT), "limit", limit), MAPPER);
+	}
+
+	private static String searchKey(String nameExpression) {
+		return "regexp_replace(lower(normalize(" + nameExpression + ", NFKC)), '[[:space:]]+', '', 'g')";
 	}
 
 	private static Place mapPlace(ResultSet rs, int rowNum) throws SQLException {

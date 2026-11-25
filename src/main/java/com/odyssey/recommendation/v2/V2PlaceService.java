@@ -1,10 +1,13 @@
 package com.odyssey.recommendation.v2;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.odyssey.global.exception.BusinessException;
 import com.odyssey.global.exception.CommonErrorCode;
+import com.odyssey.store.StoreNames.Language;
 import com.odyssey.store.repository.StorePlaceRepository;
 
 /** 활성 매장의 기본 정보를 준다. 요청 값 형식 검증은 컨트롤러가 끝낸 뒤라 존재 여부만 본다. */
@@ -28,5 +31,12 @@ public class V2PlaceService {
 			.map(V2PlaceResponse::from)
 			.orElseThrow(() -> new BusinessException(
 				CommonErrorCode.PLACE_NOT_FOUND, "현재 제공하는 장소가 아닙니다."));
+	}
+
+	List<V2PlaceResponse> searchByName(String query, Language language, int limit) {
+		return repository.searchActiveByName(query, language, limit).stream()
+			.map(V2PlaceResponse::from)
+			.map(place -> place.withLanguage(language))
+			.toList();
 	}
 }
