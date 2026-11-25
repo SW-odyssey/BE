@@ -74,20 +74,31 @@ public class V2AreaRecommendationController {
 	private static AreaFilters parseFilters(String weekday, String slot, String areaId, String categories, String lang) {
 		Weekday parsedWeekday = V2RequestParams.required(Weekday.class, "weekday", weekday);
 		TimeSlot parsedSlot = V2RequestParams.required(TimeSlot.class, "slot", slot);
-		Area area = areaId == null || "all".equals(areaId)
-			? null : V2RequestParams.required(Area.class, "areaId", areaId);
+		Area area = parseArea(areaId);
 		Language language = V2RequestParams.displayLanguage(lang);
 
 		return new AreaFilters(parsedWeekday, parsedSlot, area, parseStoreKinds(categories), language);
 	}
 
+	private static Area parseArea(String areaId) {
+		return areaId == null || "all".equals(areaId)
+			? null : V2RequestParams.required(Area.class, "areaId", areaId);
+	}
+
 	private static Set<StoreKind> parseStoreKinds(String categories) {
-		Set<Category> selected = Arrays.stream(categories.split(",", -1))
+		return storeKindsFor(parseCategories(categories));
+	}
+
+	private static Set<Category> parseCategories(String categories) {
+		return Arrays.stream(categories.split(",", -1))
 			.map(String::strip)
 			.map(value -> V2RequestParams.required(Category.class, "categories", value))
 			.collect(Collectors.toCollection(() -> EnumSet.noneOf(Category.class)));
+	}
 
-		return Arrays.stream(StoreKind.values()).filter(kind -> selected.contains(kind.category()))
+	private static Set<StoreKind> storeKindsFor(Set<Category> categories) {
+		return Arrays.stream(StoreKind.values())
+			.filter(kind -> categories.contains(kind.category()))
 			.collect(Collectors.toCollection(() -> EnumSet.noneOf(StoreKind.class)));
 	}
 
