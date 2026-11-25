@@ -1,6 +1,6 @@
 package com.odyssey.store.entity;
 
-/** analysis 가 정한 단일 가게 분류. API 의 Category/FoodType 과 별개다. */
+/** 분석 데이터가 정한 세부 매장 분류. API 대분류는 category()로 구한다. */
 public enum StoreKind {
 	CAFE(Category.CAFE),
 	KOREAN(Category.FOOD),

@@ -5,9 +5,6 @@ import org.springframework.data.repository.Repository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
-import java.util.Collection;
-import java.util.List;
-
 /**
  * 칸 조회. 칸은 analysis 가 적재하고 BE 는 읽기만 해서,
  * JpaRepository 의 save · delete 가 열리지 않도록 Repository 를 상속해 필요한 메서드만 둔다.
@@ -21,19 +18,4 @@ public interface CellRepository extends Repository<Cell, Long> {
 		and :lng >= c.swLng and :lng <= c.neLng
 		""")
 	boolean containsPoint(@Param("lat") double lat, @Param("lng") double lng);
-
-
-	/**
-	 * 칸 번호 목록에 해당하는 칸을 번호 순으로 준다. 칸 경계를 읽을 때 쓴다.
-	 *
-	 * <p>메서드 이름으로 쿼리가 만들어진다. OrderBy 뒤에 방향을 안 쓰면 오름차순이다.
-	 * <pre>
-	 * select * from cell
-	 *  where cell_id in (...)
-	 *  order by cell_id
-	 * </pre>
-	 *
-	 * @param cellIds 비어 있으면 안 된다 (호출하는 쪽에서 먼저 막는다)
-	 */
-	List<Cell> findByCellIdInOrderByCellId(Collection<Long> cellIds);
 }
