@@ -32,7 +32,7 @@ public class V2RecommendationService {
 	public V2RecommendationResponse recommend(V2RecommendationQuery query) {
 		Dataset dataset = datasets.require(query.datasetId());
 		List<Candidate> found = candidates.candidates(dataset.id(), query.weekday(), query.slot(),
-			V2RecommendationSelector.MIN_VISITOR_PERCENTILE);
+			V2RecommendationPolicy.DEFAULT_MIN_VISITOR_PERCENTILE);
 		V2Context context = new V2Context(dataset.id(), dataset.referenceMonth(), query.weekday(),
 			query.slot());
 		List<Selected> selected = V2RecommendationSelector.select(found, query);

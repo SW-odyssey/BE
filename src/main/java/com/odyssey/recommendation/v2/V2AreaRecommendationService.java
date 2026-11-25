@@ -34,7 +34,7 @@ public class V2AreaRecommendationService {
 		Dataset dataset = datasets.require(datasetId);
 		long offset = (long) page * size;
 		Page found = repository.findPage(dataset.id(), weekday, slot, area, kinds,
-			V2RecommendationSelector.MIN_VISITOR_PERCENTILE, offset, size);
+			V2RecommendationPolicy.DEFAULT_MIN_VISITOR_PERCENTILE, offset, size);
 		List<Item> items = found.items().stream()
 			.map(row -> toLocalizedItem(row, language))
 			.toList();

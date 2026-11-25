@@ -11,7 +11,7 @@ import com.odyssey.store.repository.StorePlaceRepository.Place;
 /**
  * 추천 후보에서 목록에 보여 줄 매장을 고른다. DB 나 Spring 을 모르는 순수한 계산이다.
  *
- * <p>추천 규칙의 숫자(반경 300m, 최대 30곳, 방문 백분위 하한 75)는 이 클래스에만 있다. 하한은 후보를
+ * <p>주변 추천의 반경과 최대 결과 수를 적용한다. 방문 백분위 하한은 후보를
  * 조회하는 SQL 이 적용하므로 여기서 다시 거르지 않고, 서비스가 값만 넘긴다.
  *
  * <p>순서는 칸의 방문 백분위 내림차순 → 반올림하지 않은 직선거리 오름차순 → 관리번호 오름차순이다.
@@ -21,7 +21,6 @@ final class V2RecommendationSelector {
 
 	static final double RADIUS_METERS = 300;
 	static final int MAX_RESULTS = 30;
-	static final double MIN_VISITOR_PERCENTILE = 75;
 
 	private static final Comparator<Selected> ORDER = Comparator
 		.comparingDouble((Selected selected) -> selected.candidate().percentile()).reversed()
