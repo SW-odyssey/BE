@@ -72,7 +72,7 @@ class V2PlaceServiceTest {
 		// given
 		given(repository.searchActiveByName("공평", Language.EN, 6)).willReturn(List.of(new Place(
 			7, "공평식당", 101L, StoreKind.KOREAN, 37.57, 126.98, null, null,
-			new StoreNames("Gongpyeong Restaurant", "公平餐厅", "コンピョン食堂"))));
+			new StoreNames("Gongpyeong Restaurant", "公平餐厅", "コンピョン食堂"), Area.JONGNO)));
 
 		// when
 		List<V2PlaceResponse> places = service.searchByName("공평", Language.EN, 6);
