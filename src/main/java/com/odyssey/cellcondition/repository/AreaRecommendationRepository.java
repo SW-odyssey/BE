@@ -47,6 +47,7 @@ public class AreaRecommendationRepository {
 
 		BooleanExpression[] conditions = matchingStoreConditions(datasetId, weekday, slot, area, kinds, minPercentile);
 		long total = queryMatchingStores(query.select(store.id.count()), conditions).fetchOne();
+
 		if (offset >= total) {
 			return new Page(total, List.of());
 		}
@@ -62,9 +63,11 @@ public class AreaRecommendationRepository {
 			cellCondition.id.slot.eq(ApiEnums.toValue(slot)),
 			cellCondition.qualityStatus.eq(CellQualityStatus.AVAILABLE),
 			cellCondition.visitorPercentile.goe(minPercentile),
+
 			store.active.isTrue(),
 			store.googlePlaceId.isNotNull(),
 			store.googlePlaceId.trim().ne(""),
+
 			store.kind.in(kinds),
 			area == null ? legalDong.area.in(Area.values()) : legalDong.area.eq(area)
 		};

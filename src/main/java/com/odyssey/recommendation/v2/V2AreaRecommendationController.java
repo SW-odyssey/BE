@@ -57,14 +57,17 @@ public class V2AreaRecommendationController {
 		@Parameter(hidden = true) @RequestParam MultiValueMap<String, String> params) {
 		V2RequestParams.check(params, KEYS);
 		V2RequestParams.requireDatasetId(datasetId);
+
 		if (page < 0 || size < 1 || size > 30) {
 			throw new BusinessException(CommonErrorCode.INVALID_INPUT, "page는 0 이상, size는 1~30이어야 합니다.");
 		}
+
 		Weekday parsedWeekday = V2RequestParams.required(Weekday.class, "weekday", weekday);
 		TimeSlot parsedSlot = V2RequestParams.required(TimeSlot.class, "slot", slot);
 		Area area = areaId == null || "all".equals(areaId)
 			? null : V2RequestParams.required(Area.class, "areaId", areaId);
 		Language language = V2RequestParams.displayLanguage(lang);
+
 		return ApiResult.ok(service.recommend(datasetId, parsedWeekday, parsedSlot, area,
 			parseStoreKinds(categories), page, size, language));
 	}
@@ -74,6 +77,7 @@ public class V2AreaRecommendationController {
 			.map(String::strip)
 			.map(value -> V2RequestParams.required(Category.class, "categories", value))
 			.collect(Collectors.toCollection(() -> EnumSet.noneOf(Category.class)));
+
 		return Arrays.stream(StoreKind.values()).filter(kind -> selected.contains(kind.category()))
 			.collect(Collectors.toCollection(() -> EnumSet.noneOf(StoreKind.class)));
 	}

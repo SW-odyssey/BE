@@ -32,12 +32,15 @@ public class V2AreaRecommendationService {
 	public V2AreaRecommendationResponse recommend(String datasetId, Weekday weekday, TimeSlot slot,
 		Area area, Set<StoreKind> kinds, int page, int size, Language language) {
 		Dataset dataset = datasets.require(datasetId);
+
 		long offset = (long) page * size;
 		Page found = repository.findPage(dataset.id(), weekday, slot, area, kinds,
 			V2RecommendationPolicy.DEFAULT_MIN_VISITOR_PERCENTILE, offset, size);
+
 		List<Item> items = found.items().stream()
 			.map(row -> toLocalizedItem(row, language))
 			.toList();
+
 		boolean hasNext = offset + items.size() < found.total();
 		V2Context context = new V2Context(dataset.id(), dataset.referenceMonth(), weekday, slot);
 		String status = items.isEmpty() ? V2RecommendationResponse.NO_MATCHES : V2RecommendationResponse.OK;
@@ -47,6 +50,7 @@ public class V2AreaRecommendationService {
 	private static Item toLocalizedItem(Row row, Language language) {
 		Place place = row.place();
 		String displayName = place.names().display(place.name(), language);
+
 		return new Item(place.id(), displayName, Long.toString(place.cellId()), row.area(),
 			place.kind(), place.lat(), place.lng(), place.googlePlaceId());
 	}
