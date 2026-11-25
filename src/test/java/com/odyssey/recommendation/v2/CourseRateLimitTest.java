@@ -1,20 +1,13 @@
 package com.odyssey.recommendation.v2;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
-import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anySet;
-import static org.mockito.BDDMockito.given;
-import static org.mockito.BDDMockito.then;
-import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.mockingDetails;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.options;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,11 +18,6 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
-
-import com.odyssey.cellcondition.entity.Weekday;
-import com.odyssey.cellslotscore.entity.TimeSlot;
-import com.odyssey.recommendation.v2.CourseSchedule.AfternoonPreference;
-import com.odyssey.recommendation.v2.V2CourseResponse.Interruption;
 
 /**
  * 코스 API 의 요청 한도. 한도를 넘은 요청은 429 로 막혀 서비스(= Google 조회)까지 가지 않아야 한다.
@@ -49,20 +37,11 @@ import com.odyssey.recommendation.v2.V2CourseResponse.Interruption;
 class CourseRateLimitTest {
 
 	private static final String URL = "/api/v2/course-recommendations";
-	private static final V2CourseResponse EMPTY = new V2CourseResponse("PARTIAL",
-		new V2Context("nov", "2025-11", Weekday.FRI, TimeSlot.DINNER), 0, java.util.List.of(), java.util.List.of(),
-		new Interruption(TimeSlot.DINNER, "NO_VERIFIED_MATCH"));
 
 	@Autowired
 	private MockMvc mvc;
 	@MockitoBean
 	private V2CourseService service;
-
-	@BeforeEach
-	void anyCourse() {
-		given(service.recommend(any(), any(), any(), any(), anySet(), anyLong(),
-			any(AfternoonPreference.class), anyBoolean(), any(), anySet())).willReturn(EMPTY);
-	}
 
 	private static MockHttpServletRequestBuilder courseFrom(String address) {
 		return get(URL)
@@ -94,8 +73,7 @@ class CourseRateLimitTest {
 			.andExpect(header().exists("Retry-After"))
 			.andExpect(jsonPath("$.success").value(false))
 			.andExpect(jsonPath("$.error.code").value("TOO_MANY_REQUESTS"));
-		then(service).should(times(2)).recommend(any(), any(), any(), any(), anySet(), anyLong(),
-			any(AfternoonPreference.class), anyBoolean(), any(), anySet());
+		assertThat(mockingDetails(service).getInvocations()).hasSize(2);
 	}
 
 	@Test

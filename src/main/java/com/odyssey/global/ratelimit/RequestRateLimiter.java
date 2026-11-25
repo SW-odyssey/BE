@@ -12,17 +12,13 @@ import java.util.function.LongSupplier;
  *   <li>서버 전체 한도: 주소를 바꿔 가며 보내는 요청까지 합쳐서 외부 호출량의 상한을 둔다.
  *       클라이언트 주소는 요청 헤더에서 오므로 속일 수 있다. 비용 상한은 이 한도가 지킨다.</li>
  * </ol>
- *
- * <p>상태를 메모리에 둔다. Cloud Run 인스턴스마다 따로 세므로 인스턴스가 N개이면 전체 한도는 최대 N배가 된다.
  */
 public final class RequestRateLimiter {
 
-	/** 거절한 한도의 종류. */
 	public enum Scope {
 		CLIENT, GLOBAL
 	}
 
-	/** 요청 허용 여부. 거절이면 몇 초 뒤에 다시 보내면 되는지와 어떤 한도에 걸렸는지를 담는다. */
 	public record Decision(boolean allowed, long retryAfterSeconds, Scope scope) {
 
 		static final Decision ALLOWED = new Decision(true, 0, null);
@@ -56,23 +52,19 @@ public final class RequestRateLimiter {
 		this.nanoClock = nanoClock;
 		this.global = new TokenBucket(globalBurst, globalPerMinute, nanoClock);
 		this.nextSweepNanos = nanoClock.getAsLong() + SWEEP_INTERVAL_NANOS;
-		// 한도 값이 잘못되면 첫 요청이 아니라 기동할 때 실패하게 클라이언트 버킷도 한 번 만들어 본다
-		new TokenBucket(clientBurst, clientPerMinute, nanoClock);
+		TokenBucket.requireValidLimit(clientBurst, clientPerMinute);
 	}
 
-	/**
-	 * @param clientKey 요청을 보낸 쪽을 구분하는 값. 보통 클라이언트 주소다
-	 */
 	public Decision tryAcquire(String clientKey) {
 		sweepIfDue();
 		// 서버 전체 한도를 먼저 본다. 주소를 바꿔 가며 보내는 요청이 여기서 걸러져 클라이언트 버킷을 늘리지 못한다
-		long wait = global.tryConsume();
+		long wait = global.consumeOrWaitNanos();
 		if (wait > 0) {
 			return Decision.denied(wait, Scope.GLOBAL);
 		}
 		TokenBucket client = clients.computeIfAbsent(keyFor(clientKey),
 			key -> new TokenBucket(clientBurst, clientPerMinute, nanoClock));
-		wait = client.tryConsume();
+		wait = client.consumeOrWaitNanos();
 		if (wait > 0) {
 			// 클라이언트 한도에 걸린 요청이 서버 전체 한도의 몫까지 쓰면 안 된다
 			global.refund();

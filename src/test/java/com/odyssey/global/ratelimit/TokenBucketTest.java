@@ -20,10 +20,10 @@ class TokenBucketTest {
 		TokenBucket bucket = new TokenBucket(3, 6, now::get);
 
 		// when
-		long first = bucket.tryConsume();
-		long second = bucket.tryConsume();
-		long third = bucket.tryConsume();
-		long fourth = bucket.tryConsume();
+		long first = bucket.consumeOrWaitNanos();
+		long second = bucket.consumeOrWaitNanos();
+		long third = bucket.consumeOrWaitNanos();
+		long fourth = bucket.consumeOrWaitNanos();
 
 		// then
 		assertThat(first).isZero();
@@ -37,10 +37,10 @@ class TokenBucketTest {
 	void reportsWaitUntilNextToken() {
 		// given: 분당 6번이면 10초에 한 번 채워진다
 		TokenBucket bucket = new TokenBucket(1, 6, now::get);
-		bucket.tryConsume();
+		bucket.consumeOrWaitNanos();
 
 		// when
-		long wait = bucket.tryConsume();
+		long wait = bucket.consumeOrWaitNanos();
 
 		// then
 		assertThat(wait).isEqualTo(TimeUnit.SECONDS.toNanos(10));
@@ -51,15 +51,15 @@ class TokenBucketTest {
 	void refillsOverTime() {
 		// given
 		TokenBucket bucket = new TokenBucket(1, 6, now::get);
-		bucket.tryConsume();
-		assertThat(bucket.tryConsume()).isPositive();
+		bucket.consumeOrWaitNanos();
+		assertThat(bucket.consumeOrWaitNanos()).isPositive();
 
 		// when: 10초가 지남
 		now.addAndGet(TimeUnit.SECONDS.toNanos(10));
 
 		// then
-		assertThat(bucket.tryConsume()).isZero();
-		assertThat(bucket.tryConsume()).isPositive();
+		assertThat(bucket.consumeOrWaitNanos()).isZero();
+		assertThat(bucket.consumeOrWaitNanos()).isPositive();
 	}
 
 	@Test
@@ -67,16 +67,16 @@ class TokenBucketTest {
 	void doesNotExceedCapacity() {
 		// given
 		TokenBucket bucket = new TokenBucket(2, 60, now::get);
-		bucket.tryConsume();
-		bucket.tryConsume();
+		bucket.consumeOrWaitNanos();
+		bucket.consumeOrWaitNanos();
 
 		// when: 한 시간이 지남
 		now.addAndGet(TimeUnit.HOURS.toNanos(1));
 
 		// then
-		assertThat(bucket.tryConsume()).isZero();
-		assertThat(bucket.tryConsume()).isZero();
-		assertThat(bucket.tryConsume()).isPositive();
+		assertThat(bucket.consumeOrWaitNanos()).isZero();
+		assertThat(bucket.consumeOrWaitNanos()).isZero();
+		assertThat(bucket.consumeOrWaitNanos()).isPositive();
 	}
 
 	@Test
@@ -84,15 +84,15 @@ class TokenBucketTest {
 	void refundRestoresToken() {
 		// given
 		TokenBucket bucket = new TokenBucket(1, 1, now::get);
-		bucket.tryConsume();
+		bucket.consumeOrWaitNanos();
 
 		// when
 		bucket.refund();
 		bucket.refund();
 
 		// then
-		assertThat(bucket.tryConsume()).isZero();
-		assertThat(bucket.tryConsume()).isPositive();
+		assertThat(bucket.consumeOrWaitNanos()).isZero();
+		assertThat(bucket.consumeOrWaitNanos()).isPositive();
 	}
 
 	@Test
@@ -110,8 +110,8 @@ class TokenBucketTest {
 	void isFullAgainAfterRefill() {
 		// given: 분당 6번이면 10초에 한 번 채워진다
 		TokenBucket bucket = new TokenBucket(2, 6, now::get);
-		bucket.tryConsume();
-		bucket.tryConsume();
+		bucket.consumeOrWaitNanos();
+		bucket.consumeOrWaitNanos();
 
 		// when & then
 		assertThat(bucket.isFull()).isFalse();

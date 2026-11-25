@@ -27,6 +27,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @Tag(name = "v2 · 코스 추천")
 public class V2CourseController {
 
+	static final String PATH = "/api/v2/course-recommendations";
 	private static final Set<String> KEYS =
 		Set.of("datasetId", "weekday", "startSlot", "lat", "lng", "excludeIds", "previousStopIds", "seed", "afternoon", "lateNight", "walk", "lang");
 	private final V2CourseService service;
@@ -35,7 +36,7 @@ public class V2CourseController {
 		this.service = service;
 	}
 
-	@GetMapping("/api/v2/course-recommendations")
+	@GetMapping(PATH)
 	@Operation(summary = "현재 위치에서 시작하는 최대 여섯 곳의 추천 코스", description = """
 		startSlot에 해당하는 첫 자리부터 계산합니다. 같은 시간대의 자리는 position으로 구분합니다.
 
