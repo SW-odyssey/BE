@@ -35,8 +35,6 @@ public class SwaggerConfig {
 			- 응답은 항상 {success, data, error} 모양입니다. 실패하면 success=false이고 error.code와 error.message가 옵니다.
 			- 설명에 없는 쿼리 파라미터를 보내거나 같은 파라미터를 두 번 보내면 400입니다.
 			- 문제가 여러 개면 400(요청 형식) → 404(없는 배치) → 503(서버 문제) 순서로 먼저 걸린 것 하나만 알려 줍니다.
-
-			v1(/api/v1)은 이전 버전입니다.
 			""");
 		info.setVersion("v0.0.1");
 

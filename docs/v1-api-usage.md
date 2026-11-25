@@ -1,6 +1,6 @@
 # v1 추천 API 호출 조사
 
-[BE #88](https://github.com/SW-odyssey/BE/issues/88)에서 v1 호출을 확인하고 전환 여부를 결정한다.
+[BE #88](https://github.com/SW-odyssey/BE/issues/88)의 호출 조사 기록이다. [BE #99](https://github.com/SW-odyssey/BE/issues/99)에서 v1 메타·추천 목록·칸 경계 경로를 제거했다. 추천 목록을 점검할 때는 아래의 v2 지역 탐색을 사용한다.
 
 ## 운영 호출 기록
 
