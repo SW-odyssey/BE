@@ -23,7 +23,7 @@ final class CourseSchedule {
 	static final int SHOP_STAY_MINUTES = 30;
 	static final double MIN_COURSE_PERCENTILE = 60;
 	/** 목록 API 와 같은 기본 하한. */
-	static final double DEFAULT_MIN_PERCENTILE = V2RecommendationSelector.MIN_VISITOR_PERCENTILE;
+	static final double DEFAULT_MIN_PERCENTILE = V2RecommendationPolicy.DEFAULT_MIN_VISITOR_PERCENTILE;
 
 	enum AfternoonPreference {
 		CAFE, SHOP, MIXED;
