@@ -11,6 +11,7 @@ import com.odyssey.cell.entity.Area;
 import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.cellcondition.repository.AreaRecommendationRepository;
 import com.odyssey.cellcondition.repository.AreaRecommendationRepository.Page;
+import com.odyssey.cellcondition.repository.AreaRecommendationRepository.Row;
 import com.odyssey.cellslotscore.entity.TimeSlot;
 import com.odyssey.recommendation.v2.V2AreaRecommendationResponse.Item;
 import com.odyssey.recommendationdataset.repository.RecommendationDatasetRepository.Dataset;
@@ -34,14 +35,19 @@ public class V2AreaRecommendationService {
 		long offset = (long) page * size;
 		Page found = repository.findPage(dataset.id(), weekday, slot, area, kinds,
 			V2RecommendationSelector.MIN_VISITOR_PERCENTILE, offset, size);
-		List<Item> items = found.items().stream().map(row -> {
-			Place place = row.place();
-			return new Item(place.id(), place.names().display(place.name(), language),
-				Long.toString(place.cellId()), row.area(), place.kind(), place.lat(), place.lng(), place.googlePlaceId());
-		}).toList();
+		List<Item> items = found.items().stream()
+			.map(row -> toLocalizedItem(row, language))
+			.toList();
+		boolean hasNext = offset + items.size() < found.total();
 		V2Context context = new V2Context(dataset.id(), dataset.referenceMonth(), weekday, slot);
-		return new V2AreaRecommendationResponse(items.isEmpty() ? V2RecommendationResponse.NO_MATCHES
-			: V2RecommendationResponse.OK, found.total(), page, size, offset + items.size() < found.total(),
-			context, items);
+		String status = items.isEmpty() ? V2RecommendationResponse.NO_MATCHES : V2RecommendationResponse.OK;
+		return new V2AreaRecommendationResponse(status, found.total(), page, size, hasNext, context, items);
+	}
+
+	private static Item toLocalizedItem(Row row, Language language) {
+		Place place = row.place();
+		String displayName = place.names().display(place.name(), language);
+		return new Item(place.id(), displayName, Long.toString(place.cellId()), row.area(),
+			place.kind(), place.lat(), place.lng(), place.googlePlaceId());
 	}
 }
