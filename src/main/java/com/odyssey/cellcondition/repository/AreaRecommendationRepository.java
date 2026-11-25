@@ -46,7 +46,7 @@ public class AreaRecommendationRepository {
 		}
 
 		BooleanExpression[] conditions = matchingStoreConditions(datasetId, weekday, slot, area, kinds, minPercentile);
-		long total = queryMatchingStores(query.select(store.id.count()), conditions).fetchOne();
+		long total = countMatchingStores(conditions);
 
 		if (offset >= total) {
 			return new Page(total, List.of());
@@ -73,8 +73,12 @@ public class AreaRecommendationRepository {
 		};
 	}
 
+	private long countMatchingStores(BooleanExpression[] conditions) {
+		return queryMatchingStores(query.select(store.id.count()), conditions).fetchOne();
+	}
+
 	private List<Row> fetchPageItems(BooleanExpression[] conditions, long offset, int size) {
-		return queryMatchingStores(query.select(store.id, store.name, cell.cellId, store.kind,
+		List<Tuple> tuples = queryMatchingStores(query.select(store.id, store.name, cell.cellId, store.kind,
 				store.lat, store.lng, store.sinceDate, store.googlePlaceId, legalDong.area,
 				storeNameTranslation.nameEn, storeNameTranslation.nameZh, storeNameTranslation.nameJa), conditions)
 			.leftJoin(storeNameTranslation).on(storeNameTranslation.storeId.eq(store.id),
@@ -82,7 +86,9 @@ public class AreaRecommendationRepository {
 			.orderBy(cellCondition.visitorPercentile.desc(), store.id.asc())
 			.offset(offset)
 			.limit(size)
-			.fetch().stream().map(AreaRecommendationRepository::toRow).toList();
+			.fetch();
+
+		return toRows(tuples);
 	}
 
 	private <T> JPAQuery<T> queryMatchingStores(JPAQuery<T> selection, BooleanExpression[] conditions) {
@@ -91,6 +97,12 @@ public class AreaRecommendationRepository {
 			.join(cell.legalDong, legalDong)
 			.join(cellCondition).on(cellCondition.id.cellId.eq(cell.cellId))
 			.where(conditions);
+	}
+
+	private static List<Row> toRows(List<Tuple> tuples) {
+		return tuples.stream()
+			.map(AreaRecommendationRepository::toRow)
+			.toList();
 	}
 
 	private static Row toRow(Tuple row) {
