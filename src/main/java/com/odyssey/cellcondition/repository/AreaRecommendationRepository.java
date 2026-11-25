@@ -127,9 +127,10 @@ public class AreaRecommendationRepository {
 	private static Row toRow(Tuple row) {
 		StoreNames names = new StoreNames(row.get(storeNameTranslation.nameEn),
 			row.get(storeNameTranslation.nameZh), row.get(storeNameTranslation.nameJa));
+		Area area = row.get(legalDong.area);
 		Place place = new Place(row.get(store.id), row.get(store.name), row.get(cell.cellId),
 			row.get(store.kind), row.get(store.lat), row.get(store.lng), row.get(store.sinceDate),
-			row.get(store.googlePlaceId), names);
-		return new Row(place, row.get(legalDong.area));
+			row.get(store.googlePlaceId), names, area);
+		return new Row(place, area);
 	}
 }
