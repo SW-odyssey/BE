@@ -23,6 +23,7 @@ Docker가 실행 중이어야 합니다. `bootRun` 이 `compose.yaml` 의 postgr
 
 - API 서버: [http://localhost:8080](http://localhost:8080)
 - API 문서: [http://localhost:8080/swagger-ui.html](http://localhost:8080/swagger-ui.html)
+- [추천 v2 응답 필드 사용처](docs/recommendation-v2/RESPONSE_CONTRACT.md)
 - 헬스체크: [http://localhost:8080/actuator/health](http://localhost:8080/actuator/health)
 
 ```bash
