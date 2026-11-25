@@ -1,7 +1,8 @@
 # ERD v3 (V8)
 
-analysis의 v3 CSV를 적재하는 추천 조회 스키마다. 테이블 변경은 BE의 Flyway,
-데이터 적재는 analysis의 `load_v3.sql`이 담당한다.
+V8 당시 스키마다. 현재 추천 조회는 [추천 v2 ERD](recommendation-v2/ERD.md)를 따른다.
+V16에서 v1 시간대 점수·지표와 배치 테이블을 제거한다. 매장 적재가 사용하는 `store_badge`와
+V8에서 보관한 과거 점수·지표 테이블은 유지한다. 적용 순서는 [#92](https://github.com/SW-odyssey/BE/issues/92)에 기록한다.
 
 ```mermaid
 erDiagram
