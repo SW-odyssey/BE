@@ -31,7 +31,7 @@ public class V2PlaceController {
 
 	private static final int DEFAULT_SEARCH_LIMIT = 6;
 	private static final int MAX_SEARCH_LIMIT = 30;
-	private static final int MAX_SEARCH_LENGTH = 80;
+	private static final int MAX_SEARCH_TERM_LENGTH = 80;
 
 	private final V2PlaceService service;
 
@@ -49,7 +49,7 @@ public class V2PlaceController {
 	@ApiResponse(responseCode = "200", description = "상호 검색 성공", useReturnTypeSchema = true)
 	@ApiResponse(responseCode = "400", description = "INVALID_INPUT: 검색어·표시 언어·조회 한도 오류")
 	@ApiResponse(responseCode = "503", description = "DATA_UNAVAILABLE: DB 조회 실패")
-	public ApiResult<SearchResponse> search(
+	public ApiResult<SearchResponse> searchPlaces(
 		@Parameter(description = "검색할 상호 또는 상호 일부. 1~80자.", example = "을지갈매기")
 		@RequestParam String q,
 		@Parameter(description = V2RequestParams.LANGUAGE_DOC, example = "en")
@@ -59,15 +59,35 @@ public class V2PlaceController {
 		@Parameter(hidden = true) @RequestParam MultiValueMap<String, String> params) {
 		V2RequestParams.check(params, Set.of("q", "lang", "limit"));
 		Language language = V2RequestParams.displayLanguage(lang);
-		String query = Normalizer.normalize(q, Normalizer.Form.NFKC).strip();
-		if (query.isEmpty() || query.length() > MAX_SEARCH_LENGTH || query.indexOf('\0') >= 0) {
+		String searchTerm = requireSearchTerm(q);
+		int resultLimit = requireResultLimit(limit, params.containsKey("limit"));
+		return ApiResult.ok(new SearchResponse(service.searchByName(searchTerm, language, resultLimit)));
+	}
+
+	private static String requireSearchTerm(String q) {
+		String term = Normalizer.normalize(q, Normalizer.Form.NFKC).strip();
+		if (term.isEmpty() || exceedsSearchTermLength(term) || containsNulCharacter(term)) {
 			throw new BusinessException(CommonErrorCode.INVALID_INPUT, "q는 유효한 상호 검색어 1~80자로 입력해 주세요.");
 		}
-		int maxResults = limit == null ? DEFAULT_SEARCH_LIMIT : limit;
-		if ((limit == null && params.containsKey("limit")) || maxResults < 1 || maxResults > MAX_SEARCH_LIMIT) {
+		return term;
+	}
+
+	private static boolean exceedsSearchTermLength(String term) {
+		return term.codePointCount(0, term.length()) > MAX_SEARCH_TERM_LENGTH;
+	}
+
+	private static boolean containsNulCharacter(String text) {
+		return text.indexOf('\0') >= 0;
+	}
+
+	private static int requireResultLimit(Integer limit, boolean limitParamSent) {
+		if (limit == null && !limitParamSent) {
+			return DEFAULT_SEARCH_LIMIT;
+		}
+		if (limit == null || limit < 1 || limit > MAX_SEARCH_LIMIT) {
 			throw new BusinessException(CommonErrorCode.INVALID_INPUT, "limit은 1~30이어야 합니다.");
 		}
-		return ApiResult.ok(new SearchResponse(service.search(query, language, maxResults)));
+		return limit;
 	}
 
 	public record SearchResponse(List<V2PlaceResponse> items) {}

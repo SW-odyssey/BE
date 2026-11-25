@@ -3,6 +3,7 @@ package com.odyssey.store.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
@@ -79,43 +81,92 @@ class StorePlaceRepositoryTest {
 	}
 
 	@Test
-	void ranksExactNamesBeforePrefixAndSubstringAndKeepsSameNameStores() {
+	@DisplayName("정확히 일치 → 시작 부분 일치 → 나머지 부분 일치 순으로 주고 비활성 매장은 뺀다")
+	void ranksExactThenPrefixThenSubstring() {
+		// given
 		db.store(9, CELL, "점심 공평식당", "KOREAN", null, "place-9", true);
 		db.store(8, CELL, "공평식당 종로점", "KOREAN", null, "place-8", true);
 		db.store(7, CELL, "공평식당", "KOREAN", null, null, true);
-		db.store(6, CELL, "공평식당", "BAR", null, "place-6", true);
 		db.store(5, CELL, "공평식당", "KOREAN", null, "place-5", false);
-		insertNames(7, "공평식당", "공평식당", "公平食堂", "公平食堂");
 
-		assertThat(repository.searchActiveByName("공평 식당", Language.KO, 3))
-			.extracting(Place::id).containsExactly(6L, 7L, 8L);
-		assertThat(repository.searchActiveByName("공평식당", Language.KO, 6))
-			.extracting(Place::id).containsExactly(6L, 7L, 8L, 9L);
+		// when
+		List<Place> places = repository.searchActiveByName("공평 식당", Language.KO, 6);
+
+		// then
+		assertThat(places).extracting(Place::id).containsExactly(7L, 8L, 9L);
 	}
 
 	@Test
-	void searchesAllLanguagesAndIgnoresTranslationsForAnOldStoreName() {
+	@DisplayName("같은 순위 → 요청 언어로 일치한 매장을 먼저 주고, 그다음 번호 순이다")
+	void ranksRequestedLanguageMatchFirstWithinSameMatch() {
+		// given
+		db.store(6, CELL, "Gongpyeong", "BAR", null, "place-6", true);
+		db.store(7, CELL, "공평식당", "KOREAN", null, null, true);
+		insertNames(7, "공평식당", "Gongpyeong", "公平食堂", "公平食堂");
+
+		// when
+		List<Place> places = repository.searchActiveByName("gongpyeong", Language.EN, 6);
+
+		// then
+		assertThat(places).extracting(Place::id).containsExactly(7L, 6L);
+	}
+
+	@Test
+	@DisplayName("동명 매장 → 번호별로 모두 주고 limit 에서 자른다")
+	void keepsSameNameStoresUpToLimit() {
+		// given
+		db.store(8, CELL, "공평식당", "KOREAN", null, "place-8", true);
+		db.store(7, CELL, "공평식당", "KOREAN", null, null, true);
+		db.store(6, CELL, "공평식당", "BAR", null, "place-6", true);
+
+		// when
+		List<Place> places = repository.searchActiveByName("공평식당", Language.KO, 2);
+
+		// then
+		assertThat(places).extracting(Place::id).containsExactly(6L, 7L);
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"GONGPYEONG restaurant", "公平餐厅", "コンピョン食堂"})
+	@DisplayName("영어·중국어·일본어 상호 → 요청 언어와 상관없이 찾는다")
+	void searchesTranslatedNames(String searchTerm) {
+		// given
 		db.store(7, CELL, "공평식당", "KOREAN", null, null, true);
 		insertNames(7, "공평식당", "Gongpyeong Restaurant", "公平餐厅", "コンピョン食堂");
 
-		assertThat(repository.searchActiveByName("GONGPYEONG restaurant", Language.JA, 6))
-			.extracting(Place::id).containsExactly(7L);
-		assertThat(repository.searchActiveByName("公平餐厅", Language.KO, 6))
-			.extracting(Place::id).containsExactly(7L);
-		assertThat(repository.searchActiveByName("コンピョン食堂", Language.EN, 6))
-			.extracting(Place::id).containsExactly(7L);
+		// when
+		List<Place> places = repository.searchActiveByName(searchTerm, Language.KO, 6);
 
-		jdbc.sql("update store set name = '새식당' where id = 7").update();
-		assertThat(repository.searchActiveByName("Gongpyeong", Language.EN, 6)).isEmpty();
+		// then
+		assertThat(places).extracting(Place::id).containsExactly(7L);
 	}
 
 	@Test
+	@DisplayName("상호가 바뀌어 번역이 옛 상호 것이다 → 번역 상호로는 찾지 않는다")
+	void ignoresTranslationsOfPreviousName() {
+		// given
+		db.store(7, CELL, "새식당", "KOREAN", null, null, true);
+		insertNames(7, "공평식당", "Gongpyeong Restaurant", "公平餐厅", "コンピョン食堂");
+
+		// when
+		List<Place> places = repository.searchActiveByName("Gongpyeong", Language.EN, 6);
+
+		// then
+		assertThat(places).isEmpty();
+	}
+
+	@Test
+	@DisplayName("% 가 든 검색어 → 와일드카드가 아닌 글자로 비교한다")
 	void matchesWildcardCharactersLiterally() {
+		// given
 		db.store(7, CELL, "카페 100%", "CAFE", null, "place-7", true);
 		db.store(8, CELL, "카페 100호", "CAFE", null, "place-8", true);
 
-		assertThat(repository.searchActiveByName("100%", Language.KO, 6))
-			.extracting(Place::id).containsExactly(7L);
+		// when
+		List<Place> places = repository.searchActiveByName("100%", Language.KO, 6);
+
+		// then
+		assertThat(places).extracting(Place::id).containsExactly(7L);
 	}
 
 	private void insertNames(long id, String original, String english, String chinese, String japanese) {

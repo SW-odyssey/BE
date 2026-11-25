@@ -73,34 +73,41 @@ public class StorePlaceRepository {
 			Map.of("id", id), MAPPER).stream().findFirst();
 	}
 
-	/** 검색어는 문자 그대로 비교한다. 같은 매장의 여러 언어가 일치해도 한 번만 반환한다. */
 	public List<Place> searchActiveByName(String query, Language language, int limit) {
-		return jdbc.query("""
-			with search as (
-				select regexp_replace(lower(normalize(:query, NFKC)), '[[:space:]]+', '', 'g') as term
-			)
-			select
-			""" + COLUMNS + " from store s" + TRANSLATION_JOIN + """
+		String sql = """
+			with search as (select %s as term)
+			select %s from store s %s
 			cross join search
 			cross join lateral (
-				select min(
-					case
-						when candidate.title = search.term then 0
-						when starts_with(candidate.title, search.term) then 2
-						else 4
-					end + case when candidate.lang = :lang then 0 else 1 end
-				) as match_rank
+				select candidate.match_order, candidate.language_order
 				from (
-					select lang, regexp_replace(lower(normalize(raw_name, NFKC)), '[[:space:]]+', '', 'g') as title
-					from (values ('ko', s.name), ('en', t.name_en), ('zh', t.name_zh), ('ja', t.name_ja))
-						as names(lang, raw_name)
+					select
+						case
+							when title = search.term then 0
+							when starts_with(title, search.term) then 1
+							else 2
+						end as match_order,
+						case when lang = :lang then 0 else 1 end as language_order
+					from (
+						select lang, %s as title
+						from (values ('ko', s.name), ('en', t.name_en), ('zh', t.name_zh), ('ja', t.name_ja))
+							as names(lang, raw_name)
+					) named
+					where strpos(title, search.term) > 0
 				) candidate
-				where strpos(candidate.title, search.term) > 0
+				order by candidate.match_order, candidate.language_order
+				limit 1
 			) matched
-			where s.active and search.term <> '' and matched.match_rank is not null
-			order by matched.match_rank, s.id
+			where s.active and search.term <> ''
+			order by matched.match_order, matched.language_order, s.id
 			limit :limit
-			""", Map.of("query", query, "lang", language.name().toLowerCase(Locale.ROOT), "limit", limit), MAPPER);
+			""".formatted(searchKey(":query"), COLUMNS, TRANSLATION_JOIN, searchKey("raw_name"));
+		return jdbc.query(sql,
+			Map.of("query", query, "lang", language.name().toLowerCase(Locale.ROOT), "limit", limit), MAPPER);
+	}
+
+	private static String searchKey(String nameExpression) {
+		return "regexp_replace(lower(normalize(" + nameExpression + ", NFKC)), '[[:space:]]+', '', 'g')";
 	}
 
 	private static Place mapPlace(ResultSet rs, int rowNum) throws SQLException {

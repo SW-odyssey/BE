@@ -38,10 +38,13 @@ class V2PlaceControllerTest {
 	private V2PlaceService service;
 
 	@Test
-	void searchesWithDisplayLanguageAndDefaultLimit() throws Exception {
-		given(service.search("Eulji", Language.JA, 6)).willReturn(List.of(new V2PlaceResponse(
+	@DisplayName("전각·앞뒤 공백 검색어와 limit 생략 → 정규화한 검색어와 기본 6건으로 찾고 요청 언어 상호를 준다")
+	void searchesWithNormalizedTermAndDefaultLimit() throws Exception {
+		// given
+		given(service.searchByName("Eulji", Language.JA, 6)).willReturn(List.of(new V2PlaceResponse(
 			7, "ウルチカルメギ", "101", StoreKind.BAR, 37.57, 126.98, null, null)));
 
+		// when & then
 		mockMvc.perform(get("/api/v2/place-search").param("q", " Ｅｕｌｊｉ ").param("lang", "ja"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.items[0].id").value(7))
@@ -50,8 +53,12 @@ class V2PlaceControllerTest {
 	}
 
 	@Test
-	void returnsAnEmptyListWithTheRequestedLimit() throws Exception {
-		given(service.search("없는상호", Language.KO, 30)).willReturn(List.of());
+	@DisplayName("일치하는 매장이 없다 → 200 과 빈 items")
+	void returnsEmptyItemsWhenNothingMatches() throws Exception {
+		// given
+		given(service.searchByName("없는상호", Language.KO, 30)).willReturn(List.of());
+
+		// when & then
 		mockMvc.perform(get("/api/v2/place-search").param("q", "없는상호").param("limit", "30"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.items").isEmpty());
@@ -59,16 +66,44 @@ class V2PlaceControllerTest {
 
 	@ParameterizedTest
 	@ValueSource(strings = {"", " ", "　"})
-	void rejectsBlankSearch(String query) throws Exception {
-		mockMvc.perform(get("/api/v2/place-search").param("q", query))
+	@DisplayName("빈 검색어 → 400 INVALID_INPUT 이고 서비스를 호출하지 않는다")
+	void rejectsBlankSearchTerm(String searchTerm) throws Exception {
+		// when & then
+		mockMvc.perform(get("/api/v2/place-search").param("q", searchTerm))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
 		then(service).shouldHaveNoInteractions();
 	}
 
+	@Test
+	@DisplayName("이모지 80자 검색어 → 글자 수로 세어 받는다")
+	void acceptsSearchTermOfEightyCharacters() throws Exception {
+		// given
+		String searchTerm = "😀".repeat(80);
+		given(service.searchByName(searchTerm, Language.KO, 6)).willReturn(List.of());
+
+		// when & then
+		mockMvc.perform(get("/api/v2/place-search").param("q", searchTerm))
+			.andExpect(status().isOk());
+	}
+
+	@ParameterizedTest
+	@ValueSource(strings = {"가", "😀"})
+	@DisplayName("81자 검색어 → 400 INVALID_INPUT")
+	void rejectsSearchTermLongerThanEightyCharacters(String character) throws Exception {
+		// when & then
+		mockMvc.perform(get("/api/v2/place-search").param("q", character.repeat(81)))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"))
+			.andExpect(jsonPath("$.error.message").value("q는 유효한 상호 검색어 1~80자로 입력해 주세요."));
+		then(service).shouldHaveNoInteractions();
+	}
+
 	@ParameterizedTest
 	@ValueSource(strings = {"", "0", "31", "all"})
-	void rejectsInvalidLimit(String limit) throws Exception {
+	@DisplayName("limit 이 비었거나 1~30 밖이거나 숫자가 아니다 → 400 INVALID_INPUT")
+	void rejectsInvalidResultLimit(String limit) throws Exception {
+		// when & then
 		mockMvc.perform(get("/api/v2/place-search").param("q", "식당").param("limit", limit))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
@@ -76,7 +111,9 @@ class V2PlaceControllerTest {
 	}
 
 	@Test
-	void doesNotAcceptRecommendationParameters() throws Exception {
+	@DisplayName("추천 조건 datasetId 를 보낸다 → 400 INVALID_INPUT")
+	void rejectsRecommendationParameters() throws Exception {
+		// when & then
 		mockMvc.perform(get("/api/v2/place-search").param("q", "식당").param("datasetId", "some-batch"))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));

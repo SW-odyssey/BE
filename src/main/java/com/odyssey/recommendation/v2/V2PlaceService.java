@@ -33,7 +33,7 @@ public class V2PlaceService {
 				CommonErrorCode.PLACE_NOT_FOUND, "현재 제공하는 장소가 아닙니다."));
 	}
 
-	List<V2PlaceResponse> search(String query, Language language, int limit) {
+	List<V2PlaceResponse> searchByName(String query, Language language, int limit) {
 		return repository.searchActiveByName(query, language, limit).stream()
 			.map(V2PlaceResponse::from)
 			.map(place -> place.withLanguage(language))
