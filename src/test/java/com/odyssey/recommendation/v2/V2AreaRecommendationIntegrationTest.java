@@ -41,34 +41,11 @@ class V2AreaRecommendationIntegrationTest {
 	@BeforeEach
 	void seedAreaRecommendations() {
 		SplitRecommendationFixture db = new SplitRecommendationFixture(jdbc);
-		db.cell(101);
-		db.cell(102);
-		db.cell(103);
-		jdbc.sql("insert into legal_dong (name, area) values ('명동1가', 'MYEONGDONG')").update();
-		jdbc.sql("update cell set legal_dong = '명동1가' where cell_id in (102, 103)").update();
-
-		db.dataset(DS, "2025-12-01", "2025-12-31T00:00:00Z", true);
-		jdbc.sql("""
-			update recommendation_dataset set policy_version = ?, reason_version = ?, profile_version = ?
-			where dataset_id = ?
-			""").params(V2DatasetResolver.POLICY_VERSION, V2DatasetResolver.REASON_VERSION,
-			V2DatasetResolver.PROFILE_VERSION, DS).update();
-
-		db.condition(DS, 101, "wed", "lunch", "AVAILABLE", 99.0);
-		db.condition(DS, 102, "wed", "lunch", "AVAILABLE", 90.0);
-		db.condition(DS, 103, "wed", "lunch", "AVAILABLE", 74.99);
-
-		db.store(110, 101, "인사동 식당", "KOREAN", null, "area-place-1", true);
-		db.store(102, 102, "명동 상점", "SHOP", null, "area-place-2", true);
-		db.store(104, 102, "명동 카페", "CAFE", null, "area-place-4", true);
-		db.store(103, 102, "명동 술집", "BAR", null, "area-place-3", true);
-		db.store(105, 103, "방문 기준 미달 식당", "KOREAN", null, "area-place-5", true);
-
-		jdbc.sql("""
-			insert into store_name_translation (store_id, source_name, name_en, name_zh, name_ja)
-			values (103, '명동 술집', 'Myeongdong Pub', '明洞酒馆', '明洞酒場'),
-				(104, '예전 카페 이름', 'Old Cafe', '旧咖啡馆', '旧カフェ')
-			""").update();
+		seedCells(db);
+		seedPublishedDataset(db);
+		seedVisitConditions(db);
+		seedStores(db);
+		seedTranslations();
 	}
 
 	@Test
@@ -194,6 +171,45 @@ class V2AreaRecommendationIntegrationTest {
 		mvc.perform(req)
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.error.code").value("INVALID_INPUT"));
+	}
+
+	private void seedCells(SplitRecommendationFixture db) {
+		db.cell(101);
+		db.cell(102);
+		db.cell(103);
+		jdbc.sql("insert into legal_dong (name, area) values ('명동1가', 'MYEONGDONG')").update();
+		jdbc.sql("update cell set legal_dong = '명동1가' where cell_id in (102, 103)").update();
+	}
+
+	private void seedPublishedDataset(SplitRecommendationFixture db) {
+		db.dataset(DS, "2025-12-01", "2025-12-31T00:00:00Z", true);
+		jdbc.sql("""
+			update recommendation_dataset set policy_version = ?, reason_version = ?, profile_version = ?
+			where dataset_id = ?
+			""").params(V2DatasetResolver.POLICY_VERSION, V2DatasetResolver.REASON_VERSION,
+			V2DatasetResolver.PROFILE_VERSION, DS).update();
+	}
+
+	private static void seedVisitConditions(SplitRecommendationFixture db) {
+		db.condition(DS, 101, "wed", "lunch", "AVAILABLE", 99.0);
+		db.condition(DS, 102, "wed", "lunch", "AVAILABLE", 90.0);
+		db.condition(DS, 103, "wed", "lunch", "AVAILABLE", 74.99);
+	}
+
+	private static void seedStores(SplitRecommendationFixture db) {
+		db.store(110, 101, "인사동 식당", "KOREAN", null, "area-place-1", true);
+		db.store(102, 102, "명동 상점", "SHOP", null, "area-place-2", true);
+		db.store(104, 102, "명동 카페", "CAFE", null, "area-place-4", true);
+		db.store(103, 102, "명동 술집", "BAR", null, "area-place-3", true);
+		db.store(105, 103, "방문 기준 미달 식당", "KOREAN", null, "area-place-5", true);
+	}
+
+	private void seedTranslations() {
+		jdbc.sql("""
+			insert into store_name_translation (store_id, source_name, name_en, name_zh, name_ja)
+			values (103, '명동 술집', 'Myeongdong Pub', '明洞酒馆', '明洞酒場'),
+				(104, '예전 카페 이름', 'Old Cafe', '旧咖啡馆', '旧カフェ')
+			""").update();
 	}
 
 	private static MockHttpServletRequestBuilder request() {
