@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 
-import com.odyssey.cellslotscore.entity.TimeSlot;
+import com.odyssey.cell.TimeSlot;
 import com.odyssey.recommendation.v2.CourseReason.AreaType;
 import com.odyssey.recommendation.v2.CourseReason.LocalTop;
 import com.odyssey.recommendation.v2.CourseReason.OpenDuringStay;

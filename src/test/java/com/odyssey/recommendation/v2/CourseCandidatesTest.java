@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.cellcondition.repository.CellConditionRepository;
 import com.odyssey.cellcondition.repository.CellConditionRepository.Candidate;
-import com.odyssey.cellslotscore.entity.TimeSlot;
+import com.odyssey.cell.TimeSlot;
 import com.odyssey.recommendationdataset.repository.RecommendationDatasetRepository.Dataset;
 import com.odyssey.store.entity.StoreKind;
 import com.odyssey.store.repository.StorePlaceRepository.Place;

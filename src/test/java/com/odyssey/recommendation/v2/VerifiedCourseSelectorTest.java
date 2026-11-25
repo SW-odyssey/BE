@@ -20,7 +20,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.cellcondition.repository.CellConditionRepository.Candidate;
-import com.odyssey.cellslotscore.entity.TimeSlot;
+import com.odyssey.cell.TimeSlot;
 import com.odyssey.recommendation.v2.CourseHoursLookup.Hours;
 import com.odyssey.recommendation.v2.CourseSelector.Request;
 import com.odyssey.recommendation.v2.CourseSelector.Selection;

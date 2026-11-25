@@ -3,7 +3,7 @@ package com.odyssey.recommendation.v2;
 import java.util.List;
 
 import com.odyssey.cellcondition.entity.Weekday;
-import com.odyssey.cellslotscore.entity.TimeSlot;
+import com.odyssey.cell.TimeSlot;
 import com.odyssey.cellvisitprofile.VisitProfile;
 import com.odyssey.recommendationdataset.repository.RecommendationDatasetRepository.Dataset;
 

@@ -33,7 +33,7 @@ import org.springframework.transaction.CannotCreateTransactionException;
 import com.odyssey.cell.GeoPoint;
 import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.cellcondition.repository.CellConditionRepository.Candidate;
-import com.odyssey.cellslotscore.entity.TimeSlot;
+import com.odyssey.cell.TimeSlot;
 import com.odyssey.recommendation.v2.CourseReason.AreaType;
 import com.odyssey.recommendation.v2.CourseReason.LocalTop;
 import com.odyssey.recommendation.v2.CourseReason.OpenDuringStay;

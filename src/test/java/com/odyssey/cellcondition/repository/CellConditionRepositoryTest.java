@@ -22,7 +22,7 @@ import com.odyssey.cellcondition.entity.CellQualityStatus;
 import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.cellcondition.repository.CellConditionRepository.Candidate;
 import com.odyssey.cellcondition.repository.CellConditionRepository.ReasonRow;
-import com.odyssey.cellslotscore.entity.TimeSlot;
+import com.odyssey.cell.TimeSlot;
 import com.odyssey.store.entity.StoreKind;
 import com.odyssey.store.repository.StorePlaceRepository.Place;
 import com.odyssey.support.SplitRecommendationFixture;

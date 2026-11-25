@@ -3,7 +3,7 @@ package com.odyssey.recommendation.v2;
 import java.time.LocalTime;
 import java.util.List;
 
-import com.odyssey.cellslotscore.entity.TimeSlot;
+import com.odyssey.cell.TimeSlot;
 import com.odyssey.recommendation.v2.V2RecommendationResponse.Item;
 import com.odyssey.store.StoreNames.Language;
 

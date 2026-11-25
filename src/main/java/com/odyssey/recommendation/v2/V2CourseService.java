@@ -12,7 +12,7 @@ import org.springframework.transaction.TransactionException;
 
 import com.odyssey.cell.GeoPoint;
 import com.odyssey.cellcondition.entity.Weekday;
-import com.odyssey.cellslotscore.entity.TimeSlot;
+import com.odyssey.cell.TimeSlot;
 import com.odyssey.recommendation.v2.CourseReasonFacts.Facts;
 import com.odyssey.recommendation.v2.CourseReasons.StopFacts;
 import com.odyssey.recommendation.v2.CourseSchedule.AfternoonPreference;

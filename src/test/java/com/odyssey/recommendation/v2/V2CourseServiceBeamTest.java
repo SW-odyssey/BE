@@ -23,7 +23,7 @@ import org.junit.jupiter.api.Test;
 
 import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.cellcondition.repository.CellConditionRepository.Candidate;
-import com.odyssey.cellslotscore.entity.TimeSlot;
+import com.odyssey.cell.TimeSlot;
 import com.odyssey.recommendation.v2.CourseHoursLookup.Hours;
 import com.odyssey.recommendation.v2.CourseReason.AreaType;
 import com.odyssey.recommendation.v2.CourseReason.LocalTop;

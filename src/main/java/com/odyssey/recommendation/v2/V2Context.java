@@ -1,7 +1,7 @@
 package com.odyssey.recommendation.v2;
 
 import com.odyssey.cellcondition.entity.Weekday;
-import com.odyssey.cellslotscore.entity.TimeSlot;
+import com.odyssey.cell.TimeSlot;
 
 /**
  * 응답이 어떤 분석 배치와 조건에서 나왔는지 알려 준다. 이유를 다른 목록 조건과 섞지 않도록 실제 조회

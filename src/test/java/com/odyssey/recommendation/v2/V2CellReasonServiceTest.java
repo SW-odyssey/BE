@@ -21,7 +21,7 @@ import com.odyssey.cellcondition.entity.CellQualityStatus;
 import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.cellcondition.repository.CellConditionRepository;
 import com.odyssey.cellcondition.repository.CellConditionRepository.ReasonRow;
-import com.odyssey.cellslotscore.entity.TimeSlot;
+import com.odyssey.cell.TimeSlot;
 import com.odyssey.global.exception.BusinessException;
 import com.odyssey.recommendation.v2.V2ReasonsResponse.CellReason;
 import com.odyssey.recommendation.v2.V2ReasonsResponse.Reason;
