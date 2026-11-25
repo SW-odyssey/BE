@@ -11,7 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
-import com.odyssey.cellslotscore.entity.TimeSlot;
+import com.odyssey.cell.TimeSlot;
 import com.odyssey.recommendation.v2.CourseReason.LocalTop;
 import com.odyssey.recommendation.v2.CourseReason.PeakNow;
 import com.odyssey.recommendation.v2.V2CourseResponse.Stop;

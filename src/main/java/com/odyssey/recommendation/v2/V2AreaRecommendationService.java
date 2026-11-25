@@ -12,7 +12,7 @@ import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.cellcondition.repository.AreaRecommendationRepository;
 import com.odyssey.cellcondition.repository.AreaRecommendationRepository.Page;
 import com.odyssey.cellcondition.repository.AreaRecommendationRepository.Row;
-import com.odyssey.cellslotscore.entity.TimeSlot;
+import com.odyssey.cell.TimeSlot;
 import com.odyssey.recommendation.v2.V2AreaRecommendationResponse.Item;
 import com.odyssey.recommendationdataset.repository.RecommendationDatasetRepository.Dataset;
 import com.odyssey.store.StoreNames.Language;

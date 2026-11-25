@@ -18,7 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.odyssey.TestcontainersConfiguration;
 import com.odyssey.cellcondition.entity.Weekday;
-import com.odyssey.cellslotscore.entity.TimeSlot;
+import com.odyssey.cell.TimeSlot;
 import com.odyssey.cellvisitprofile.VisitProfile;
 import com.odyssey.cellvisitprofile.VisitProfile.VisitBar;
 import com.odyssey.cellvisitprofile.entity.VisitProfileStatus;

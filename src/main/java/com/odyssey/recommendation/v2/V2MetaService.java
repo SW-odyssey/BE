@@ -9,7 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.odyssey.cellcondition.entity.Weekday;
-import com.odyssey.cellslotscore.entity.TimeSlot;
+import com.odyssey.cell.TimeSlot;
 import com.odyssey.global.api.ApiEnums;
 import com.odyssey.recommendation.v2.V2MetaResponse.DatasetOption;
 import com.odyssey.store.entity.Category;

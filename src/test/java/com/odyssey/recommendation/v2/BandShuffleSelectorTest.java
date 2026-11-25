@@ -16,7 +16,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import com.odyssey.cellcondition.entity.Weekday;
-import com.odyssey.cellslotscore.entity.TimeSlot;
+import com.odyssey.cell.TimeSlot;
 import com.odyssey.recommendation.v2.CourseSelector.Request;
 import com.odyssey.recommendation.v2.CourseSelector.Selection;
 import com.odyssey.recommendation.v2.CourseVisitChecker.Result;

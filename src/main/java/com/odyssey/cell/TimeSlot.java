@@ -1,4 +1,4 @@
-package com.odyssey.cellslotscore.entity;
+package com.odyssey.cell;
 
 /**
  * 시간대

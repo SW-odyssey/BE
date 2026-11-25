@@ -12,7 +12,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import com.odyssey.cell.entity.Area;
 import com.odyssey.cellcondition.entity.Weekday;
-import com.odyssey.cellslotscore.entity.TimeSlot;
+import com.odyssey.cell.TimeSlot;
 import com.odyssey.global.exception.BusinessException;
 import com.odyssey.global.exception.CommonErrorCode;
 import com.odyssey.global.response.ApiResult;

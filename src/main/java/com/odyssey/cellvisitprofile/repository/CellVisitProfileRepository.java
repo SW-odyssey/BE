@@ -11,7 +11,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
 import com.odyssey.cellcondition.entity.Weekday;
-import com.odyssey.cellslotscore.entity.TimeSlot;
+import com.odyssey.cell.TimeSlot;
 import com.odyssey.cellvisitprofile.VisitProfile;
 import com.odyssey.cellvisitprofile.VisitProfile.VisitBar;
 import com.odyssey.cellvisitprofile.entity.VisitProfileStatus;

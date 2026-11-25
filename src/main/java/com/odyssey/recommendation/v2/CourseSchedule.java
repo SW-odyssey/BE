@@ -6,7 +6,7 @@ import java.util.Map;
 import java.util.Set;
 
 import com.odyssey.cellcondition.entity.Weekday;
-import com.odyssey.cellslotscore.entity.TimeSlot;
+import com.odyssey.cell.TimeSlot;
 import com.odyssey.store.entity.StoreKind;
 
 /**

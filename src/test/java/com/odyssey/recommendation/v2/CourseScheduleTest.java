@@ -15,7 +15,7 @@ import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 
 import com.odyssey.cellcondition.entity.Weekday;
-import com.odyssey.cellslotscore.entity.TimeSlot;
+import com.odyssey.cell.TimeSlot;
 import com.odyssey.recommendation.v2.CourseSchedule.CourseSlot;
 import com.odyssey.recommendation.v2.CourseSchedule.Requirement;
 import com.odyssey.store.entity.StoreKind;

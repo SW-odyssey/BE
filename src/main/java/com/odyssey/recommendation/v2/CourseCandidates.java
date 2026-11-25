@@ -11,7 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.cellcondition.repository.CellConditionRepository;
 import com.odyssey.cellcondition.repository.CellConditionRepository.Candidate;
-import com.odyssey.cellslotscore.entity.TimeSlot;
+import com.odyssey.cell.TimeSlot;
 import com.odyssey.global.exception.BusinessException;
 import com.odyssey.recommendationdataset.repository.RecommendationDatasetRepository.Dataset;
 

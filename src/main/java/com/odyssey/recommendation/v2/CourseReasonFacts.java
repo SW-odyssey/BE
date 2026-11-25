@@ -9,7 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.odyssey.cellareatype.repository.CellAreaTypeRepository;
 import com.odyssey.cellcondition.entity.Weekday;
-import com.odyssey.cellslotscore.entity.TimeSlot;
+import com.odyssey.cell.TimeSlot;
 import com.odyssey.cellvisitprofile.repository.CellVisitProfileRepository;
 
 /**

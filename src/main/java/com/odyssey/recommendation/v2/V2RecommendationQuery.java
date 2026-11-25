@@ -4,7 +4,7 @@ import java.util.Objects;
 
 import com.odyssey.cell.GeoPoint;
 import com.odyssey.cellcondition.entity.Weekday;
-import com.odyssey.cellslotscore.entity.TimeSlot;
+import com.odyssey.cell.TimeSlot;
 import com.odyssey.global.exception.BusinessException;
 import com.odyssey.global.exception.CommonErrorCode;
 import com.odyssey.store.entity.Category;
