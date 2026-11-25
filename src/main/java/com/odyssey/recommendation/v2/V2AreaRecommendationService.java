@@ -37,11 +37,16 @@ public class V2AreaRecommendationService {
 		Page found = repository.findPage(dataset.id(), weekday, slot, area, kinds,
 			V2RecommendationPolicy.DEFAULT_MIN_VISITOR_PERCENTILE, offset, size);
 
-		List<Item> items = toLocalizedItems(found.items(), language);
-
-		boolean hasNext = offset + items.size() < found.total();
 		V2Context context = new V2Context(dataset.id(), dataset.referenceMonth(), weekday, slot);
+		return buildResponse(context, found, page, size, offset, language);
+	}
+
+	private static V2AreaRecommendationResponse buildResponse(V2Context context, Page found, int page, int size,
+		long offset, Language language) {
+		List<Item> items = toLocalizedItems(found.items(), language);
+		boolean hasNext = offset + items.size() < found.total();
 		String status = items.isEmpty() ? V2RecommendationResponse.NO_MATCHES : V2RecommendationResponse.OK;
+
 		return new V2AreaRecommendationResponse(status, found.total(), page, size, hasNext, context, items);
 	}
 
