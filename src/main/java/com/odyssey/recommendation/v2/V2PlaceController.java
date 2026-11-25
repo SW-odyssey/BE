@@ -1,5 +1,7 @@
 package com.odyssey.recommendation.v2;
 
+import java.text.Normalizer;
+import java.util.List;
 import java.util.Set;
 
 import org.springframework.util.MultiValueMap;
@@ -27,11 +29,48 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @Tag(name = "v2 · 장소 기본 정보")
 public class V2PlaceController {
 
+	private static final int DEFAULT_SEARCH_LIMIT = 6;
+	private static final int MAX_SEARCH_LIMIT = 30;
+	private static final int MAX_SEARCH_LENGTH = 80;
+
 	private final V2PlaceService service;
 
 	public V2PlaceController(V2PlaceService service) {
 		this.service = service;
 	}
+
+	@GetMapping("/place-search")
+	@Operation(summary = "다국어 매장 상호 검색 및 자동완성", description = """
+		활성 매장의 한국어 원본 상호와 현재 상호에 연결된 영어·중국어 간체·일본어 표기를 함께 찾습니다.
+		추천 위치, 방문 순위, 시간대와 무관합니다. 검색어는 대소문자·공백·전각 차이를 무시합니다.
+		일치 순서는 정확히 일치, 시작 부분 일치, 나머지 부분 일치입니다. 같은 순위에서는 요청한 언어를
+		우선하고, 이후 매장 ID로 정렬합니다. 후보가 없으면 items가 빈 배열로 반환됩니다.
+		""")
+	@ApiResponse(responseCode = "200", description = "상호 검색 성공", useReturnTypeSchema = true)
+	@ApiResponse(responseCode = "400", description = "INVALID_INPUT: 검색어·표시 언어·조회 한도 오류")
+	@ApiResponse(responseCode = "503", description = "DATA_UNAVAILABLE: DB 조회 실패")
+	public ApiResult<SearchResponse> search(
+		@Parameter(description = "검색할 상호 또는 상호 일부. 1~80자.", example = "을지갈매기")
+		@RequestParam String q,
+		@Parameter(description = V2RequestParams.LANGUAGE_DOC, example = "en")
+		@RequestParam(required = false) String lang,
+		@Parameter(description = "최대 반환 건수. 기본 6, 허용 1~30.", example = "6")
+		@RequestParam(required = false) Integer limit,
+		@Parameter(hidden = true) @RequestParam MultiValueMap<String, String> params) {
+		V2RequestParams.check(params, Set.of("q", "lang", "limit"));
+		Language language = V2RequestParams.displayLanguage(lang);
+		String query = Normalizer.normalize(q, Normalizer.Form.NFKC).strip();
+		if (query.isEmpty() || query.length() > MAX_SEARCH_LENGTH || query.indexOf('\0') >= 0) {
+			throw new BusinessException(CommonErrorCode.INVALID_INPUT, "q는 유효한 상호 검색어 1~80자로 입력해 주세요.");
+		}
+		int maxResults = limit == null ? DEFAULT_SEARCH_LIMIT : limit;
+		if ((limit == null && params.containsKey("limit")) || maxResults < 1 || maxResults > MAX_SEARCH_LIMIT) {
+			throw new BusinessException(CommonErrorCode.INVALID_INPUT, "limit은 1~30이어야 합니다.");
+		}
+		return ApiResult.ok(new SearchResponse(service.search(query, language, maxResults)));
+	}
+
+	public record SearchResponse(List<V2PlaceResponse> items) {}
 
 	/** 활성 매장의 기본 정보를 준다. id는 양의 정수여야 한다. */
 	@GetMapping("/places/{id}")

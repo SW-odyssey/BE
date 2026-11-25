@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import com.odyssey.TestcontainersConfiguration;
 import com.odyssey.store.StoreNames;
+import com.odyssey.store.StoreNames.Language;
 import com.odyssey.store.entity.StoreKind;
 import com.odyssey.store.repository.StorePlaceRepository.Place;
 import com.odyssey.support.SplitRecommendationFixture;
@@ -75,6 +76,54 @@ class StorePlaceRepositoryTest {
 		jdbc.sql("update store set name = '새식당' where id = 7").update();
 
 		assertThat(repository.findActiveById(7)).get().extracting(Place::names).isEqualTo(StoreNames.EMPTY);
+	}
+
+	@Test
+	void ranksExactNamesBeforePrefixAndSubstringAndKeepsSameNameStores() {
+		db.store(9, CELL, "점심 공평식당", "KOREAN", null, "place-9", true);
+		db.store(8, CELL, "공평식당 종로점", "KOREAN", null, "place-8", true);
+		db.store(7, CELL, "공평식당", "KOREAN", null, null, true);
+		db.store(6, CELL, "공평식당", "BAR", null, "place-6", true);
+		db.store(5, CELL, "공평식당", "KOREAN", null, "place-5", false);
+		insertNames(7, "공평식당", "공평식당", "公平食堂", "公平食堂");
+
+		assertThat(repository.searchActiveByName("공평 식당", Language.KO, 3))
+			.extracting(Place::id).containsExactly(6L, 7L, 8L);
+		assertThat(repository.searchActiveByName("공평식당", Language.KO, 6))
+			.extracting(Place::id).containsExactly(6L, 7L, 8L, 9L);
+	}
+
+	@Test
+	void searchesAllLanguagesAndIgnoresTranslationsForAnOldStoreName() {
+		db.store(7, CELL, "공평식당", "KOREAN", null, null, true);
+		insertNames(7, "공평식당", "Gongpyeong Restaurant", "公平餐厅", "コンピョン食堂");
+
+		assertThat(repository.searchActiveByName("GONGPYEONG restaurant", Language.JA, 6))
+			.extracting(Place::id).containsExactly(7L);
+		assertThat(repository.searchActiveByName("公平餐厅", Language.KO, 6))
+			.extracting(Place::id).containsExactly(7L);
+		assertThat(repository.searchActiveByName("コンピョン食堂", Language.EN, 6))
+			.extracting(Place::id).containsExactly(7L);
+
+		jdbc.sql("update store set name = '새식당' where id = 7").update();
+		assertThat(repository.searchActiveByName("Gongpyeong", Language.EN, 6)).isEmpty();
+	}
+
+	@Test
+	void matchesWildcardCharactersLiterally() {
+		db.store(7, CELL, "카페 100%", "CAFE", null, "place-7", true);
+		db.store(8, CELL, "카페 100호", "CAFE", null, "place-8", true);
+
+		assertThat(repository.searchActiveByName("100%", Language.KO, 6))
+			.extracting(Place::id).containsExactly(7L);
+	}
+
+	private void insertNames(long id, String original, String english, String chinese, String japanese) {
+		jdbc.sql("""
+			insert into store_name_translation (store_id, source_name, name_en, name_zh, name_ja)
+			values (:id, :original, :english, :chinese, :japanese)
+			""").param("id", id).param("original", original).param("english", english)
+			.param("chinese", chinese).param("japanese", japanese).update();
 	}
 
 	@ParameterizedTest
