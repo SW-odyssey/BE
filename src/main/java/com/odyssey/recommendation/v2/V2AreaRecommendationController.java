@@ -55,21 +55,30 @@ public class V2AreaRecommendationController {
 		@Parameter(description = V2RequestParams.LANGUAGE_DOC)
 		@RequestParam(required = false) String lang,
 		@Parameter(hidden = true) @RequestParam MultiValueMap<String, String> params) {
+		validateRequest(params, datasetId, page, size);
+		AreaFilters filters = parseFilters(weekday, slot, areaId, categories, lang);
+
+		return ApiResult.ok(service.recommend(datasetId, filters.weekday(), filters.slot(), filters.area(),
+			filters.kinds(), page, size, filters.language()));
+	}
+
+	private static void validateRequest(MultiValueMap<String, String> params, String datasetId, int page, int size) {
 		V2RequestParams.check(params, KEYS);
 		V2RequestParams.requireDatasetId(datasetId);
 
 		if (page < 0 || size < 1 || size > 30) {
 			throw new BusinessException(CommonErrorCode.INVALID_INPUT, "page는 0 이상, size는 1~30이어야 합니다.");
 		}
+	}
 
+	private static AreaFilters parseFilters(String weekday, String slot, String areaId, String categories, String lang) {
 		Weekday parsedWeekday = V2RequestParams.required(Weekday.class, "weekday", weekday);
 		TimeSlot parsedSlot = V2RequestParams.required(TimeSlot.class, "slot", slot);
 		Area area = areaId == null || "all".equals(areaId)
 			? null : V2RequestParams.required(Area.class, "areaId", areaId);
 		Language language = V2RequestParams.displayLanguage(lang);
 
-		return ApiResult.ok(service.recommend(datasetId, parsedWeekday, parsedSlot, area,
-			parseStoreKinds(categories), page, size, language));
+		return new AreaFilters(parsedWeekday, parsedSlot, area, parseStoreKinds(categories), language);
 	}
 
 	private static Set<StoreKind> parseStoreKinds(String categories) {
@@ -80,5 +89,8 @@ public class V2AreaRecommendationController {
 
 		return Arrays.stream(StoreKind.values()).filter(kind -> selected.contains(kind.category()))
 			.collect(Collectors.toCollection(() -> EnumSet.noneOf(StoreKind.class)));
+	}
+
+	private record AreaFilters(Weekday weekday, TimeSlot slot, Area area, Set<StoreKind> kinds, Language language) {
 	}
 }
