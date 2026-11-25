@@ -46,6 +46,20 @@ public class V2MetaController {
 		FE 목 응답(mock/v2/mappings)과 모양을 맞추려고 남겨 둔 필드입니다.
 		weekdays·slots·categories·kinds는 화면에 보여 줄 순서 그대로이며, all은 "조건 없음"입니다.
 		공개된 배치가 하나도 없으면 오류가 아니라 HTTP 200과 datasets=[]입니다.
+
+		**defaultDatasetId**: 서버가 고른 기본 배치 id로, 가장 최근 기준월의 배치입니다. 처음 화면은 이 값으로 시작하세요.
+		공개된 배치가 없으면 null입니다.
+
+		**areas**: 서비스 지역 목록입니다. id는 장소 응답의 areaId와 같은 값이고
+		jongno, ikseon, insadong, euljiro, myeongdong 중 하나입니다. centerLat·centerLng는 그 지역에 속한 50m 칸 중심 좌표의
+		평균이라 지도를 옮길 때 기준으로 쓰는 값이고, 지역 경계는 아닙니다. 칸이 적재되지 않은 지역은 목록에 없습니다.
+
+		**slotWindows·serviceHours**: 시간대 경계입니다. from은 포함, toExclusive는 포함하지 않는 시각이고
+		endsNextDay가 true면 다음 날 그 시각에 끝납니다. 시간대는 빈틈 없이 이어져 점심 11:00부터 심야 다음 날 02:00까지가
+		서비스 시간이며, 그 밖의 시각에는 추천 데이터가 없습니다. 자정 이후 시각을 어느 요일로 집계하는지는 분석팀 확인 후 반영합니다.
+
+		**areaId**: 장소 상세·추천 목록·코스 장소 응답의 areaId는 장소가 속한 칸의 법정동으로 정해서 모든 장소에 있습니다.
+		지역이 없는 장소는 없으므로 미분류 값은 두지 않습니다.
 		""")
 	@ApiResponse(responseCode = "200", description = "선택지 조회 성공 (배치가 없어도 200)",
 		useReturnTypeSchema = true)

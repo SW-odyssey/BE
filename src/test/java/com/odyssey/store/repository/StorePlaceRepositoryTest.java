@@ -20,6 +20,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.odyssey.TestcontainersConfiguration;
+import com.odyssey.cell.entity.Area;
 import com.odyssey.store.StoreNames;
 import com.odyssey.store.StoreNames.Language;
 import com.odyssey.store.entity.StoreKind;
@@ -50,7 +51,7 @@ class StorePlaceRepositoryTest {
 	}
 
 	@Test
-	@DisplayName("활성 매장 → 번호, 이름, 칸, 분류, 좌표, 개업일, 구글 ID 를 그대로 준다")
+	@DisplayName("활성 매장 → 번호, 이름, 칸, 분류, 좌표, 개업일, 구글 ID, 지역을 그대로 준다")
 	void findActiveByIdFields() {
 		// given
 		db.store(7, CELL, "공평식당", "KOREAN", "1995-05-20", "place-7", true);
@@ -60,7 +61,21 @@ class StorePlaceRepositoryTest {
 
 		// then
 		assertThat(place).contains(new Place(7, "공평식당", CELL, StoreKind.KOREAN, 37.57, 126.98,
-			LocalDate.of(1995, 5, 20), "place-7"));
+			LocalDate.of(1995, 5, 20), "place-7", StoreNames.EMPTY, Area.INSADONG));
+	}
+
+	@Test
+	@DisplayName("매장이 속한 칸의 법정동이 명동2가 → 지역은 명동이다")
+	void findActiveByIdArea() {
+		// given
+		db.cell(202, "명동2가", "MYEONGDONG");
+		db.store(8, 202, "명동칼국수", "KOREAN", null, "place-8", true);
+
+		// when
+		Optional<Place> place = repository.findActiveById(8);
+
+		// then
+		assertThat(place).get().extracting(Place::area).isEqualTo(Area.MYEONGDONG);
 	}
 
 	@Test

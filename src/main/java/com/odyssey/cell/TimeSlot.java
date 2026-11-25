@@ -1,11 +1,30 @@
 package com.odyssey.cell;
 
-/**
- * 시간대
- */
+import java.time.LocalTime;
+
 public enum TimeSlot {
-	LUNCH, // 점심 (11~13시)
-	AFTERNOON, // 오후 (14~17시)
-	DINNER, // 저녁 (18~21시)
-	LATE_NIGHT // 심야 (22~01시)
+	LUNCH(11, 14),
+	AFTERNOON(14, 18),
+	DINNER(18, 22),
+	LATE_NIGHT(22, 2);
+
+	private final int startHour;
+	private final int endHourExclusive;
+
+	TimeSlot(int startHour, int endHourExclusive) {
+		this.startHour = startHour;
+		this.endHourExclusive = endHourExclusive;
+	}
+
+	public LocalTime startTime() {
+		return LocalTime.of(startHour, 0);
+	}
+
+	public LocalTime endTimeExclusive() {
+		return LocalTime.of(endHourExclusive, 0);
+	}
+
+	public boolean endsNextDay() {
+		return endHourExclusive <= startHour;
+	}
 }

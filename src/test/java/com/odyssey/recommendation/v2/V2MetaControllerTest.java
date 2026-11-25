@@ -15,7 +15,12 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.odyssey.cell.entity.Area;
+import com.odyssey.cell.TimeSlot;
+import com.odyssey.recommendation.v2.V2MetaResponse.AreaOption;
 import com.odyssey.recommendation.v2.V2MetaResponse.DatasetOption;
+import com.odyssey.recommendation.v2.V2MetaResponse.ServiceHours;
+import com.odyssey.recommendation.v2.V2MetaResponse.SlotWindow;
 
 /** {@link V2MetaController} 의 웹 계층 테스트. 서비스는 가짜라서 응답 모양과 요청 검증만 본다. */
 @WebMvcTest(V2MetaController.class)
@@ -34,7 +39,13 @@ class V2MetaControllerTest {
 			List.of("mon", "tue", "wed", "thu", "fri", "sat", "sun"),
 			List.of("lunch", "afternoon", "dinner", "late_night"),
 			List.of("food", "cafe", "all"),
-			List.of("korean", "bar", "other", "cafe", "all"));
+			List.of("korean", "bar", "other", "cafe", "all"),
+			datasets.isEmpty() ? null : datasets.get(0).id(),
+			List.of(new AreaOption(Area.MYEONGDONG, "명동", 37.5636, 126.9826)),
+			List.of(
+				new SlotWindow(TimeSlot.DINNER, "18:00", "22:00", false),
+				new SlotWindow(TimeSlot.LATE_NIGHT, "22:00", "02:00", true)),
+			new ServiceHours("11:00", "02:00", true));
 	}
 
 	@Test
@@ -52,6 +63,18 @@ class V2MetaControllerTest {
 			.andExpect(jsonPath("$.data.datasets[0].referenceMonth").value("2025-12"))
 			.andExpect(jsonPath("$.data.datasets[0].population").value("DOMESTIC_20_39"))
 			.andExpect(jsonPath("$.data.kinds[0]").value("korean"))
+			.andExpect(jsonPath("$.data.defaultDatasetId").value("2025-12-b7786edeeae8"))
+			.andExpect(jsonPath("$.data.areas[0].id").value("myeongdong"))
+			.andExpect(jsonPath("$.data.areas[0].name").value("명동"))
+			.andExpect(jsonPath("$.data.areas[0].centerLat").value(37.5636))
+			.andExpect(jsonPath("$.data.areas[0].centerLng").value(126.9826))
+			.andExpect(jsonPath("$.data.slotWindows[1].slot").value("late_night"))
+			.andExpect(jsonPath("$.data.slotWindows[1].from").value("22:00"))
+			.andExpect(jsonPath("$.data.slotWindows[1].toExclusive").value("02:00"))
+			.andExpect(jsonPath("$.data.slotWindows[1].endsNextDay").value(true))
+			.andExpect(jsonPath("$.data.serviceHours.from").value("11:00"))
+			.andExpect(jsonPath("$.data.serviceHours.toExclusive").value("02:00"))
+			.andExpect(jsonPath("$.data.serviceHours.endsNextDay").value(true))
 			.andExpect(jsonPath("$.error").hasJsonPath())
 			.andExpect(jsonPath("$.error").isEmpty());
 	}
@@ -67,7 +90,9 @@ class V2MetaControllerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true))
 			.andExpect(jsonPath("$.data.datasets").isArray())
-			.andExpect(jsonPath("$.data.datasets").isEmpty());
+			.andExpect(jsonPath("$.data.datasets").isEmpty())
+			.andExpect(jsonPath("$.data.defaultDatasetId").hasJsonPath())
+			.andExpect(jsonPath("$.data.defaultDatasetId").isEmpty());
 	}
 
 	@Test

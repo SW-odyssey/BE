@@ -3,6 +3,7 @@ package com.odyssey.recommendation.v2;
 import java.util.List;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.odyssey.cell.entity.Area;
 import com.odyssey.recommendation.v2.V2RecommendationSelector.Selected;
 import com.odyssey.store.StoreNames;
 import com.odyssey.store.StoreNames.Language;
@@ -39,23 +40,27 @@ public record V2RecommendationResponse(String status, int total, V2Context conte
 	 *
 	 * @param cellId         매장이 속한 50m 칸 번호. 응답에서는 문자열이다
 	 * @param distanceMeters 요청 위치에서 매장까지의 직선거리. 소수 첫째 자리로 반올림한다
+	 * @param areaId         메타의 areas[].id 와 같은 지역 ID. 모든 칸이 법정동을 거쳐 지역이 정해져서 항상 있다
 	 */
 	public record Item(long id, String name, String cellId, StoreKind kind, double lat, double lng,
-		double distanceMeters, String googlePlaceId, @JsonIgnore @Schema(hidden = true) StoreNames names) {
+		double distanceMeters, String googlePlaceId, Area areaId,
+		@JsonIgnore @Schema(hidden = true) StoreNames names) {
 
 		public Item(long id, String name, String cellId, StoreKind kind, double lat, double lng,
-			double distanceMeters, String googlePlaceId) {
-			this(id, name, cellId, kind, lat, lng, distanceMeters, googlePlaceId, StoreNames.EMPTY);
+			double distanceMeters, String googlePlaceId, Area areaId) {
+			this(id, name, cellId, kind, lat, lng, distanceMeters, googlePlaceId, areaId, StoreNames.EMPTY);
 		}
 
 		Item withLanguage(Language language) {
-			return new Item(id, names.display(name, language), cellId, kind, lat, lng, distanceMeters, googlePlaceId);
+			return new Item(id, names.display(name, language), cellId, kind, lat, lng, distanceMeters,
+				googlePlaceId, areaId);
 		}
 
 		static Item from(Selected selected) {
 			Place place = selected.candidate().place();
 			return new Item(place.id(), place.name(), String.valueOf(place.cellId()), place.kind(),
-				place.lat(), place.lng(), round(selected.distanceMeters()), place.googlePlaceId(), place.names());
+				place.lat(), place.lng(), round(selected.distanceMeters()), place.googlePlaceId(), place.area(),
+				place.names());
 		}
 
 		private static double round(double meters) {

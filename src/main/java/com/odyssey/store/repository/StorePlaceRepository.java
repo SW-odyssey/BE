@@ -12,6 +12,7 @@ import org.springframework.jdbc.core.RowMapper;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import com.odyssey.cell.entity.Area;
 import com.odyssey.store.StoreNames;
 import com.odyssey.store.StoreNames.Language;
 import com.odyssey.store.entity.StoreKind;
@@ -28,10 +29,15 @@ public class StorePlaceRepository {
 	/** 장소 조회가 읽는 열. store 테이블의 별칭은 {@code s} 여야 한다. */
 	public static final String COLUMNS =
 		"s.id, s.name, s.cell_id, s.kind, s.lat, s.lng, s.since_date, s.google_place_id, "
-			+ "t.name_en, t.name_zh, t.name_ja";
+			+ "t.name_en, t.name_zh, t.name_ja, ld.area";
 
 	public static final String TRANSLATION_JOIN =
 		" left join store_name_translation t on t.store_id = s.id and t.source_name = s.name ";
+
+	public static final String AREA_JOIN = """
+		 join cell store_cell on store_cell.cell_id = s.cell_id
+		 join legal_dong ld on ld.name = store_cell.legal_dong
+		""";
 
 	/** {@link #COLUMNS} 로 읽은 행을 {@link Place} 로 바꾼다. */
 	public static final RowMapper<Place> MAPPER = StorePlaceRepository::mapPlace;
@@ -46,13 +52,14 @@ public class StorePlaceRepository {
 	 * @param lng           경도(WGS84)
 	 * @param sinceDate     이력 기준 개업일. 확인할 수 없으면 null
 	 * @param googlePlaceId 구글 장소 ID. 적재 중이거나 비활성 매장이면 null
+	 * @param area          장소가 속한 칸의 법정동으로 정한 서비스 지역
 	 */
 	public record Place(long id, String name, long cellId, StoreKind kind, double lat,
-		double lng, LocalDate sinceDate, String googlePlaceId, StoreNames names) {
+		double lng, LocalDate sinceDate, String googlePlaceId, StoreNames names, Area area) {
 
 		public Place(long id, String name, long cellId, StoreKind kind, double lat, double lng,
 			LocalDate sinceDate, String googlePlaceId) {
-			this(id, name, cellId, kind, lat, lng, sinceDate, googlePlaceId, StoreNames.EMPTY);
+			this(id, name, cellId, kind, lat, lng, sinceDate, googlePlaceId, StoreNames.EMPTY, null);
 		}
 	}
 
@@ -69,14 +76,14 @@ public class StorePlaceRepository {
 	 */
 	public Optional<Place> findActiveById(long id) {
 		return jdbc.query(
-			"select " + COLUMNS + " from store s" + TRANSLATION_JOIN + "where s.id = :id and s.active",
+			"select " + COLUMNS + " from store s" + TRANSLATION_JOIN + AREA_JOIN + "where s.id = :id and s.active",
 			Map.of("id", id), MAPPER).stream().findFirst();
 	}
 
 	public List<Place> searchActiveByName(String query, Language language, int limit) {
 		String sql = """
 			with search as (select %s as term)
-			select %s from store s %s
+			select %s from store s %s %s
 			cross join search
 			cross join lateral (
 				select candidate.match_order, candidate.language_order
@@ -101,7 +108,7 @@ public class StorePlaceRepository {
 			where s.active and search.term <> ''
 			order by matched.match_order, matched.language_order, s.id
 			limit :limit
-			""".formatted(searchKey(":query"), COLUMNS, TRANSLATION_JOIN, searchKey("raw_name"));
+			""".formatted(searchKey(":query"), COLUMNS, TRANSLATION_JOIN, AREA_JOIN, searchKey("raw_name"));
 		return jdbc.query(sql,
 			Map.of("query", query, "lang", language.name().toLowerCase(Locale.ROOT), "limit", limit), MAPPER);
 	}
@@ -120,6 +127,7 @@ public class StorePlaceRepository {
 			rs.getDouble("lng"),
 			rs.getObject("since_date", LocalDate.class),
 			rs.getString("google_place_id"),
-			new StoreNames(rs.getString("name_en"), rs.getString("name_zh"), rs.getString("name_ja")));
+			new StoreNames(rs.getString("name_en"), rs.getString("name_zh"), rs.getString("name_ja")),
+			Area.valueOf(rs.getString("area")));
 	}
 }
