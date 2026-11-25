@@ -18,6 +18,9 @@ public enum CommonErrorCode implements ErrorType {
 	// DB 조회 실패이거나, 서버가 지원하지 않는 데이터 버전을 직접 조회한 경우
 	DATA_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE),
 
+	// 요청 한도를 넘었다. 응답의 Retry-After(초) 뒤에 다시 시도한다
+	TOO_MANY_REQUESTS(HttpStatus.TOO_MANY_REQUESTS),
+
 	// 그 밖의 서버 오류
 	INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR);
 

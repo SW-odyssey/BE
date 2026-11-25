@@ -50,6 +50,19 @@ google:
   places:
     api-key: ${GOOGLE_PLACES_API_KEY:}
 
+# 코스 API 요청 한도. 코스 요청 하나가 Google Place Details 를 여러 번 부르고 호출마다 요금이 붙어서 호출량의 상한을 둔다.
+# 한도를 넘으면 Google 을 부르기 전에 429(TOO_MANY_REQUESTS)와 Retry-After 로 응답한다.
+# 상태를 메모리에 두어 Cloud Run 인스턴스마다 따로 센다. 인스턴스가 N개이면 전체 한도는 최대 N배다.
+# client-*: 한 사용자(주소)의 한도. burst 만큼은 연달아 보낼 수 있고, 그 뒤로는 분당 per-minute 번만 허용한다.
+# global-*: 주소와 상관없이 서버 전체가 받는 한도. 주소를 바꿔 가며 보내는 요청의 비용 상한이다.
+rate-limit:
+  course:
+    enabled: true
+    client-burst: 10
+    client-per-minute: 12
+    global-burst: 30
+    global-per-minute: 60
+
 # CORS - 이 주소의 프론트엔드에서 오는 요청을 허용한다
 cors:
   allowed-origins: http://localhost:3000,https://local.hrxlou.com
