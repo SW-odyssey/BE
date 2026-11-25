@@ -79,6 +79,34 @@ GET /api/v2/course-recommendations?datasetId=2025-11-fb0c7971545f&weekday=fri&st
 - **조회 시점**: 붐비는 시간대와 동네 유형은 코스를 다 고른 뒤 고른 칸들로 짧은 읽기 트랜잭션에서 한 번 읽는다. 고를 칸은 Google 확인이 끝나야 정해지고, 확인 중에 DB 커넥션을 잡지 않기 위해서다. 공개 배치는 불변이라 후보 조회와 트랜잭션이 달라도 값이 섞이지 않는다.
 - **조회 실패·빈 표**: 이유 때문에 코스가 실패하지 않는다. `cell_area_type`이 비어 있으면 `AREA_TYPE`만 빠진다. 두 자료를 읽는 중 DB 오류가 발생하면 `PEAK_NOW`와 `AREA_TYPE`을 함께 생략한다.
 
+## 요청 한도
+
+코스 요청 하나가 Google Place Details 를 최대 40곳까지 조회하고 호출마다 요금이 붙는다. 그래서 요청이 너무 잦으면 서비스를 부르기 전에 막는다.
+
+| 구분 | 기본값 | 설명 |
+|---|---|---|
+| 클라이언트당 | 연속 10번, 이후 분당 12번 | 코스 다시 만들기·시간대 교체를 연달아 눌러도 걸리지 않는 정도 |
+| 서버 전체 | 연속 30번, 이후 분당 60번 | 주소를 바꿔 가며 보내는 요청의 비용 상한 |
+
+- 한도를 넘으면 HTTP 429, `error.code` 는 `TOO_MANY_REQUESTS`, `Retry-After` 헤더에 다시 시도할 초가 들어간다. Google 조회는 하지 않는다.
+- `Retry-After` 는 CORS 노출 헤더라서 다른 도메인의 FE 도 읽을 수 있다. FE 는 429 를 받으면 이 초 뒤에 다시 시도하거나 "잠시 후 다시 시도해 주세요" 를 보여 준다.
+- 서버 전체 한도를 먼저 확인하고, 통과한 요청만 클라이언트별로 센다. 클라이언트에서 걸린 요청은 서버 전체 한도의 몫을 쓰지 않는다.
+- 클라이언트는 `getRemoteAddr()` 로 구분한다. 주소는 요청 헤더로 속일 수 있어서 비용 상한은 서버 전체 한도가 지킨다.
+- CORS 사전 요청(OPTIONS)은 세지 않는다.
+- 값은 `application.yaml` 의 `rate-limit.course.*` 에서 바꾸고, Cloud Run 환경변수(`RATE_LIMIT_COURSE_CLIENT_BURST` 등)로도 바꿀 수 있다. `enabled: false` 면 끈다.
+
+```yaml
+rate-limit:
+  course:
+    enabled: true
+    client-burst: 10
+    client-per-minute: 12
+    global-burst: 30
+    global-per-minute: 60
+```
+
+- 세는 값은 메모리에 두어 Cloud Run 인스턴스마다 따로 가진다. 인스턴스가 N개면 한도도 최대 N배까지 허용된다.
+
 ## 요청 처리 순서
 
 ```mermaid

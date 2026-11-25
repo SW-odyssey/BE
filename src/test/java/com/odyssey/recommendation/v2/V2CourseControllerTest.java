@@ -25,6 +25,7 @@ import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
@@ -48,7 +49,9 @@ import com.odyssey.store.StoreNames;
 import com.odyssey.store.entity.StoreKind;
 
 /** {@link V2CourseController} 의 HTTP 계약. 서비스는 가짜라서 요청 해석·오류 형식·응답 모양만 본다. */
+// 이 시험은 요청을 많이 보내므로 요청 한도는 끈다. 한도 자체는 CourseRateLimitTest 가 본다
 @WebMvcTest(V2CourseController.class)
+@TestPropertySource(properties = "rate-limit.course.enabled=false")
 class V2CourseControllerTest {
 
 	private static final String URL = "/api/v2/course-recommendations";

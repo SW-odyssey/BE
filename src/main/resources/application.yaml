@@ -50,6 +50,16 @@ google:
   places:
     api-key: ${GOOGLE_PLACES_API_KEY:}
 
+# 코스 API 요청 한도. 동작과 근거는 docs/recommendation-v2/COURSE.md 의 "요청 한도"
+# burst 만큼 연달아 보낼 수 있고, 그 뒤로는 분당 per-minute 번. client-* 는 주소별, global-* 는 서버 전체
+rate-limit:
+  course:
+    enabled: true
+    client-burst: 10
+    client-per-minute: 12
+    global-burst: 30
+    global-per-minute: 60
+
 # CORS - 이 주소의 프론트엔드에서 오는 요청을 허용한다
 cors:
   allowed-origins: http://localhost:3000,https://local.hrxlou.com
