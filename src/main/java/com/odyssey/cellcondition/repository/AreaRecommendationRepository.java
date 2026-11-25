@@ -45,7 +45,18 @@ public class AreaRecommendationRepository {
 			return new Page(0, List.of());
 		}
 
-		BooleanExpression[] conditions = {
+		BooleanExpression[] conditions = matchingStoreConditions(datasetId, weekday, slot, area, kinds, minPercentile);
+		long total = queryMatchingStores(query.select(store.id.count()), conditions).fetchOne();
+		if (offset >= total) {
+			return new Page(total, List.of());
+		}
+
+		return new Page(total, fetchPageItems(conditions, offset, size));
+	}
+
+	private static BooleanExpression[] matchingStoreConditions(String datasetId, Weekday weekday, TimeSlot slot,
+		Area area, Set<StoreKind> kinds, double minPercentile) {
+		return new BooleanExpression[] {
 			cellCondition.id.datasetId.eq(datasetId),
 			cellCondition.id.weekday.eq(ApiEnums.toValue(weekday)),
 			cellCondition.id.slot.eq(ApiEnums.toValue(slot)),
@@ -57,13 +68,10 @@ public class AreaRecommendationRepository {
 			store.kind.in(kinds),
 			area == null ? legalDong.area.in(Area.values()) : legalDong.area.eq(area)
 		};
+	}
 
-		long total = matching(query.select(store.id.count()), conditions).fetchOne();
-		if (offset >= total) {
-			return new Page(total, List.of());
-		}
-
-		List<Row> items = matching(query.select(store.id, store.name, cell.cellId, store.kind,
+	private List<Row> fetchPageItems(BooleanExpression[] conditions, long offset, int size) {
+		return queryMatchingStores(query.select(store.id, store.name, cell.cellId, store.kind,
 				store.lat, store.lng, store.sinceDate, store.googlePlaceId, legalDong.area,
 				storeNameTranslation.nameEn, storeNameTranslation.nameZh, storeNameTranslation.nameJa), conditions)
 			.leftJoin(storeNameTranslation).on(storeNameTranslation.storeId.eq(store.id),
@@ -72,11 +80,9 @@ public class AreaRecommendationRepository {
 			.offset(offset)
 			.limit(size)
 			.fetch().stream().map(AreaRecommendationRepository::toRow).toList();
-
-		return new Page(total, items);
 	}
 
-	private <T> JPAQuery<T> matching(JPAQuery<T> selection, BooleanExpression[] conditions) {
+	private <T> JPAQuery<T> queryMatchingStores(JPAQuery<T> selection, BooleanExpression[] conditions) {
 		return selection.from(store)
 			.join(store.cell, cell)
 			.join(cell.legalDong, legalDong)
