@@ -49,9 +49,9 @@ final class TokenBucket {
 		tokens = Math.min(capacity, tokens + 1);
 	}
 
-	/** 마지막으로 쓰인 뒤 지난 나노초. 오래 안 쓰인 버킷을 치우는 데 쓴다. */
-	synchronized long idleNanos() {
-		return nanoClock.getAsLong() - lastNanos;
+	synchronized boolean isFull() {
+		refill();
+		return tokens >= capacity;
 	}
 
 	private void refill() {

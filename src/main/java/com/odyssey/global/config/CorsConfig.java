@@ -2,6 +2,7 @@ package com.odyssey.global.config;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpHeaders;
 import org.springframework.web.servlet.config.annotation.CorsRegistration;
 import org.springframework.web.servlet.config.annotation.CorsRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -39,6 +40,9 @@ public class CorsConfig implements WebMvcConfigurer {
 		registration.allowedMethods("GET", "OPTIONS");
 
 		registration.allowedHeaders("*");
+
+		// 다른 도메인의 FE 가 429 응답의 Retry-After 를 읽으려면 노출해야 한다
+		registration.exposedHeaders(HttpHeaders.RETRY_AFTER);
 
 		// 사전 요청 결과를 1시간 동안 재사용해서 왕복을 줄인다
 		registration.maxAge(3600);

@@ -96,17 +96,29 @@ class TokenBucketTest {
 	}
 
 	@Test
-	@DisplayName("마지막으로 쓰인 뒤 지난 시간을 알려 준다")
-	void reportsIdleTime() {
+	@DisplayName("쓰지 않은 버킷은 가득 차 있다")
+	void newBucketIsFull() {
 		// given
-		TokenBucket bucket = new TokenBucket(1, 1, now::get);
+		TokenBucket bucket = new TokenBucket(2, 6, now::get);
+
+		// when & then
+		assertThat(bucket.isFull()).isTrue();
+	}
+
+	@Test
+	@DisplayName("토큰을 쓰면 가득 차지 않고, 시간이 지나 다 채워지면 다시 가득 찬다")
+	void isFullAgainAfterRefill() {
+		// given: 분당 6번이면 10초에 한 번 채워진다
+		TokenBucket bucket = new TokenBucket(2, 6, now::get);
+		bucket.tryConsume();
 		bucket.tryConsume();
 
-		// when
-		now.addAndGet(500);
-
-		// then
-		assertThat(bucket.idleNanos()).isEqualTo(500);
+		// when & then
+		assertThat(bucket.isFull()).isFalse();
+		now.addAndGet(TimeUnit.SECONDS.toNanos(10));
+		assertThat(bucket.isFull()).isFalse();
+		now.addAndGet(TimeUnit.SECONDS.toNanos(10));
+		assertThat(bucket.isFull()).isTrue();
 	}
 
 	@Test

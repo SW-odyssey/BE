@@ -159,7 +159,7 @@ class CourseRateLimitTest {
 	}
 
 	@Test
-	@DisplayName("429 응답에도 CORS 헤더가 붙어 브라우저가 오류를 읽을 수 있다")
+	@DisplayName("429 응답에도 CORS 헤더가 붙고 다른 도메인의 FE 가 Retry-After 를 읽을 수 있다")
 	void rejectionKeepsCorsHeaders() throws Exception {
 		// given
 		call("10.0.4.1");
@@ -168,6 +168,7 @@ class CourseRateLimitTest {
 		// when & then
 		mvc.perform(courseFrom("10.0.4.1").header("Origin", "http://localhost:3000"))
 			.andExpect(status().isTooManyRequests())
-			.andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3000"));
+			.andExpect(header().string("Access-Control-Allow-Origin", "http://localhost:3000"))
+			.andExpect(header().string("Access-Control-Expose-Headers", "Retry-After"));
 	}
 }

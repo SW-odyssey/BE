@@ -34,7 +34,6 @@ public final class RequestRateLimiter {
 	}
 
 	private static final String OVERFLOW_KEY = "";
-	private static final long IDLE_NANOS = TimeUnit.MINUTES.toNanos(10);
 	private static final long SWEEP_INTERVAL_NANOS = TimeUnit.MINUTES.toNanos(1);
 
 	private final ConcurrentHashMap<String, TokenBucket> clients = new ConcurrentHashMap<>();
@@ -66,17 +65,18 @@ public final class RequestRateLimiter {
 	 */
 	public Decision tryAcquire(String clientKey) {
 		sweepIfDue();
+		// 서버 전체 한도를 먼저 본다. 주소를 바꿔 가며 보내는 요청이 여기서 걸러져 클라이언트 버킷을 늘리지 못한다
+		long wait = global.tryConsume();
+		if (wait > 0) {
+			return Decision.denied(wait, Scope.GLOBAL);
+		}
 		TokenBucket client = clients.computeIfAbsent(keyFor(clientKey),
 			key -> new TokenBucket(clientBurst, clientPerMinute, nanoClock));
-		long wait = client.tryConsume();
+		wait = client.tryConsume();
 		if (wait > 0) {
+			// 클라이언트 한도에 걸린 요청이 서버 전체 한도의 몫까지 쓰면 안 된다
+			global.refund();
 			return Decision.denied(wait, Scope.CLIENT);
-		}
-		wait = global.tryConsume();
-		if (wait > 0) {
-			// 서버 전체 한도에 걸린 요청이 이 사용자의 몫까지 깎으면 안 된다
-			client.refund();
-			return Decision.denied(wait, Scope.GLOBAL);
 		}
 		return Decision.ALLOWED;
 	}
@@ -87,14 +87,14 @@ public final class RequestRateLimiter {
 		return clients.containsKey(key) || clients.size() < maxClients ? key : OVERFLOW_KEY;
 	}
 
-	/** 오래 안 쓰인 버킷은 이미 가득 찬 상태라서 지워도 한도가 달라지지 않는다. */
+	/** 가득 찬 버킷은 새로 만들어도 같은 상태라서 지워도 한도가 달라지지 않는다. */
 	private void sweepIfDue() {
 		long now = nanoClock.getAsLong();
 		if (now - nextSweepNanos < 0) {
 			return;
 		}
 		nextSweepNanos = now + SWEEP_INTERVAL_NANOS;
-		clients.values().removeIf(bucket -> bucket.idleNanos() >= IDLE_NANOS);
+		clients.values().removeIf(TokenBucket::isFull);
 	}
 
 	int trackedClients() {
