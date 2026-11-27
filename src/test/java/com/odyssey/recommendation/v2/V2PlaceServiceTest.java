@@ -13,6 +13,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import com.odyssey.cell.entity.Area;
 import com.odyssey.global.exception.BusinessException;
 import com.odyssey.global.exception.CommonErrorCode;
 import com.odyssey.store.StoreNames;
@@ -39,7 +40,7 @@ class V2PlaceServiceTest {
 		// given
 		given(repository.findActiveById(7L)).willReturn(Optional.of(new Place(
 			7, "공평식당", 81591938L, StoreKind.KOREAN, 37.57, 126.98,
-			LocalDate.of(1995, 5, 20), "place-7")));
+			LocalDate.of(1995, 5, 20), "place-7", StoreNames.EMPTY, Area.JONGNO)));
 
 		// when
 		V2PlaceResponse response = service.place(7);
@@ -47,7 +48,7 @@ class V2PlaceServiceTest {
 		// then
 		assertThat(response).isEqualTo(new V2PlaceResponse(
 			7, "공평식당", "81591938", StoreKind.KOREAN, 37.57, 126.98,
-			LocalDate.of(1995, 5, 20), "place-7"));
+			LocalDate.of(1995, 5, 20), "place-7", Area.JONGNO));
 	}
 
 	@Test
@@ -71,7 +72,7 @@ class V2PlaceServiceTest {
 		// given
 		given(repository.searchActiveByName("공평", Language.EN, 6)).willReturn(List.of(new Place(
 			7, "공평식당", 101L, StoreKind.KOREAN, 37.57, 126.98, null, null,
-			new StoreNames("Gongpyeong Restaurant", "公平餐厅", "コンピョン食堂"))));
+			new StoreNames("Gongpyeong Restaurant", "公平餐厅", "コンピョン食堂"), Area.JONGNO)));
 
 		// when
 		List<V2PlaceResponse> places = service.searchByName("공평", Language.EN, 6);

@@ -60,7 +60,7 @@ public class V2AreaRecommendationService {
 		Place place = row.place();
 		String displayName = place.names().display(place.name(), language);
 
-		return new Item(place.id(), displayName, Long.toString(place.cellId()), row.area(),
+		return new Item(place.id(), displayName, Long.toString(place.cellId()), place.area(),
 			place.kind(), place.lat(), place.lng(), place.googlePlaceId());
 	}
 }

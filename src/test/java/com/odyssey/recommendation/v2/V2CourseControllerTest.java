@@ -32,6 +32,7 @@ import org.springframework.test.web.servlet.ResultActions;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.util.LinkedMultiValueMap;
 
+import com.odyssey.cell.entity.Area;
 import com.odyssey.cell.GeoPoint;
 import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.cell.TimeSlot;
@@ -59,7 +60,7 @@ class V2CourseControllerTest {
 	private static final V2CourseResponse PARTIAL = new V2CourseResponse("PARTIAL", CONTEXT, 7,
 		List.of(new Stop(2, TimeSlot.AFTERNOON, "14:00", "15:20", 1, 2,
 			new Item(12, "공평카페", "81383966", StoreKind.CAFE, 37.5661, 126.9901, 14.2, "place-12",
-				new StoreNames("Gongpyeong Cafe", null, null)), false,
+				Area.JONGNO, new StoreNames("Gongpyeong Cafe", null, null)), false,
 			List.of(new LocalTop(3), new OpenDuringStay("14:00", "15:20"), new PeakNow(), new AreaType("mixed"),
 				new SimilarChoices(2)))),
 		List.of(new V2CourseResponse.Skipped(TimeSlot.AFTERNOON, 3, "NO_NEARBY_MATCH")),
@@ -199,6 +200,7 @@ class V2CourseControllerTest {
 			.andExpect(jsonPath("$.data.stops[0].hoursUnknown").value(false))
 			.andExpect(jsonPath("$.data.stops[0].place.id").value(12))
 			.andExpect(jsonPath("$.data.stops[0].place.kind").value("cafe"))
+			.andExpect(jsonPath("$.data.stops[0].place.areaId").value("jongno"))
 			.andExpect(jsonPath("$.data.interruption.slot").value("dinner"))
 			.andExpect(jsonPath("$.data.interruption.reason").value("NO_VERIFIED_MATCH"));
 	}
@@ -327,7 +329,7 @@ class V2CourseControllerTest {
 		// given
 		boolean include = "true".equals(value);
 		V2Context context = new V2Context("nov", "2025-11", Weekday.FRI, TimeSlot.LATE_NIGHT);
-		Item bar = new Item(6, "주점", "6", StoreKind.BAR, 37.566, 126.990, 10, "place-6");
+		Item bar = new Item(6, "주점", "6", StoreKind.BAR, 37.566, 126.990, 10, "place-6", Area.EULJIRO);
 		Stop lateStop = new Stop(6, TimeSlot.LATE_NIGHT, "22:00", "23:10", 1, 1, bar, false, List.of());
 		List<Stop> stops = include ? List.of(lateStop) : List.of();
 		given(service.recommend(any(), any(), eq(TimeSlot.LATE_NIGHT), any(), anySet(), anyLong(),

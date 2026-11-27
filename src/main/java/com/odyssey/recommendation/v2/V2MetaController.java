@@ -46,6 +46,28 @@ public class V2MetaController {
 		FE 목 응답(mock/v2/mappings)과 모양을 맞추려고 남겨 둔 필드입니다.
 		weekdays·slots·categories·kinds는 화면에 보여 줄 순서 그대로이며, all은 "조건 없음"입니다.
 		공개된 배치가 하나도 없으면 오류가 아니라 HTTP 200과 datasets=[]입니다.
+
+		**defaultDatasetId**: 서버가 고른 기본 배치 id로, 가장 최근 기준월의 배치입니다. 처음 화면은 이 값으로 시작하세요.
+		공개된 배치가 없으면 null입니다.
+
+		**areas**: 서비스 지역 목록입니다. id는 장소 응답의 areaId와 같은 값이고
+		jongno, ikseon, insadong, euljiro, myeongdong 중 하나입니다. centerLat·centerLng는 그 지역에 속한 50m 칸 중심 좌표의
+		평균이라 지도를 옮길 때 기준으로 쓰는 값이고, 지역 경계는 아닙니다. 칸이 적재되지 않은 지역은 목록에 없습니다.
+
+		**slotWindows·serviceHours**: 시간대 경계입니다. from은 포함, toExclusive는 포함하지 않는 시각이고
+		endsNextDay가 true면 다음 날 그 시각에 끝납니다.
+		추천 데이터는 U+가 나눈 네 시간대(점심 11:00-13:00, 오후 14:00-17:00, 저녁 18:00-21:00, 심야 22:00-01:00)에만 있습니다.
+		따라서 시각이 slotWindows 중 하나에 들어갈 때만 그 slot으로 추천을 요청할 수 있습니다.
+		시간대 사이(13:00-14:00, 17:00-18:00, 21:00-22:00)와 01:00-11:00에는 추천 데이터가 없습니다.
+		serviceHours는 첫 시간대의 시작(11:00)부터 마지막 시간대의 끝(다음 날 01:00)까지의 범위일 뿐이고,
+		그 안에서도 시간대 사이의 시각은 추천할 수 없습니다. 추천 가능 여부는 serviceHours가 아니라 slotWindows로 판단하세요.
+
+		**자정 이후 시각**: 00:00부터 00:59까지는 직전 날의 심야(late_night)로 봅니다.
+		예를 들어 토요일 00:30은 weekday=fri, slot=late_night로 요청합니다.
+		01:00부터는 어느 시간대에도 속하지 않아 추천 데이터가 없습니다.
+
+		**areaId**: 장소 상세·추천 목록·코스 장소 응답의 areaId는 장소가 속한 칸의 법정동으로 정해서 모든 장소에 있습니다.
+		지역이 없는 장소는 없으므로 미분류 값은 두지 않습니다.
 		""")
 	@ApiResponse(responseCode = "200", description = "선택지 조회 성공 (배치가 없어도 200)",
 		useReturnTypeSchema = true)

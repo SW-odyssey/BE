@@ -16,11 +16,15 @@ public final class SplitRecommendationFixture {
 	}
 
 	public void cell(long cellId) {
-		jdbc.sql("insert into legal_dong values ('공평동', 'INSADONG') on conflict do nothing").update();
+		cell(cellId, "공평동", "INSADONG");
+	}
+
+	public void cell(long cellId, String legalDong, String area) {
+		jdbc.sql("insert into legal_dong values (?, ?) on conflict do nothing").params(legalDong, area).update();
 		jdbc.sql("""
 			insert into cell (cell_id, legal_dong, sw_lat, sw_lng, ne_lat, ne_lng)
-			values (?, '공평동', 37.5698, 126.9797, 37.5702, 126.9803)
-			""").params(cellId).update();
+			values (?, ?, 37.5698, 126.9797, 37.5702, 126.9803)
+			""").params(cellId, legalDong).update();
 	}
 
 	/** month 는 "2026-10-01", computedAt 은 "2026-10-31T08:00:00Z" 형식이다. */

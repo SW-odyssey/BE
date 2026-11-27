@@ -20,7 +20,7 @@ public class SwaggerConfig {
 			- 칸(cell): 지도를 50m 격자로 나눈 한 칸입니다. cellId가 칸 번호입니다. 매장은 모두 어느 한 칸에 속합니다.
 
 			**v2 호출 순서**
-			1. GET /api/v2/meta: 배치 목록과 요일·시간대 같은 선택지를 받습니다.
+			1. GET /api/v2/meta: 배치 목록, 서비스 지역, 시간대 경계 같은 선택지를 받습니다.
 			2. GET /api/v2/recommendations: 고른 배치의 id를 datasetId로 넣어 내 위치 주변 추천 매장을 받습니다.
 			3. GET /api/v2/cells/reasons: 2번 목록에 나온 cellId를 모아 추천 이유를 한 번에 받습니다.
 			4. 매장 카드를 누르면 GET /api/v2/places/{id}(매장 정보)와 GET /api/v2/cells/{cellId}/visit-pattern(방문 그래프)을 부릅니다.

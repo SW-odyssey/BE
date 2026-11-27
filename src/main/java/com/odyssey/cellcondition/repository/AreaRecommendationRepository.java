@@ -32,7 +32,7 @@ public class AreaRecommendationRepository {
 
 	private final JPAQueryFactory query;
 
-	public record Row(Place place, Area area) {
+	public record Row(Place place) {
 	}
 
 	public record Page(long total, List<Row> items) {
@@ -129,7 +129,7 @@ public class AreaRecommendationRepository {
 			row.get(storeNameTranslation.nameZh), row.get(storeNameTranslation.nameJa));
 		Place place = new Place(row.get(store.id), row.get(store.name), row.get(cell.cellId),
 			row.get(store.kind), row.get(store.lat), row.get(store.lng), row.get(store.sinceDate),
-			row.get(store.googlePlaceId), names);
-		return new Row(place, row.get(legalDong.area));
+			row.get(store.googlePlaceId), names, row.get(legalDong.area));
+		return new Row(place);
 	}
 }

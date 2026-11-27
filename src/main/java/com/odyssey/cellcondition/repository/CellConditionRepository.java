@@ -67,7 +67,7 @@ public class CellConditionRepository {
 			, s.mgmt_no, c.visitor_percentile
 			from cell_condition c
 			join store s on s.cell_id = c.cell_id
-			""" + StorePlaceRepository.TRANSLATION_JOIN + """
+			""" + StorePlaceRepository.PLACE_JOINS + """
 			where c.dataset_id = :datasetId and c.weekday = :weekday and c.slot = :slot
 				and c.quality_status = 'AVAILABLE'
 				and c.visitor_percentile >= :minVisitorPercentile

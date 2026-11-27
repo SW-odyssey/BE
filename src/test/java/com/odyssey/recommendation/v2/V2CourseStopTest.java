@@ -12,6 +12,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 
 import com.odyssey.cell.TimeSlot;
+import com.odyssey.cell.entity.Area;
 import com.odyssey.recommendation.v2.CourseReason.LocalTop;
 import com.odyssey.recommendation.v2.CourseReason.PeakNow;
 import com.odyssey.recommendation.v2.V2CourseResponse.Stop;
@@ -22,7 +23,8 @@ import com.odyssey.store.entity.StoreKind;
 class V2CourseStopTest {
 
 	private static Item place(double distanceMeters) {
-		return new Item(1, "매장1", "11", StoreKind.BAR, 37.566, 126.992, distanceMeters, "place-1");
+		return new Item(1, "매장1", "11", StoreKind.BAR, 37.566, 126.992, distanceMeters, "place-1",
+			Area.EULJIRO);
 	}
 
 	@Test

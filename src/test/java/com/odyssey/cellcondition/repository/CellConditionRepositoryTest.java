@@ -18,11 +18,13 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.odyssey.TestcontainersConfiguration;
+import com.odyssey.cell.entity.Area;
 import com.odyssey.cellcondition.entity.CellQualityStatus;
 import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.cellcondition.repository.CellConditionRepository.Candidate;
 import com.odyssey.cellcondition.repository.CellConditionRepository.ReasonRow;
 import com.odyssey.cell.TimeSlot;
+import com.odyssey.store.StoreNames;
 import com.odyssey.store.entity.StoreKind;
 import com.odyssey.store.repository.StorePlaceRepository.Place;
 import com.odyssey.support.SplitRecommendationFixture;
@@ -193,7 +195,7 @@ class CellConditionRepositoryTest {
 		Candidate korean = candidates.stream()
 			.filter(c -> c.place().id() == 1).findFirst().orElseThrow();
 		assertThat(korean.place()).isEqualTo(new Place(1, "공평식당", 101, StoreKind.KOREAN,
-			37.57, 126.98, LocalDate.of(1995, 5, 20), "place-1"));
+			37.57, 126.98, LocalDate.of(1995, 5, 20), "place-1", StoreNames.EMPTY, Area.INSADONG));
 		assertThat(korean.mgmtNo()).isEqualTo("mgmt-1");
 		assertThat(korean.percentile()).isEqualTo(88.5);
 		Candidate cafe = candidates.stream()

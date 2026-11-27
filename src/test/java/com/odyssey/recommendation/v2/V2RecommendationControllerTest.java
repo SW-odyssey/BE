@@ -24,6 +24,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.util.LinkedMultiValueMap;
 
+import com.odyssey.cell.entity.Area;
 import com.odyssey.cellcondition.entity.Weekday;
 import com.odyssey.cell.TimeSlot;
 import com.odyssey.recommendation.v2.V2RecommendationResponse.Item;
@@ -133,7 +134,7 @@ class V2RecommendationControllerTest {
 	@DisplayName("추천 목록의 상호를 요청한 언어로 표시한다")
 	void localizesRecommendationName() throws Exception {
 		given(service.recommend(any())).willReturn(new V2RecommendationResponse("OK", 1, CONTEXT,
-			List.of(new Item(7, "공평식당", "101", StoreKind.KOREAN, 37.57, 126.98, 11.4, "place-7",
+			List.of(new Item(7, "공평식당", "101", StoreKind.KOREAN, 37.57, 126.98, 11.4, "place-7", Area.JONGNO,
 				new StoreNames("Gongpyeong Restaurant", "公平食堂", "公平食堂")))));
 
 		mockMvc.perform(valid().param("lang", "zh"))
@@ -147,7 +148,7 @@ class V2RecommendationControllerTest {
 		// given
 		given(service.recommend(any())).willReturn(new V2RecommendationResponse("OK", 1, CONTEXT,
 			List.of(new Item(1676, "제주침시술소 을지로점", "81607938", StoreKind.KOREAN, 37.5655,
-				126.9904598, 11.4, "place-1676"))));
+				126.9904598, 11.4, "place-1676", Area.EULJIRO))));
 
 		// when & then
 		mockMvc.perform(valid())
@@ -164,7 +165,8 @@ class V2RecommendationControllerTest {
 			.andExpect(jsonPath("$.data.items[0].kind").value("korean"))
 			.andExpect(jsonPath("$.data.items[0].distanceMeters").value(11.4))
 			.andExpect(jsonPath("$.data.items[0].googlePlaceId").value("place-1676"))
-			.andExpect(jsonPath("$.data.items[0].length()").value(8))
+			.andExpect(jsonPath("$.data.items[0].areaId").value("euljiro"))
+			.andExpect(jsonPath("$.data.items[0].length()").value(9))
 			.andExpect(jsonPath("$.error").isEmpty());
 	}
 

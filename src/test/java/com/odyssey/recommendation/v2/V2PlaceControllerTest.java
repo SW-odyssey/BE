@@ -21,6 +21,7 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import com.odyssey.cell.entity.Area;
 import com.odyssey.global.exception.BusinessException;
 import com.odyssey.global.exception.CommonErrorCode;
 import com.odyssey.store.StoreNames;
@@ -42,7 +43,7 @@ class V2PlaceControllerTest {
 	void searchesWithNormalizedTermAndDefaultLimit() throws Exception {
 		// given
 		given(service.searchByName("Eulji", Language.JA, 6)).willReturn(List.of(new V2PlaceResponse(
-			7, "ウルチカルメギ", "101", StoreKind.BAR, 37.57, 126.98, null, null)));
+			7, "ウルチカルメギ", "101", StoreKind.BAR, 37.57, 126.98, null, null, Area.EULJIRO)));
 
 		// when & then
 		mockMvc.perform(get("/api/v2/place-search").param("q", " Ｅｕｌｊｉ ").param("lang", "ja"))
@@ -121,17 +122,17 @@ class V2PlaceControllerTest {
 	}
 
 	@Test
-	@DisplayName("있는 장소 → 200 과 정해진 여덟 필드만 준다")
+	@DisplayName("있는 장소 → 200 과 정해진 아홉 필드만 준다")
 	void returnsPlaceFields() throws Exception {
 		// given
 		given(service.place(1504L)).willReturn(new V2PlaceResponse(1504, "골목식당", "81591938",
-			StoreKind.KOREAN, 37.5655, 126.9904598, LocalDate.of(2011, 6, 7), "place-1504"));
+			StoreKind.KOREAN, 37.5655, 126.9904598, LocalDate.of(2011, 6, 7), "place-1504", Area.JONGNO));
 
 		// when & then
 		mockMvc.perform(get("/api/v2/places/1504"))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.success").value(true))
-			.andExpect(jsonPath("$.data.length()").value(8))
+			.andExpect(jsonPath("$.data.length()").value(9))
 			.andExpect(jsonPath("$.data.id").value(1504))
 			.andExpect(jsonPath("$.data.name").value("골목식당"))
 			.andExpect(jsonPath("$.data.cellId").value("81591938"))
@@ -140,6 +141,7 @@ class V2PlaceControllerTest {
 			.andExpect(jsonPath("$.data.lng").value(126.9904598))
 			.andExpect(jsonPath("$.data.sinceDate").value("2011-06-07"))
 			.andExpect(jsonPath("$.data.googlePlaceId").value("place-1504"))
+			.andExpect(jsonPath("$.data.areaId").value("jongno"))
 			.andExpect(jsonPath("$.error").isEmpty());
 	}
 
@@ -167,20 +169,20 @@ class V2PlaceControllerTest {
 	@DisplayName("lang에 해당하는 상호를 기존 name 필드에 담는다")
 	void returnsRequestedName(String lang, String expected) throws Exception {
 		given(service.place(7L)).willReturn(new V2PlaceResponse(7, "공평식당", "101",
-			StoreKind.KOREAN, 37.57, 126.98, null, "place-7",
+			StoreKind.KOREAN, 37.57, 126.98, null, "place-7", Area.JONGNO,
 			new StoreNames("Gongpyeong Restaurant", "公平食堂", "公平食堂")));
 
 		mockMvc.perform(get("/api/v2/places/7").param("lang", lang))
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.data.name").value(expected))
-			.andExpect(jsonPath("$.data.length()").value(8));
+			.andExpect(jsonPath("$.data.length()").value(9));
 	}
 
 	@Test
 	@DisplayName("번역이 없으면 원본 상호를 준다")
 	void fallsBackToOriginalName() throws Exception {
 		given(service.place(7L)).willReturn(new V2PlaceResponse(7, "공평식당", "101",
-			StoreKind.KOREAN, 37.57, 126.98, null, "place-7"));
+			StoreKind.KOREAN, 37.57, 126.98, null, "place-7", Area.JONGNO));
 
 		mockMvc.perform(get("/api/v2/places/7").param("lang", "ja"))
 			.andExpect(status().isOk())
@@ -192,12 +194,12 @@ class V2PlaceControllerTest {
 	void keepsNullKeys() throws Exception {
 		// given
 		given(service.place(7L)).willReturn(new V2PlaceResponse(7, "공평식당", "101",
-			StoreKind.CAFE, 37.57, 126.98, null, null));
+			StoreKind.CAFE, 37.57, 126.98, null, null, Area.JONGNO));
 
 		// when & then
 		mockMvc.perform(get("/api/v2/places/7"))
 			.andExpect(status().isOk())
-			.andExpect(jsonPath("$.data.length()").value(8))
+			.andExpect(jsonPath("$.data.length()").value(9))
 			.andExpect(jsonPath("$.data.sinceDate").hasJsonPath())
 			.andExpect(jsonPath("$.data.sinceDate").isEmpty())
 			.andExpect(jsonPath("$.data.googlePlaceId").hasJsonPath())
