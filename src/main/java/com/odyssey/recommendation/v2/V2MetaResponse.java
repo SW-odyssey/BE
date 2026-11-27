@@ -17,6 +17,7 @@ public record V2MetaResponse(
 	List<SlotWindow> slotWindows,
 	ServiceHours serviceHours) {
 
+	/** 고를 수 있는 분석 배치. id 를 그대로 datasetId 로 보낸다. */
 	public record DatasetOption(String id, String referenceMonth, String population) {
 	}
 

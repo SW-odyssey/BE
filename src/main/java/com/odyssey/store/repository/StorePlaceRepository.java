@@ -26,7 +26,7 @@ import com.odyssey.store.entity.StoreKind;
 @Repository
 public class StorePlaceRepository {
 
-	/** 장소 조회가 읽는 열. store 테이블의 별칭은 {@code s} 여야 한다. */
+	/** 장소 조회가 읽는 열. store 테이블의 별칭은 {@code s} 여야 하고 {@link #PLACE_JOINS} 를 함께 붙여야 한다. */
 	public static final String COLUMNS =
 		"s.id, s.name, s.cell_id, s.kind, s.lat, s.lng, s.since_date, s.google_place_id, "
 			+ "t.name_en, t.name_zh, t.name_ja, ld.area";
@@ -38,6 +38,8 @@ public class StorePlaceRepository {
 		 join cell store_cell on store_cell.cell_id = s.cell_id
 		 join legal_dong ld on ld.name = store_cell.legal_dong
 		""";
+
+	public static final String PLACE_JOINS = TRANSLATION_JOIN + AREA_JOIN;
 
 	/** {@link #COLUMNS} 로 읽은 행을 {@link Place} 로 바꾼다. */
 	public static final RowMapper<Place> MAPPER = StorePlaceRepository::mapPlace;
@@ -57,6 +59,7 @@ public class StorePlaceRepository {
 	public record Place(long id, String name, long cellId, StoreKind kind, double lat,
 		double lng, LocalDate sinceDate, String googlePlaceId, StoreNames names, Area area) {
 
+		/** 지역을 정하지 않고 장소를 만드는 테스트용 생성자. 운영 코드는 지역을 넣는 생성자만 쓴다. */
 		public Place(long id, String name, long cellId, StoreKind kind, double lat, double lng,
 			LocalDate sinceDate, String googlePlaceId) {
 			this(id, name, cellId, kind, lat, lng, sinceDate, googlePlaceId, StoreNames.EMPTY, null);
@@ -76,14 +79,14 @@ public class StorePlaceRepository {
 	 */
 	public Optional<Place> findActiveById(long id) {
 		return jdbc.query(
-			"select " + COLUMNS + " from store s" + TRANSLATION_JOIN + AREA_JOIN + "where s.id = :id and s.active",
+			"select " + COLUMNS + " from store s" + PLACE_JOINS + "where s.id = :id and s.active",
 			Map.of("id", id), MAPPER).stream().findFirst();
 	}
 
 	public List<Place> searchActiveByName(String query, Language language, int limit) {
 		String sql = """
 			with search as (select %s as term)
-			select %s from store s %s %s
+			select %s from store s %s
 			cross join search
 			cross join lateral (
 				select candidate.match_order, candidate.language_order
@@ -108,7 +111,7 @@ public class StorePlaceRepository {
 			where s.active and search.term <> ''
 			order by matched.match_order, matched.language_order, s.id
 			limit :limit
-			""".formatted(searchKey(":query"), COLUMNS, TRANSLATION_JOIN, AREA_JOIN, searchKey("raw_name"));
+			""".formatted(searchKey(":query"), COLUMNS, PLACE_JOINS, searchKey("raw_name"));
 		return jdbc.query(sql,
 			Map.of("query", query, "lang", language.name().toLowerCase(Locale.ROOT), "limit", limit), MAPPER);
 	}
