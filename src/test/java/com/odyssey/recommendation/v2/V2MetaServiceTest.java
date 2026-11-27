@@ -131,27 +131,27 @@ class V2MetaServiceTest {
 	}
 
 	@Test
-	@DisplayName("시간대 경계 → 점심 11~14, 오후 14~18, 저녁 18~22, 심야 22~02 시이고 심야만 다음 날에 끝난다")
+	@DisplayName("시간대 경계 → 점심 11~13, 오후 14~17, 저녁 18~21, 심야 22~01 시이고 심야만 다음 날에 끝난다")
 	void slotWindows() {
 		// when
 		V2MetaResponse meta = service.meta();
 
 		// then
 		assertThat(meta.slotWindows()).containsExactly(
-			new SlotWindow(TimeSlot.LUNCH, "11:00", "14:00", false),
-			new SlotWindow(TimeSlot.AFTERNOON, "14:00", "18:00", false),
-			new SlotWindow(TimeSlot.DINNER, "18:00", "22:00", false),
-			new SlotWindow(TimeSlot.LATE_NIGHT, "22:00", "02:00", true));
+			new SlotWindow(TimeSlot.LUNCH, "11:00", "13:00", false),
+			new SlotWindow(TimeSlot.AFTERNOON, "14:00", "17:00", false),
+			new SlotWindow(TimeSlot.DINNER, "18:00", "21:00", false),
+			new SlotWindow(TimeSlot.LATE_NIGHT, "22:00", "01:00", true));
 	}
 
 	@Test
-	@DisplayName("서비스 시간 → 11:00 에 시작해 다음 날 02:00 에 끝난다")
+	@DisplayName("서비스 시간 → 11:00 에 시작해 다음 날 01:00 에 끝난다")
 	void serviceHours() {
 		// when
 		V2MetaResponse meta = service.meta();
 
 		// then
-		assertThat(meta.serviceHours()).isEqualTo(new ServiceHours("11:00", "02:00", true));
+		assertThat(meta.serviceHours()).isEqualTo(new ServiceHours("11:00", "01:00", true));
 	}
 
 	@Test

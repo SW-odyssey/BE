@@ -3,10 +3,10 @@ package com.odyssey.cell;
 import java.time.LocalTime;
 
 public enum TimeSlot {
-	LUNCH(11, 14),
-	AFTERNOON(14, 18),
-	DINNER(18, 22),
-	LATE_NIGHT(22, 2);
+	LUNCH(11, 13),
+	AFTERNOON(14, 17),
+	DINNER(18, 21),
+	LATE_NIGHT(22, 1);
 
 	private final int startHour;
 	private final int endHourExclusive;

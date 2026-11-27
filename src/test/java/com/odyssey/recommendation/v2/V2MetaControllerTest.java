@@ -43,9 +43,9 @@ class V2MetaControllerTest {
 			datasets.isEmpty() ? null : datasets.get(0).id(),
 			List.of(new AreaOption(Area.MYEONGDONG, "명동", 37.5636, 126.9826)),
 			List.of(
-				new SlotWindow(TimeSlot.DINNER, "18:00", "22:00", false),
-				new SlotWindow(TimeSlot.LATE_NIGHT, "22:00", "02:00", true)),
-			new ServiceHours("11:00", "02:00", true));
+				new SlotWindow(TimeSlot.DINNER, "18:00", "21:00", false),
+				new SlotWindow(TimeSlot.LATE_NIGHT, "22:00", "01:00", true)),
+			new ServiceHours("11:00", "01:00", true));
 	}
 
 	@Test
@@ -70,10 +70,10 @@ class V2MetaControllerTest {
 			.andExpect(jsonPath("$.data.areas[0].centerLng").value(126.9826))
 			.andExpect(jsonPath("$.data.slotWindows[1].slot").value("late_night"))
 			.andExpect(jsonPath("$.data.slotWindows[1].from").value("22:00"))
-			.andExpect(jsonPath("$.data.slotWindows[1].toExclusive").value("02:00"))
+			.andExpect(jsonPath("$.data.slotWindows[1].toExclusive").value("01:00"))
 			.andExpect(jsonPath("$.data.slotWindows[1].endsNextDay").value(true))
 			.andExpect(jsonPath("$.data.serviceHours.from").value("11:00"))
-			.andExpect(jsonPath("$.data.serviceHours.toExclusive").value("02:00"))
+			.andExpect(jsonPath("$.data.serviceHours.toExclusive").value("01:00"))
 			.andExpect(jsonPath("$.data.serviceHours.endsNextDay").value(true))
 			.andExpect(jsonPath("$.error").hasJsonPath())
 			.andExpect(jsonPath("$.error").isEmpty());
