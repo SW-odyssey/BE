@@ -12,9 +12,10 @@ final class V2ApiDocs {
 		+ "배치를 새로 올리면 바뀌는 값이라 코드에 적어 두지 마세요.";
 	static final String DATASET_ID_EXAMPLE = "2025-12-f79ec9a78f73";
 
-	static final String WEEKDAY = "요일. mon=월, tue=화, wed=수, thu=목, fri=금, sat=토, sun=일.";
-	static final String SLOT = "시간대. lunch=11~13시, afternoon=14~17시, dinner=18~21시, "
-		+ "late_night=22~01시.";
+	static final String WEEKDAY = "요일. mon=월, tue=화, wed=수, thu=목, fri=금, sat=토, sun=일. "
+		+ "00:00부터 00:59까지는 직전 날의 심야로 보므로 토요일 00:30은 fri 입니다.";
+	static final String SLOT = "시간대. lunch=11:00-13:00, afternoon=14:00-17:00, dinner=18:00-21:00, "
+		+ "late_night=22:00-01:00(다음 날). 끝 시각은 포함하지 않으며 시간대 사이의 시각에는 추천 데이터가 없습니다.";
 
 	static final String INVALID_INPUT_EXAMPLE = """
 		{"success":false,"data":null,"error":{"code":"INVALID_INPUT",
